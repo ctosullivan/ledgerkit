@@ -625,5 +625,115 @@ class TestParseStringLenient(unittest.TestCase):
         self.assertEqual(len(good), 1)
 
 
+class TestSourceSpanAndRawText(unittest.TestCase):
+    """Tests for SourceSpan, raw_text, and inline_comment populated by parse_string."""
+
+    FIXTURE = pathlib.Path(__file__).parent.parent / "fixtures" / "sample.journal"
+
+    def test_source_span_populated_for_all_transactions(self):
+        j = parse_string(self.FIXTURE.read_text(encoding="utf-8"))
+        for txn in j.transactions:
+            self.assertIsNotNone(txn.source_span, f"source_span None for {txn.description!r}")
+
+    def test_source_span_start_and_end(self):
+        j = parse_string(self.FIXTURE.read_text(encoding="utf-8"))
+        txns = j.transactions
+        # sample.journal: first txn is on lines 4-6
+        self.assertEqual(txns[0].source_span.start_line, 4)
+        self.assertEqual(txns[0].source_span.end_line, 6)
+        # last txn (Coffee shop) is on lines 20-23
+        self.assertEqual(txns[4].source_span.start_line, 20)
+        self.assertEqual(txns[4].source_span.end_line, 23)
+
+    def test_source_span_file_default(self):
+        j = parse_string("2024-01-01 Test\n    a  £1\n    b  -£1\n")
+        self.assertEqual(j.transactions[0].source_span.file, "(string)")
+
+    def test_source_file_param(self):
+        j = parse_string(
+            "2024-01-01 Test\n    a  £1\n    b  -£1\n",
+            source_file="/abs/path/to/myfile.journal",
+        )
+        self.assertEqual(j.transactions[0].source_span.file, "/abs/path/to/myfile.journal")
+
+    def test_raw_text_populated(self):
+        j = parse_string(self.FIXTURE.read_text(encoding="utf-8"))
+        for txn in j.transactions:
+            self.assertIsNotNone(txn.raw_text)
+            self.assertTrue(txn.raw_text.endswith("\n"))
+
+    def test_raw_text_starts_with_date(self):
+        j = parse_string(self.FIXTURE.read_text(encoding="utf-8"))
+        for txn in j.transactions:
+            self.assertTrue(
+                txn.raw_text.startswith(str(txn.date)),
+                f"raw_text should start with date for {txn.description!r}",
+            )
+
+    def test_raw_text_roundtrip(self):
+        """Each raw_text block should be re-parseable as a standalone transaction."""
+        j = parse_string(self.FIXTURE.read_text(encoding="utf-8"))
+        for txn in j.transactions:
+            j2 = parse_string(txn.raw_text)
+            self.assertEqual(len(j2.transactions), 1)
+            self.assertEqual(j2.transactions[0].date, txn.date)
+            self.assertEqual(j2.transactions[0].description, txn.description)
+
+    def test_inline_comment_on_transaction(self):
+        text = "2024-01-01 Coffee shop  ; business meeting\n    a  £5\n    b  -£5\n"
+        j = parse_string(text)
+        self.assertEqual(j.transactions[0].inline_comment, "business meeting")
+
+    def test_inline_comment_on_transaction_none_when_absent(self):
+        text = "2024-01-01 Coffee shop\n    a  £5\n    b  -£5\n"
+        j = parse_string(text)
+        self.assertIsNone(j.transactions[0].inline_comment)
+
+    def test_inline_comment_on_posting(self):
+        text = "2024-01-01 Test\n    assets:bank  £100.00  ; my note\n    equity  -£100.00\n"
+        j = parse_string(text)
+        self.assertEqual(j.transactions[0].postings[0].inline_comment, "my note")
+
+    def test_inline_comment_on_posting_none_when_absent(self):
+        text = "2024-01-01 Test\n    assets:bank  £100.00\n    equity  -£100.00\n"
+        j = parse_string(text)
+        self.assertIsNone(j.transactions[0].postings[0].inline_comment)
+
+    def test_standalone_comment_before_first_posting(self):
+        """A ';' comment line before any posting attaches to the transaction."""
+        text = (
+            "2024-01-01 Test\n"
+            "    ; standalone note\n"
+            "    assets:bank  £100.00\n"
+            "    equity  -£100.00\n"
+        )
+        j = parse_string(text)
+        self.assertEqual(j.transactions[0].inline_comment, "standalone note")
+
+    def test_standalone_comment_after_posting(self):
+        """A ';' comment line after a posting attaches to that posting."""
+        text = (
+            "2024-01-01 Test\n"
+            "    assets:bank  £100.00\n"
+            "    ; posting note\n"
+            "    equity  -£100.00\n"
+        )
+        j = parse_string(text)
+        self.assertEqual(j.transactions[0].postings[0].inline_comment, "posting note")
+
+    def test_source_span_end_covers_comment_lines(self):
+        """Standalone comment lines inside a transaction block extend end_line."""
+        text = (
+            "2024-01-01 Test\n"
+            "    assets:bank  £100.00\n"
+            "    ; a note\n"
+            "    equity  -£100.00\n"
+        )
+        j = parse_string(text)
+        span = j.transactions[0].source_span
+        self.assertEqual(span.start_line, 1)
+        self.assertEqual(span.end_line, 4)
+
+
 if __name__ == "__main__":
     unittest.main()

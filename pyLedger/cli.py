@@ -255,25 +255,30 @@ def main(argv: list[str] | None = None) -> int:
                 # result: dict[str, dict[str, Decimal]] — account → commodity → net
 
                 # Flatten to (account, commodity, qty) rows; sorted alphabetically.
+                # Zero-balance commodity lines are omitted (matching hledger behaviour).
                 lines: list[tuple[str, str, Decimal]] = [
                     (acct, comm, qty)
                     for acct in sorted(result)
                     for comm, qty in sorted(result[acct].items())
+                    if qty != 0
                 ]
 
                 if not lines:
                     pass
                 else:
-                    # Per-commodity grand totals.
+                    # Per-commodity grand totals (from filtered lines only).
                     commodity_totals: dict[str, Decimal] = {}
                     for _, comm, qty in lines:
                         commodity_totals[comm] = commodity_totals.get(comm, Decimal(0)) + qty
 
                     formatted_amts = [_fmt_amount(qty, comm) for _, comm, qty in lines]
-                    total_strs = [
-                        ("0" if qty == 0 else _fmt_amount(qty, comm))
+                    # Only show non-zero commodity totals; a single bare "0" when all net zero.
+                    nonzero_totals = [
+                        (comm, qty)
                         for comm, qty in sorted(commodity_totals.items())
+                        if qty != 0
                     ]
+                    total_strs = [_fmt_amount(qty, comm) for comm, qty in nonzero_totals]
                     col_w = max(
                         20,
                         *(len(s) for s in formatted_amts),
@@ -298,13 +303,14 @@ def main(argv: list[str] | None = None) -> int:
                             print(padded)
 
                     print("-" * col_w)
-                    for total_str, (comm, total) in zip(
-                        total_strs, sorted(commodity_totals.items())
-                    ):
-                        tot = f"{total_str:>{col_w}}"
-                        if total < 0:
-                            tot = f"{_ANSI_RED}{tot}{_ANSI_RESET}"
-                        print(tot)
+                    if nonzero_totals:
+                        for (comm, total), tot_str in zip(nonzero_totals, total_strs):
+                            tot = f"{tot_str:>{col_w}}"
+                            if total < 0:
+                                tot = f"{_ANSI_RED}{tot}{_ANSI_RESET}"
+                            print(tot)
+                    else:
+                        print(f"{'0':>{col_w}}")
 
             elif args.command == "register":
                 rows = reports.register(journal)
@@ -337,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
                     print(name)
 
             elif args.command == "print":
-                for txn in journal.transactions:
+                for txn in sorted(journal.transactions, key=lambda t: t.date):
                     flag = " * " if txn.cleared else " ! " if txn.pending else " "
                     print(f"{txn.date}{flag}{txn.description}")
                     for posting in txn.postings:

@@ -90,6 +90,16 @@ def check_autobalanced(journal: Journal) -> list[CheckError]:
     return errors
 
 
+def check_transaction_autobalanced(txn: Transaction) -> list[CheckError]:
+    """Run the autobalanced check on a single Transaction.
+
+    Returns [] if balanced or if the transaction has exactly one elided posting.
+    Returns a list containing one CheckError per unbalanced commodity otherwise.
+    Does not raise.
+    """
+    return _check_txn_balanced(txn)
+
+
 def _check_txn_balanced(txn: Transaction) -> list[CheckError]:
     """Return CheckError list for a single transaction."""
     elided = [p for p in txn.postings if p.amount is None]

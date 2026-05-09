@@ -127,21 +127,38 @@ Implement the `Query` filter dataclass, all four report functions, and the
 
 ---
 
-## Milestone 3 — First Release `[BACKLOG]`
+## Milestone 3 — Editor Readiness & Multi-Commodity `[DONE]`
 
-> **Scope partially confirmed. Full scope to be confirmed before starting.**
+Deliver multi-commodity balance reporting, a lenient parser for editor integrations,
+and a complete in-memory editor layer so that a TUI package can load, mutate, and
+save journal files without reaching into PyLedger internals.
 
-Package the project for distribution and establish a baseline release. Also completes
-deferred items from Milestone 2.
+**Completed scope:**
+- `parse_string_lenient` — never-raises parser; returns `(Journal, list[ParseError])` ✅
+- `CheckError.line_number` — 1-based source line on every check error ✅
+- `balance()` returns `dict[str, dict[str, Decimal]]` (multi-commodity per account) ✅
+- `balance(tree=True)` returns `list[BalanceRow]` with implicit parent aggregation ✅
+- `resolve_elision()` public — N-commodity elided posting generates N inferred postings ✅
+- `BalanceRow` dataclass in `models.py` ✅
+- `SourceSpan` dataclass; `Transaction.source_span`, `raw_text`, `inline_comment` ✅
+- `Posting.inline_comment` — inline `;` comment captured at parse time ✅
+- `source_file` parameter on `parse_string` and `parse_string_lenient` ✅
+- `check_transaction_autobalanced(txn)` — per-transaction validation without full journal ✅
+- `writer.py` — `transaction_to_text`, `journal_to_text` ✅
+- `editor_model.py` — `EditorDocument` (load / add / update / delete / save / reload / validate) ✅
+- 461 tests across nine test modules ✅
 
-**Candidate scope (to confirm):**
+**Deferred to future milestones:**
 - CLI filter flags (`--account`, `--date`, `--payee`) wired to `Query`
 - Journal-comment `ReportSpec` parsing (`; report` / `; end report` syntax)
-- Full `stats` query support (account-level filters)
-- **Limited multi-commodity support** — `balance` and `register` show multiple
-  commodities per account rather than assuming a single commodity ✓ confirmed
-- `pip install -e .` installs cleanly; `PyLedger --help` works
-- `README.md` and `docs/` updated with real usage examples
+- Full `stats` query support (account-level filters on `account_count` / `account_depth`)
+- `pip install` packaging and `README.md` / `docs/` update with real usage examples
+
+**Exit criteria met:**
+- `python -m unittest discover -s tests -t . -v` — all 461 tests pass ✅
+- `python -c "from PyLedger import writer, editor_model"` succeeds ✅
+- `EditorDocument('tests/fixtures/sample.journal')` loads with `dirty=False`, 5 transactions ✅
+- Round-trip smoke test: `journal_to_text` output re-parses to same transaction count ✅
 
 ---
 
@@ -151,7 +168,11 @@ Items not scheduled for a milestone yet. Promote to a milestone when prioritised
 
 | Item | Notes |
 |---|---|
-| Multiple commodities per journal | Currently assumed single-commodity per transaction |
+| CLI filter flags (`--account`, `--date`, `--payee`) | Wire `Query` to CLI argument parser; deferred from Milestone 3 |
+| Journal-comment `ReportSpec` parsing | `; report` / `; end report` block syntax; deferred from Milestone 3 |
+| Full `stats` query support | Account-level filters on `account_count` / `account_depth`; deferred from Milestone 3 |
+| `pip install` packaging & docs | `pip install -e .` smoke test; `README.md` and `docs/` real usage examples; deferred from Milestone 3 |
+| `EditorDocument` include-directive support | Currently include directives are silently ignored; needs multi-file span tracking |
 | Account type inference | Infer assets/liabilities/income/expenses from name prefix |
 | Periodic/auto postings | Out of scope for v1 |
 | Secondary dates | `2024-01-15=2024-01-20` |

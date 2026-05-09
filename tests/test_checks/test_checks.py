@@ -23,6 +23,7 @@ from PyLedger.checks import (
     check_payees,
     check_ordereddates,
     check_uniqueleafnames,
+    check_transaction_autobalanced,
     run_basic_checks,
     run_strict_checks,
     run_checks,
@@ -869,6 +870,41 @@ class TestCheckErrorLineNumber(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         # line_number should be set (non-None)
         self.assertIsNotNone(errors[0].line_number)
+
+
+class TestCheckTransactionAutobalanced(unittest.TestCase):
+    """Tests for check_transaction_autobalanced (per-transaction validation)."""
+
+    def _make_txn(self, postings):
+        return Transaction(
+            date=datetime.date(2024, 1, 1),
+            description="Test",
+            postings=postings,
+        )
+
+    def test_balanced_returns_empty(self):
+        txn = self._make_txn([
+            Posting(account="assets:bank", amount=Amount(Decimal("100"), "£")),
+            Posting(account="expenses:food", amount=Amount(Decimal("-100"), "£")),
+        ])
+        self.assertEqual(check_transaction_autobalanced(txn), [])
+
+    def test_unbalanced_returns_error(self):
+        txn = self._make_txn([
+            Posting(account="assets:bank", amount=Amount(Decimal("100"), "£")),
+            Posting(account="expenses:food", amount=Amount(Decimal("-50"), "£")),
+        ])
+        errors = check_transaction_autobalanced(txn)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].check_name, "autobalanced")
+        self.assertIn("not balanced", errors[0].message)
+
+    def test_elided_posting_returns_empty(self):
+        txn = self._make_txn([
+            Posting(account="assets:bank", amount=Amount(Decimal("100"), "£")),
+            Posting(account="expenses:food"),  # elided — always considered balanced
+        ])
+        self.assertEqual(check_transaction_autobalanced(txn), [])
 
 
 if __name__ == "__main__":

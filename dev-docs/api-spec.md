@@ -556,6 +556,129 @@ def run_checks(
     """
 ```
 
+### `check_transaction_autobalanced` `[NEW — Editor Readiness]`
+
+```python
+def check_transaction_autobalanced(txn: Transaction) -> list[CheckError]:
+    """Run the autobalanced check on a single Transaction.
+
+    Returns [] if balanced or if the transaction has exactly one elided posting.
+    Returns a list containing one CheckError per unbalanced commodity otherwise.
+    Does not raise.
+    """
+```
+
+Re-exported from `PyLedger.__init__` as `PyLedger.check_transaction_autobalanced`.
+
+---
+
+## `PyLedger/writer.py` `[NEW — Editor Readiness]`
+
+### `transaction_to_text`
+
+```python
+def transaction_to_text(txn: Transaction) -> str:
+    """Serialise a Transaction to a journal-format string.
+
+    The returned string ends with a single newline. When parsed by
+    parse_string(), the result round-trips to an equivalent Transaction
+    (same date, flag, description, postings, amounts, comments;
+    source_span and raw_text are not checked).
+
+    Formatting rules:
+    - Date as YYYY-MM-DD.
+    - Status flag (* or !) included if set.
+    - Code in parentheses if set.
+    - Transaction.inline_comment appended after '  ;' if not None.
+    - Each posting indented with four spaces.
+    - Amounts right-aligned at a consistent column (decimal points line up).
+    - Elided posting (no amount) serialised as indented account name only.
+    - Posting.inline_comment appended after '  ;' if not None.
+    """
+```
+
+Re-exported from `PyLedger.__init__` as `PyLedger.transaction_to_text`.
+
+### `journal_to_text`
+
+```python
+def journal_to_text(journal: Journal) -> str:
+    """Serialise all transactions in journal.transactions to text.
+
+    Transactions are separated by blank lines; the output ends with a single
+    newline. Directives (account, commodity, payee, P) are not serialised in v1.
+    """
+```
+
+Re-exported from `PyLedger.__init__` as `PyLedger.journal_to_text`.
+
+---
+
+## `PyLedger/editor_model.py` `[NEW — Editor Readiness]`
+
+### `EditorDocument`
+
+```python
+class EditorDocument:
+    """An in-memory editable representation of a journal file.
+
+    Attributes:
+        path:    Resolved absolute path to the journal file.
+        journal: Parsed Journal with all transactions (source_span populated).
+        lines:   Current file content as a list of strings, one per line,
+                 without newline characters.
+        dirty:   True when lines differ from the last saved/loaded content.
+    """
+
+    def __init__(self, path: str) -> None:
+        """Load the journal at path; populate journal and lines."""
+
+    def add_transaction(self, txn: Transaction) -> None:
+        """Insert txn into self.lines in chronological order."""
+
+    def update_transaction(self, original: Transaction, updated: Transaction) -> None:
+        """Replace the source lines of original with the serialised form of updated."""
+
+    def delete_transaction(self, txn: Transaction) -> None:
+        """Remove the source lines of txn and any immediately following blank line."""
+
+    def save(self) -> None:
+        """Write self.lines to self.path; set dirty=False."""
+
+    def reload(self) -> None:
+        """Re-read self.path from disk and re-parse."""
+
+    def validate_transaction(self, txn: Transaction) -> list[CheckError]:
+        """Run the autobalanced check on txn alone. Does not raise."""
+```
+
+V1 limitation: include directives in the edited file are silently ignored; the file
+is parsed as-is via `parse_string()`. Use `loader.load_journal()` when full include
+support is required (source_span values will reference merged-text line numbers in
+that case).
+
+Re-exported from `PyLedger.__init__` as `PyLedger.EditorDocument`.
+
+---
+
+## `PyLedger/models.py` — `SourceSpan` `[NEW — Editor Readiness]`
+
+```python
+@dataclass
+class SourceSpan:
+    """Source location of a parsed transaction block."""
+    file: str        # absolute path, "(string)", or "(stdin)"
+    start_line: int  # 1-indexed, inclusive — transaction header line
+    end_line: int    # 1-indexed, inclusive — last posting/comment line
+```
+
+Attached to `Transaction.source_span` by the parser. Also available as
+`Transaction.raw_text` (verbatim source lines) and `Transaction.inline_comment`
+(`str | None`). `Posting.inline_comment` (`str | None`) captures the text after `;`
+on a posting line.
+
+Re-exported from `PyLedger.__init__` as `PyLedger.SourceSpan`.
+
 ---
 
 ## `PyLedger/reports.py`

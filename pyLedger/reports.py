@@ -253,7 +253,7 @@ def register(
     """
     rows: list[RegisterRow] = []
     running: Decimal = Decimal(0)
-    for txn in journal.transactions:
+    for txn in sorted(journal.transactions, key=lambda t: t.date):
         for posting in resolve_elision(txn):
             if not _posting_matches(posting, txn, query):
                 continue

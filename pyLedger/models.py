@@ -45,6 +45,19 @@ class BalanceAssertion:
 
 
 @dataclass
+class SourceSpan:
+    """Source location of a parsed transaction block.
+
+    Stores the file path and inclusive line range so that editor tools can
+    locate, update, or delete a transaction in the original source file.
+    """
+
+    file: str        # absolute path, "(string)", or "(stdin)"
+    start_line: int  # 1-indexed, inclusive — the transaction header line
+    end_line: int    # 1-indexed, inclusive — last posting/comment line in block
+
+
+@dataclass
 class Posting:
     """One line within a transaction: an account name and an optional amount.
 
@@ -57,6 +70,7 @@ class Posting:
     balance_assertion: BalanceAssertion | None = field(default=None)
     source_line: int | None = field(default=None, repr=False)
     inferred: bool = field(default=False, repr=False)
+    inline_comment: str | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass
@@ -69,8 +83,11 @@ class Transaction:
     cleared: bool = False    # True when marked with "*"
     pending: bool = False    # True when marked with "!"
     code: str = ""           # Optional code in parentheses before description
-    comment: str = ""        # Inline or trailing comment text
+    comment: str = ""        # Inline or trailing comment text (kept for backward compat)
     source_line: int | None = field(default=None, repr=False)
+    source_span: SourceSpan | None = field(default=None, repr=False, compare=False)
+    raw_text: str | None = field(default=None, repr=False, compare=False)
+    inline_comment: str | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass

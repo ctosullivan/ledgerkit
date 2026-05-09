@@ -11,7 +11,7 @@ import datetime
 import re
 from decimal import Decimal, InvalidOperation
 
-from PyLedger.models import Amount, BalanceAssertion, Journal, Posting, PriceDirective, Transaction
+from PyLedger.models import Amount, BalanceAssertion, Journal, Posting, PriceDirective, SourceSpan, Transaction
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +293,7 @@ def _parse_txn_header(line: str, lineno: int, default_year: int) -> Transaction:
     date_str, flag, code, description, comment = m.groups()
     date = _parse_simple_date(date_str, lineno, default_year)
 
+    comment_text = (comment or "").strip()
     return Transaction(
         date=date,
         description=(description or "").strip(),
@@ -300,8 +301,9 @@ def _parse_txn_header(line: str, lineno: int, default_year: int) -> Transaction:
         cleared=(flag == "*"),
         pending=(flag == "!"),
         code=(code or "").strip(),
-        comment=(comment or "").strip(),
+        comment=comment_text,
         source_line=lineno,
+        inline_comment=comment_text or None,
     )
 
 
@@ -471,18 +473,20 @@ def _parse_posting(line: str, lineno: int, decimal_mark: str = ".") -> Posting:
     if not account:
         raise ParseError("posting has no account name", lineno)
 
-    # Strip inline comment from the amount portion
+    # Strip inline comment from the amount portion and capture it
     amount_raw = ""
+    posting_inline_comment: str | None = None
     if len(parts) > 1:
         amount_part = parts[1]
-        # Remove trailing ; comment
+        # Remove trailing ; comment and capture the text
         comment_idx = amount_part.find(";")
         if comment_idx != -1:
+            posting_inline_comment = amount_part[comment_idx + 1:].strip() or None
             amount_part = amount_part[:comment_idx]
         amount_raw = amount_part.strip()
 
     if not amount_raw:
-        return Posting(account=account, amount=None, source_line=lineno)
+        return Posting(account=account, amount=None, source_line=lineno, inline_comment=posting_inline_comment)
 
     # Detect a balance assertion marker (=, ==, =*, ==*) in the amount token.
     # If found, split into posting amount and assertion amount.
@@ -506,6 +510,7 @@ def _parse_posting(line: str, lineno: int, decimal_mark: str = ".") -> Posting:
             amount=None,
             balance_assertion=assertion,
             source_line=lineno,
+            inline_comment=posting_inline_comment,
         )
 
     return Posting(
@@ -513,6 +518,7 @@ def _parse_posting(line: str, lineno: int, decimal_mark: str = ".") -> Posting:
         amount=_parse_amount(amount_raw, lineno, decimal_mark),
         balance_assertion=assertion,
         source_line=lineno,
+        inline_comment=posting_inline_comment,
     )
 
 
@@ -633,10 +639,23 @@ def resolve_elision(txn: Transaction) -> list[Posting]:
     return result
 
 
+def _flush_txn(
+    txn: Transaction,
+    end: int,
+    all_lines: list[str],
+    source_file: str,
+) -> None:
+    """Attach SourceSpan and raw_text to a transaction that is about to be finalised."""
+    start = txn.source_line or 1
+    txn.source_span = SourceSpan(file=source_file, start_line=start, end_line=end)
+    txn.raw_text = "\n".join(all_lines[start - 1 : end]) + "\n"
+
+
 def _parse_string_impl(
     text: str,
     default_year: int,
     errors_out: list[ParseError] | None,
+    source_file: str = "(string)",
 ) -> Journal:
     """Shared body for parse_string and parse_string_lenient.
 
@@ -644,6 +663,7 @@ def _parse_string_impl(
     When errors_out is a list, appends errors and continues parsing; malformed
     transactions are discarded and parsing resumes at the next boundary.
     """
+    all_lines = text.splitlines()
     transactions: list[Transaction] = []
     prices: list[PriceDirective] = []
     declared_accounts: list[str] = []
@@ -653,11 +673,13 @@ def _parse_string_impl(
     aliases: list[tuple[str, str, bool]] = []  # (old_or_pattern, replacement, is_regex)
     decimal_mark: str = "."  # updated by decimal-mark directive
     current_txn: Transaction | None = None
+    current_txn_last_lineno: int | None = None  # tracks end_line for source_span
+    last_posting_in_txn: Posting | None = None  # for standalone comment attribution
     in_block_comment = False
     in_subdirective = False  # True while consuming indented subdirective lines
     skip_until_blank = False  # lenient mode: True while skipping a malformed transaction
 
-    for lineno, raw in enumerate(text.splitlines(), start=1):
+    for lineno, raw in enumerate(all_lines, start=1):
         line = raw.rstrip()
 
         # --- Block comment mode ---
@@ -702,8 +724,12 @@ def _parse_string_impl(
         # --- Blank line: end the current block ---
         if not line.strip():
             if current_txn is not None:
+                end = current_txn_last_lineno or (current_txn.source_line or 1)
+                _flush_txn(current_txn, end, all_lines, source_file)
                 transactions.append(current_txn)
                 current_txn = None
+                current_txn_last_lineno = None
+                last_posting_in_txn = None
             in_subdirective = False
             continue
 
@@ -713,8 +739,28 @@ def _parse_string_impl(
         # whole-line comments ("# note") and indented follow-on comment lines
         # ("    ; posting note") are caught here, before the posting-line
         # branch below.
+        #
+        # When inside an open transaction block, `;`-led comment lines are
+        # included in the span (for raw_text) and their text is attached to
+        # the preceding posting's inline_comment (or to the transaction's
+        # inline_comment if no posting has been seen yet in this block).
+        # `#`-led comment lines update the span but do not attach their text.
         stripped = line.lstrip()
         if stripped.startswith(";") or stripped.startswith("#"):
+            if current_txn is not None:
+                current_txn_last_lineno = lineno
+                if stripped.startswith(";"):
+                    comment_text = stripped[1:].strip()
+                    if last_posting_in_txn is None:
+                        if current_txn.inline_comment:
+                            current_txn.inline_comment += "\n" + comment_text
+                        else:
+                            current_txn.inline_comment = comment_text or None
+                    else:
+                        if last_posting_in_txn.inline_comment:
+                            last_posting_in_txn.inline_comment += "\n" + comment_text
+                        else:
+                            last_posting_in_txn.inline_comment = comment_text or None
             continue
 
         # --- Transaction header (non-indented line starting with a simple date) ---
@@ -741,10 +787,15 @@ def _parse_string_impl(
         if re.match(r"^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(]|$)", line):
             if current_txn is not None:
                 # No blank line between transactions — flush previous block
+                end = current_txn_last_lineno or (current_txn.source_line or 1)
+                _flush_txn(current_txn, end, all_lines, source_file)
                 transactions.append(current_txn)
             in_subdirective = False
+            current_txn_last_lineno = None
+            last_posting_in_txn = None
             try:
                 current_txn = _parse_txn_header(line, lineno, default_year)
+                current_txn_last_lineno = lineno
             except ParseError as _err:
                 if errors_out is None:
                     raise
@@ -1013,13 +1064,17 @@ def _parse_string_impl(
                     raise
                 errors_out.append(_err)
                 current_txn = None
+                current_txn_last_lineno = None
+                last_posting_in_txn = None
                 skip_until_blank = True
                 continue
             if aliases:
                 posting = Posting(
                     account=_apply_aliases(posting.account, aliases),
                     amount=posting.amount,
+                    balance_assertion=posting.balance_assertion,
                     source_line=posting.source_line,
+                    inline_comment=posting.inline_comment,
                 )
             # Enforce at-most-one elided amount per block
             if posting.amount is None:
@@ -1032,15 +1087,21 @@ def _parse_string_impl(
                         raise _err
                     errors_out.append(_err)
                     current_txn = None
+                    current_txn_last_lineno = None
+                    last_posting_in_txn = None
                     skip_until_blank = True
                     continue
             current_txn.postings.append(posting)
+            current_txn_last_lineno = lineno
+            last_posting_in_txn = posting
             continue
 
         # --- Any other line outside a transaction block: silently skip ---
 
     # Flush final block if file ends without a trailing blank line
     if current_txn is not None:
+        end = current_txn_last_lineno or (current_txn.source_line or 1)
+        _flush_txn(current_txn, end, all_lines, source_file)
         transactions.append(current_txn)
 
     return Journal(
@@ -1053,7 +1114,11 @@ def _parse_string_impl(
     )
 
 
-def parse_string(text: str, default_year: int | None = None) -> Journal:
+def parse_string(
+    text: str,
+    default_year: int | None = None,
+    source_file: str = "(string)",
+) -> Journal:
     """Parse a journal from a string and return a Journal object.
 
     Accepted date formats: YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD, and year-omitted
@@ -1061,17 +1126,21 @@ def parse_string(text: str, default_year: int | None = None) -> Journal:
     When the year is omitted, default_year is used (defaults to the current
     calendar year when None).
 
+    source_file is stored in every Transaction.source_span.file. Defaults to
+    "(string)" for direct callers; loader.py passes the resolved absolute path.
+
     Raises:
         ParseError: if the input is not valid hledger journal syntax.
     """
     if default_year is None:
         default_year = datetime.date.today().year
-    return _parse_string_impl(text, default_year, errors_out=None)
+    return _parse_string_impl(text, default_year, errors_out=None, source_file=source_file)
 
 
 def parse_string_lenient(
     text: str,
     default_year: int | None = None,
+    source_file: str = "(string)",
 ) -> tuple[Journal, list[ParseError]]:
     """Parse a journal leniently, collecting errors instead of raising.
 
@@ -1095,7 +1164,7 @@ def parse_string_lenient(
     if default_year is None:
         default_year = datetime.date.today().year
     errors: list[ParseError] = []
-    journal = _parse_string_impl(text, default_year, errors_out=errors)
+    journal = _parse_string_impl(text, default_year, errors_out=errors, source_file=source_file)
     return journal, errors
 
 

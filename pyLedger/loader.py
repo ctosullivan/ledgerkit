@@ -291,7 +291,7 @@ def load_journal(path: str | os.PathLike) -> Journal:
     included_count = len({src for src, _ in line_map if src != abs_path})
 
     try:
-        journal = parse_string(expanded)
+        journal = parse_string(expanded, source_file=str(abs_path))
     except ParseError as exc:
         if exc.line_number is not None and 1 <= exc.line_number <= len(line_map):
             orig_file, orig_lineno = line_map[exc.line_number - 1]
