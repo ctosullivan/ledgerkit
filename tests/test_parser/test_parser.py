@@ -735,5 +735,354 @@ class TestSourceSpanAndRawText(unittest.TestCase):
         self.assertEqual(span.end_line, 4)
 
 
+class TestCommentSpec(unittest.TestCase):
+    """Comprehensive tests for the full hledger comment specification.
+
+    Three comment forms are defined:
+      1. Standalone line comments  — lines beginning with '#' or ';'
+      2. Block comments            — comment … end comment regions
+      3. Same-line inline comments — ';' to end of line on an entry
+
+    Key invariant tested here: column-0 '#'/'#' lines are ALWAYS top-level
+    comments and must never be captured as follow-on posting/transaction comments,
+    even when no blank line separates them from an open transaction block.
+    Indented ';' lines inside a transaction ARE follow-on comments (captured).
+    """
+
+    # ------------------------------------------------------------------ #
+    # T-series: standalone top-level comment lines                        #
+    # ------------------------------------------------------------------ #
+
+    def test_T03_hash_between_txns_blank_separated(self):
+        """'#' between two blank-separated transactions is ignored."""
+        j = parse_string(
+            "2024-01-01 First\n"
+            "    a  £10\n"
+            "    b  -£10\n"
+            "\n"
+            "# top-level comment\n"
+            "\n"
+            "2024-01-02 Second\n"
+            "    a  £20\n"
+            "    b  -£20\n"
+        )
+        self.assertEqual(len(j.transactions), 2)
+        self.assertIsNone(j.transactions[0].postings[-1].inline_comment)
+        self.assertIsNone(j.transactions[1].inline_comment)
+
+    def test_T04_semicolon_between_txns_blank_separated(self):
+        """';' between two blank-separated transactions is ignored."""
+        j = parse_string(
+            "2024-01-01 First\n"
+            "    a  £10\n"
+            "    b  -£10\n"
+            "\n"
+            "; top-level comment\n"
+            "\n"
+            "2024-01-02 Second\n"
+            "    a  £20\n"
+            "    b  -£20\n"
+        )
+        self.assertEqual(len(j.transactions), 2)
+        self.assertIsNone(j.transactions[0].postings[-1].inline_comment)
+        self.assertIsNone(j.transactions[1].inline_comment)
+
+    def test_T05_hash_between_txns_no_blank_line(self):
+        """Column-0 '#' with no blank line between transactions must NOT bleed
+        into the previous transaction's posting comment."""
+        j = parse_string(
+            "2024-01-01 First\n"
+            "    a  £10\n"
+            "    b  -£10\n"
+            "# top-level comment — no blank line before or after\n"
+            "2024-01-02 Second\n"
+            "    a  £20\n"
+            "    b  -£20\n"
+        )
+        self.assertEqual(len(j.transactions), 2)
+        self.assertIsNone(j.transactions[0].postings[-1].inline_comment)
+
+    def test_T06_semicolon_between_txns_no_blank_line(self):
+        """Column-0 ';' with no blank line must NOT be captured as a posting comment."""
+        j = parse_string(
+            "2024-01-01 First\n"
+            "    a  £10\n"
+            "    b  -£10\n"
+            "; top-level comment — no blank line\n"
+            "2024-01-02 Second\n"
+            "    a  £20\n"
+            "    b  -£20\n"
+        )
+        self.assertEqual(len(j.transactions), 2)
+        self.assertIsNone(j.transactions[0].postings[-1].inline_comment)
+
+    def test_T07_multiple_consecutive_hash_lines(self):
+        """Multiple consecutive '#' lines before a transaction are all ignored."""
+        j = parse_string(
+            "# line one\n"
+            "# line two\n"
+            "# line three\n"
+            "2024-01-01 Txn\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+        )
+        self.assertEqual(len(j.transactions), 1)
+        self.assertIsNone(j.transactions[0].inline_comment)
+
+    def test_T08_multiple_consecutive_semicolon_lines(self):
+        """Multiple consecutive ';' lines before a transaction are all ignored."""
+        j = parse_string(
+            "; line one\n"
+            "; line two\n"
+            "; line three\n"
+            "2024-01-01 Txn\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+        )
+        self.assertEqual(len(j.transactions), 1)
+        self.assertIsNone(j.transactions[0].inline_comment)
+
+    def test_T09_bare_semicolon_at_top_level(self):
+        """A bare ';' with no text after it at top level causes no error."""
+        j = parse_string(
+            ";\n"
+            "2024-01-01 Txn\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+        )
+        self.assertEqual(len(j.transactions), 1)
+
+    def test_T10_semicolon_after_last_txn_does_not_extend_span(self):
+        """Column-0 ';' after the last posting must NOT extend source_span.end_line."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+            "; this comment is after the transaction\n"
+        )
+        span = j.transactions[0].source_span
+        self.assertEqual(span.end_line, 3)  # last posting is line 3
+
+    # ------------------------------------------------------------------ #
+    # B-series: block comments (new cases beyond existing coverage)       #
+    # ------------------------------------------------------------------ #
+
+    def test_B05_comment_directive_with_trailing_text(self):
+        """'comment' directive may have trailing text; the block still opens."""
+        j = parse_string(
+            "2024-01-01 Before\n"
+            "    a  £10\n"
+            "    b  -£10\n"
+            "\n"
+            "comment this trailing text is ignored\n"
+            "2024-01-02 Inside — ignored\n"
+            "end comment\n"
+            "\n"
+            "2024-01-03 After\n"
+            "    a  £10\n"
+            "    b  -£10\n"
+        )
+        self.assertEqual(len(j.transactions), 2)
+        self.assertEqual(j.transactions[0].description, "Before")
+        self.assertEqual(j.transactions[1].description, "After")
+
+    def test_B06_nested_comment_keyword_inside_block(self):
+        """A 'comment' keyword inside an open block comment does not re-open it."""
+        j = parse_string(
+            "2024-01-01 Real\n"
+            "    a  £10\n"
+            "    b  -£10\n"
+            "\n"
+            "comment\n"
+            "comment this inner keyword is inside the block\n"
+            "2024-01-02 Ignored\n"
+            "    a  £99\n"
+            "end comment\n"
+            "\n"
+            "2024-01-03 Also Real\n"
+            "    a  £20\n"
+            "    b  -£20\n"
+        )
+        self.assertEqual(len(j.transactions), 2)
+
+    def test_B07_block_comment_with_transaction_like_content(self):
+        """Transaction-like lines inside a block comment are not parsed."""
+        j = parse_string(
+            "comment\n"
+            "2024-01-01 This looks like a transaction\n"
+            "    expenses:food  £99.00\n"
+            "    assets:bank  -£99.00\n"
+            "end comment\n"
+            "\n"
+            "2024-01-02 Real\n"
+            "    a  £1\n"
+            "    b  -£1\n"
+        )
+        self.assertEqual(len(j.transactions), 1)
+        self.assertEqual(j.transactions[0].description, "Real")
+
+    def test_B08_block_comment_with_directive_like_content(self):
+        """Directive-like lines inside a block comment are not parsed."""
+        j = parse_string(
+            "comment\n"
+            "account expenses:food\n"
+            "commodity £\n"
+            "end comment\n"
+            "\n"
+            "2024-01-01 Real\n"
+            "    a  £1\n"
+            "    b  -£1\n"
+        )
+        self.assertEqual(len(j.transactions), 1)
+        self.assertEqual(j.declared_accounts, [])
+        self.assertEqual(j.declared_commodities, [])
+
+    # ------------------------------------------------------------------ #
+    # I-series: same-line inline comments                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_I05_hash_in_description_is_not_inline_comment(self):
+        """'#' inside a transaction description is NOT an inline comment delimiter."""
+        j = parse_string(
+            "2024-01-01 Txn # this is not a comment\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+        )
+        self.assertIsNone(j.transactions[0].inline_comment)
+        self.assertIn("#", j.transactions[0].description)
+
+    def test_I07_account_directive_two_space_inline_comment(self):
+        """Account directive strips inline comment after two-or-more spaces + ';'."""
+        j = parse_string("account expenses:food  ; food spending\n")
+        self.assertIn("expenses:food", j.declared_accounts)
+
+    def test_I08_account_directive_single_space_semicolon_not_stripped(self):
+        """Account directive does NOT strip ';' after a single space (part of name)."""
+        j = parse_string("account expenses:food ; not stripped\n")
+        self.assertIn("expenses:food ; not stripped", j.declared_accounts)
+
+    # ------------------------------------------------------------------ #
+    # F-series: follow-on (indented) comment lines inside transactions    #
+    # ------------------------------------------------------------------ #
+
+    def test_F02_multiple_indented_semicolons_before_first_posting(self):
+        """Multiple indented ';' lines before any posting form a multi-line
+        transaction comment joined with newlines."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    ; first line\n"
+            "    ; second line\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+        )
+        self.assertEqual(j.transactions[0].inline_comment, "first line\nsecond line")
+
+    def test_F04_multiple_indented_semicolons_after_posting(self):
+        """Multiple indented ';' lines after a posting form a multi-line
+        posting comment joined with newlines."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    a  £5\n"
+            "    ; note one\n"
+            "    ; note two\n"
+            "    b  -£5\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].inline_comment, "note one\nnote two")
+
+    def test_F05_indented_bare_semicolon_gives_none(self):
+        """An indented ';' with nothing after it sets the comment field to None."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    ;\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+        )
+        self.assertIsNone(j.transactions[0].inline_comment)
+
+    def test_F06_indented_hash_inside_txn_not_captured(self):
+        """Indented '#' lines inside a transaction update the span but don't
+        attach text to any comment field."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    # a hash comment\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+        )
+        self.assertIsNone(j.transactions[0].inline_comment)
+        self.assertIsNone(j.transactions[0].postings[0].inline_comment)
+
+    def test_F07_noindent_semicolon_inside_txn_not_captured(self):
+        """Column-0 ';' inside an open transaction block must NOT be captured
+        as a transaction or posting comment."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    a  £5\n"
+            "; column-zero comment — not part of the transaction\n"
+            "    b  -£5\n"
+        )
+        self.assertIsNone(j.transactions[0].postings[0].inline_comment)
+        self.assertIsNone(j.transactions[0].inline_comment)
+
+    def test_F08_noindent_hash_inside_txn_not_captured_span_not_extended(self):
+        """Column-0 '#' inside a transaction must not extend source_span and
+        must not be captured as any comment."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    a  £5\n"
+            "# column-zero hash\n"
+            "    b  -£5\n"
+        )
+        self.assertIsNone(j.transactions[0].inline_comment)
+        span = j.transactions[0].source_span
+        # '#' is on line 3; the last posting 'b' is on line 4
+        self.assertEqual(span.end_line, 4)
+
+    def test_F09_indented_semicolon_appended_to_existing_inline_comment(self):
+        """An indented ';' follow-on line appends to an existing inline posting comment."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    a  £5  ; inline note\n"
+            "    ; follow-on note\n"
+            "    b  -£5\n"
+        )
+        self.assertEqual(
+            j.transactions[0].postings[0].inline_comment, "inline note\nfollow-on note"
+        )
+
+    # ------------------------------------------------------------------ #
+    # S-series: source span behaviour                                     #
+    # ------------------------------------------------------------------ #
+
+    def test_S02_noindent_semicolon_does_not_extend_span(self):
+        """Column-0 ';' between two postings must NOT extend source_span.end_line
+        beyond the last posting line."""
+        j = parse_string(
+            "2024-01-01 Txn\n"
+            "    a  £5\n"
+            "    b  -£5\n"
+            "; after last posting\n"
+        )
+        self.assertEqual(j.transactions[0].source_span.end_line, 3)
+
+    def test_S03_block_comment_does_not_extend_adjacent_txn_spans(self):
+        """A 'comment' block between transactions must not extend either
+        transaction's source_span."""
+        j = parse_string(
+            "2024-01-01 First\n"
+            "    a  £10\n"
+            "    b  -£10\n"
+            "\n"
+            "comment\n"
+            "ignored content\n"
+            "end comment\n"
+            "\n"
+            "2024-01-02 Second\n"
+            "    a  £20\n"
+            "    b  -£20\n"
+        )
+        self.assertEqual(j.transactions[0].source_span.end_line, 3)
+        self.assertEqual(j.transactions[1].source_span.start_line, 9)
+
+
 if __name__ == "__main__":
     unittest.main()

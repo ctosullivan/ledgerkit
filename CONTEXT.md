@@ -1,28 +1,29 @@
-# Context — 2026-05-09
+# Context — 2026-05-28
 
 ## Current Task
-Milestone 3 released as v0.5.0 — committed.
+Bugfix shipped: column-0 `;`/`#` comments inside open transaction blocks now correctly ignored.
 
 ## Where We Are
-All work committed. Next milestone scope not yet defined.
-Next: user specifies Milestone 4 scope when ready.
+Released as v0.5.1. No pending work.
 
 ## Decisions In Flight
 None.
 
 ## Files Currently Relevant
-None — awaiting next task.
+None — work complete.
 
 ## Blockers / Open Questions
 None.
 
 ## What NOT To Revisit
-- `Transaction.comment` kept as `str = ""` alongside `inline_comment: str | None` — backward compat.
-- `journal_to_text` omits directives — documented decision.
-- `EditorDocument` does not use `load_journal` — correct for single-file editor use case.
-- All new metadata fields use `compare=False` — correct, deliberate.
+- `lstrip()` approach for comment detection — replaced by `is_indented = line[0:1].isspace()` gate; do not revert.
+- `#` is intentionally not an inline comment delimiter (only `;` is). This matches hledger spec.
 
 ## Recent Git State
 ```
-(see git log)
+fix: correct column-0 comment handling inside open transaction blocks
+8b5fc81 chore: release v0.5.0 and mark Milestone 3 done
+d393b8c feat: Milestone 3 — lenient parser, multi-commodity balance, tree mode, CheckError.line_number
+d012bfe chore: release v0.3.0 and mark Milestone 2 done
+6ca9fb0 chore: release v0.3.0 and mark Milestone 2 done
 ```

@@ -79,6 +79,24 @@ Both are valid; the commodity value in `Amount.commodity` is just the symbol str
 
 ---
 
+## Comment indentation rule: column-0 vs. indented
+
+There are two distinct comment forms inside a journal, and **indentation** is the discriminator:
+
+| Form | First char | Indent? | Meaning |
+|---|---|---|---|
+| Top-level comment | `#` or `;` | No (column 0) | Always ignored; never captured into any data structure |
+| Follow-on comment | `;` | Yes (leading whitespace) | Captured as `inline_comment` on the preceding transaction or posting |
+| `#` inside a txn | `#` | Yes | Updates `source_span.end_line` only; text NOT captured |
+
+**Key invariant:** A column-0 `;` or `#` is ALWAYS a top-level comment — even if it appears with no blank line between two transactions. It must never be captured as a follow-on comment for the previous transaction's last posting.
+
+**Why it matters:** The parser uses `lstrip()` to strip whitespace before the startswith check, so it must also test `line[0:1].isspace()` before deciding to capture. Without this check a column-0 `;` between two adjacent transactions would incorrectly appear in the preceding posting's `inline_comment`.
+
+**Inline `;` (same-line) is separate:** A `;` on the same line as a transaction header or posting is always captured regardless of indentation. This is handled in `_parse_txn_header` and `_parse_posting`, not in the standalone-comment branch.
+
+---
+
 ## `include` directive: glob vs explicit path error handling
 
 - **Explicit path** (no glob characters): raises `FileNotFoundError` if file does not exist.

@@ -117,6 +117,30 @@ transaction identity field, so the CLI cannot distinguish the boundary without a
 
 ---
 
+## EC-014 — Column-0 `;` between two adjacent transactions (no blank line)
+
+**Trigger:** A `;` at column 0 appears between the last posting of one transaction and the header of the next, with no blank line separating them.
+
+```
+2024-01-01 First
+    a  £10
+    b  -£10
+; this comment has no blank lines around it
+2024-01-02 Second
+    a  £20
+    b  -£20
+```
+
+**Previous (buggy) behaviour:** The parser's `lstrip()` call stripped all leading whitespace before checking for `;`, so it could not distinguish column-0 from indented comment lines. When `current_txn` was open, the column-0 `;` was incorrectly captured as a follow-on posting comment for `b`, polluting `b.inline_comment`.
+
+**Expected behaviour:** The column-0 `;` is a top-level comment and must be silently discarded. Neither transaction's comment fields should contain anything; `source_span.end_line` for `First` should be line 3 (the `b` posting), not line 4 (the `;` line).
+
+**Fix:** Added `is_indented = line[0:1].isspace()` before the `lstrip()` check in `_parse_string_impl`. Comment capture is now gated on `current_txn is not None and is_indented`.
+
+**Status:** Handled ✓ (`test_T06_semicolon_between_txns_no_blank_line`, `test_F07_noindent_semicolon_inside_txn_not_captured`, `test_S02_noindent_semicolon_does_not_extend_span`)
+
+---
+
 ## EC-013 — Trailing decimal point with no fractional digits (`$1,350,000.`)
 
 **Trigger:** Posting amount with a decimal mark but no following digits, e.g. `$1,350,000.` or `1.234, EUR` (comma-decimal mode).
