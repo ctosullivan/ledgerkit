@@ -2,35 +2,41 @@
 
 ## Overview
 
-PyLedger follows a linear data-flow pipeline:
+ledgerkit follows a linear data-flow pipeline:
 
 ```
 Journal file(s) (.journal / .ledger)
         │
         ▼
-  [ loader.py ]        ← File I/O, include directive expansion, path resolution,
-        │                glob matching, and circular include detection
+  [ loader.py ]           ← File I/O, include directive expansion, path resolution,
+        │                   glob matching, and circular include detection
         ▼
-  [ parser.py ]        ← Pure text → structured Python objects (no file I/O)
+  [ parser.py ]           ← Pure text → structured Python objects (no file I/O)
         │
         ▼
-  [ models.py ]        ← Core data model: Transaction, Posting, Amount, etc.
+  [ models.py ]           ← Core data model: Transaction, Posting, Amount, etc.
         │
         ▼
-  [ checks.py ]        ← Validation checks on Journal objects (balance, strict mode, etc.)
+  [ commodity_style.py ]  ← CommodityStyle: display-style inference and formatting
         │
         ▼
-  [ reports.py ]       ← Consumes model objects, produces report data
+  [ checks.py ]           ← Validation checks on Journal objects (balance, strict mode, etc.)
         │
         ▼
-  [ cli.py ]           ← Validates, formats and prints report data for the terminal
+  [ reports.py ]          ← Consumes model objects, produces report data;
+        │                   BalanceResult / RegisterResult / AccountsResult wrappers
+        ▼
+  [ cli.py ]              ← Validates, formats and prints report data for the terminal
+        │
+        ▼
+  [ _pandas_compat.py ]   ← Lazy pandas import helper (optional dependency)
 ```
 
 ---
 
 ## Module Responsibilities
 
-### `PyLedger/loader.py`
+### `ledgerkit/loader.py`
 
 **Single responsibility**: File I/O, include directive expansion, path
 resolution, glob matching, circular include detection, stdin loading, and
@@ -53,7 +59,7 @@ multi-file merging.
 - Raises `FileNotFoundError` if the root file or a non-glob included file does
   not exist
 
-### `PyLedger/parser.py`
+### `ledgerkit/parser.py`
 
 **Single responsibility**: Convert raw `.journal` text (a Python string) into
 `Transaction` objects and a `Journal` container.
@@ -67,7 +73,7 @@ multi-file merging.
 - `include` directive lines encountered in raw text are silently skipped
   (expansion is always done by `loader.py` before `parse_string` is called)
 
-### `PyLedger/models.py`
+### `ledgerkit/models.py`
 
 **Single responsibility**: Define the canonical Python data structures for
 journal entries.
@@ -82,7 +88,7 @@ Core types:
 
 Models are plain dataclasses. They contain no parsing or reporting logic.
 
-### `PyLedger/checks.py`
+### `ledgerkit/checks.py`
 
 **Single responsibility**: Validate `Journal` objects and return structured
 errors without raising exceptions.
@@ -94,7 +100,7 @@ errors without raising exceptions.
 - Convenience runners: `run_basic_checks`, `run_strict_checks`, `run_checks`
 - Does **not** perform any file I/O, parsing, or formatting
 
-### `PyLedger/reports.py`
+### `ledgerkit/reports.py`
 
 **Single responsibility**: Accept a `Journal` and produce structured report
 data (not formatted strings).
@@ -107,7 +113,7 @@ Reports:
 
 Reports do **not** print to stdout — they return data that `cli.py` formats.
 
-### `PyLedger/cli.py`
+### `ledgerkit/cli.py`
 
 **Single responsibility**: Parse command-line arguments and coordinate
 `loader` → `checks` → `reports` → formatted output.

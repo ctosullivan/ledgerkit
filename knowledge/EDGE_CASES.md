@@ -106,7 +106,7 @@ Human-identified cases that are non-obvious or would be easy to regress. Each en
 salary postings on the same day with the same payee string).
 **Expected behaviour (hledger):** Each transaction starts a new block in the register view;
 the second transaction's first posting shows the date and description.
-**Actual behaviour (PyLedger CLI):** The continuation-row detection key is `(date, description)`,
+**Actual behaviour (ledgerkit CLI):** The continuation-row detection key is `(date, description)`,
 so the second transaction's first posting is silently treated as a continuation row of the
 first — the date and description are blanked.
 **Status:** Known limitation — not handled. The `RegisterRow` dataclass does not carry a
@@ -145,6 +145,6 @@ transaction identity field, so the CLI cannot distinguish the boundary without a
 
 **Trigger:** Posting amount with a decimal mark but no following digits, e.g. `$1,350,000.` or `1.234, EUR` (comma-decimal mode).
 **Expected behaviour:** hledger accepts this as valid; parsed as the integer quantity (`Decimal("1350000")`).
-**Previous behaviour (PyLedger):** `ParseError: invalid amount` — regex required `\d+` after the decimal point.
+**Previous behaviour (ledgerkit):** `ParseError: invalid amount` — regex required `\d+` after the decimal point.
 **Fix:** Changed `(?:\.\d+)?` → `(?:\.\d*)?` in `_AMOUNT`; `(?:,\d+)?` → `(?:,\d*)?` in `_AMOUNT_COMMA`. Python's `Decimal("1350000.")` is valid and equals `Decimal("1350000")`.
 **Status:** Handled ✓ (`test_trailing_decimal_period`, `test_trailing_decimal_comma_mode`)

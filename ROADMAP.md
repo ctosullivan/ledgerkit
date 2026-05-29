@@ -1,4 +1,4 @@
-# PyLedger Roadmap
+# ledgerkit Roadmap
 
 Milestones track the planned development path. Each milestone corresponds to one
 or more GitHub commits and should leave the codebase in a releasable, tested state.
@@ -62,8 +62,8 @@ Implement a working parser so that `.journal` files can be loaded into memory as
   commodities are declared ✅
 - **`check [NAME...]` command** — run individual or grouped checks on demand ✅
 - Module-level API: `Journal` report methods (`.balance()`, `.register()`,
-  `.accounts()`, `.stats()`); `PyLedger.load()` convenience function;
-  `python -m PyLedger` entry point ✅
+  `.accounts()`, `.stats()`); `ledgerkit.load()` convenience function;
+  `python -m ledgerkit` entry point ✅
 - Regex documentation rule enforced on all patterns ✅
 - `dev-docs/hledger-compatibility.md` updated with transaction block structure,
   P directive, alias directive, include directive, account/commodity/payee
@@ -71,16 +71,16 @@ Implement a working parser so that `.journal` files can be loaded into memory as
 
 **Exit criteria:**
 - `python -m unittest tests.test_parser tests.test_reports tests.test_loader tests.test_checks tests.test_cli -v` — all 213 tests pass ✅
-- `python -m PyLedger print tests/fixtures/sample.journal` outputs all
+- `python -m ledgerkit print tests/fixtures/sample.journal` outputs all
   5 transactions correctly ✅
 - P directives parsed and stored in `journal.prices` ✅
 - Account aliases applied correctly against a fixture covering both simple and
   regex alias forms ✅
 - `include` directive resolves relative, absolute, tilde, and glob paths;
   included file entries appear in the resulting `Journal` as if written inline ✅
-- `python -m PyLedger -s -f tests/fixtures/strict_valid.journal stats` exits 0 ✅
+- `python -m ledgerkit -s -f tests/fixtures/strict_valid.journal stats` exits 0 ✅
 - Unbalanced transaction causes exit 1 on any command ✅
-- `python -m PyLedger check ordereddates -f tests/fixtures/sample.journal` runs cleanly ✅
+- `python -m ledgerkit check ordereddates -f tests/fixtures/sample.journal` runs cleanly ✅
 
 ---
 
@@ -98,7 +98,7 @@ Implement the `Query` filter dataclass, all four report functions, and the
 - `RegisterRow` dataclass moved to `models.py` ✅
 - `ReportSection`, `ReportSpec` (frozen), `ReportSectionResult` dataclasses in `models.py` ✅
 - `balance_from_spec(journal, spec, query=None)` — proof-of-concept implementation ✅
-- All new types re-exported from `PyLedger.__init__` ✅
+- All new types re-exported from `ledgerkit.__init__` ✅
 - `tests/fixtures/filtered.journal` — 6-transaction, 64-day fixture with elided posting ✅
 - Full test suite for all new functionality (`tests/test_reports.py`) — 92 tests ✅
 - `dev-docs/api-spec.md` updated to mark all functions `[IMPLEMENTED]` ✅
@@ -117,7 +117,7 @@ Implement the `Query` filter dataclass, all four report functions, and the
 
 **Exit criteria:**
 - `python -m unittest discover -s tests -t . -v` — all 363 tests pass ✅
-- `from PyLedger import Query, ReportSpec, ReportSection, ReportSectionResult, balance_from_spec` succeeds ✅
+- `from ledgerkit import Query, ReportSpec, ReportSection, ReportSectionResult, balance_from_spec` succeeds ✅
 - `balance`, `register`, `accounts`, `stats` each return correct results with no query ✅
 - `balance(journal, query=Query(account="expenses"))` returns only expense rows ✅
 - `balance(journal, query=Query(depth=1))` returns only top-level account balances ✅
@@ -131,7 +131,7 @@ Implement the `Query` filter dataclass, all four report functions, and the
 
 Deliver multi-commodity balance reporting, a lenient parser for editor integrations,
 and a complete in-memory editor layer so that a TUI package can load, mutate, and
-save journal files without reaching into PyLedger internals.
+save journal files without reaching into ledgerkit internals.
 
 **Completed scope:**
 - `parse_string_lenient` — never-raises parser; returns `(Journal, list[ParseError])` ✅
@@ -156,7 +156,7 @@ save journal files without reaching into PyLedger internals.
 
 **Exit criteria met:**
 - `python -m unittest discover -s tests -t . -v` — all 461 tests pass ✅
-- `python -c "from PyLedger import writer, editor_model"` succeeds ✅
+- `python -c "from ledgerkit import writer, editor_model"` succeeds ✅
 - `EditorDocument('tests/fixtures/sample.journal')` loads with `dirty=False`, 5 transactions ✅
 - Round-trip smoke test: `journal_to_text` output re-parses to same transaction count ✅
 

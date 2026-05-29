@@ -1,6 +1,6 @@
-# PyLedger Python API
+# ledgerkit Python API
 
-PyLedger can be used as a Python library. The public API is designed to be
+ledgerkit can be used as a Python library. The public API is designed to be
 simple: load a journal file, then call report methods on the returned object.
 
 ---
@@ -8,12 +8,12 @@ simple: load a journal file, then call report methods on the returned object.
 ## Loading a Journal
 
 ```python
-import PyLedger
+import ledgerkit
 
-journal = PyLedger.load("myfile.journal")
+journal = ledgerkit.load("myfile.journal")
 ```
 
-`PyLedger.load()` accepts `.journal` or `.ledger` files and returns a
+`ledgerkit.load()` accepts `.journal` or `.ledger` files and returns a
 `Journal` object. It fully supports the `include` directive — included files
 are resolved and expanded recursively before parsing.
 
@@ -25,7 +25,7 @@ You can also call the lower-level text parser directly (no file I/O, no
 include directive support):
 
 ```python
-from PyLedger.parser import parse_string
+from ledgerkit.parser import parse_string
 
 journal = parse_string("2024-01-01 Test\n    assets:bank  £100\n    equity\n")
 ```
@@ -48,10 +48,11 @@ journal.included_files # int  — count of distinct files pulled in via include
 All report methods are available directly on the `Journal` object:
 
 ```python
-account_list = journal.accounts()   # list[str] — sorted unique account names
-balances     = journal.balance()    # dict[str, Decimal] — net balance per account
-rows         = journal.register()   # list[RegisterRow] — chronological postings
+account_list = journal.accounts()   # AccountsResult (behaves like list[str])
+balances     = journal.balance()    # BalanceResult (behaves like dict)
+rows         = journal.register()   # RegisterResult (behaves like list[RegisterRow])
 summary      = journal.stats()      # JournalStats — counts, date range, etc.
+styles       = journal.commodity_styles  # dict[str, CommodityStyle]
 ```
 
 All methods accept an optional `query=` parameter for filtering — see the
@@ -83,8 +84,17 @@ posting.amount    # Amount|None  — None means elided (inferred at report time)
 ### `Amount`
 
 ```python
-amount.quantity   # Decimal  — numeric value
-amount.commodity  # str      — e.g. "£", "EUR", "AAPL"
+amount.quantity   # Decimal       — numeric value
+amount.commodity  # str           — e.g. "£", "EUR", "AAPL"
+amount.raw        # str | None    — original text as it appeared in the journal
+```
+
+`Amount.display(style)` — format the amount using a `CommodityStyle` object:
+
+```python
+style = journal.commodity_styles.get("£")
+if style:
+    print(amount.display(style))   # e.g. "£1,234.56"
 ```
 
 ### `PriceDirective`
@@ -103,11 +113,11 @@ All four report functions accept an optional `query=` parameter that controls
 which transactions and postings are included.
 
 ```python
-import PyLedger
-from PyLedger import Query
+import ledgerkit
+from ledgerkit import Query
 import datetime
 
-journal = PyLedger.load("myfile.journal")
+journal = ledgerkit.load("myfile.journal")
 
 # Show only expense account balances
 balances = journal.balance(query=Query(account="expenses"))
@@ -153,11 +163,11 @@ case-insensitive substrings unless they contain a regex metacharacter (e.g. `^`,
 multiple account groups, sign control, and depth overrides.
 
 ```python
-import PyLedger
-from PyLedger import Query, ReportSpec, ReportSection, balance_from_spec
+import ledgerkit
+from ledgerkit import Query, ReportSpec, ReportSection, balance_from_spec
 import datetime
 
-journal = PyLedger.load("myfile.journal")
+journal = ledgerkit.load("myfile.journal")
 
 # Build an income statement spec
 spec = ReportSpec(
@@ -209,13 +219,111 @@ class ReportSectionResult:
 
 ---
 
+## Commodity Display Style
+
+ledgerkit infers a display style for each commodity from the first amount it
+encounters in the journal. The style captures symbol position, spacing, decimal
+mark, digit-group separator, and precision.
+
+```python
+styles = journal.commodity_styles   # dict[str, CommodityStyle]
+style  = styles.get("£")
+
+if style:
+    print(style.commodity)       # "£"
+    print(style.prefix)          # True  (symbol before number)
+    print(style.space)           # False (no space between symbol and number)
+    print(style.decimal_mark)    # "."
+    print(style.group_separator) # ","
+    print(style.precision)       # 2
+    print(style.format(Decimal("1234.56")))  # "£1,234.56"
+```
+
+### Inferring a style manually
+
+```python
+from ledgerkit.commodity_style import CommodityStyle
+
+style = CommodityStyle.infer("EUR", "1.234,56 EUR")
+# → CommodityStyle(commodity="EUR", prefix=False, space=True,
+#                  decimal_mark=",", group_separator=".", precision=2)
+```
+
+### Parsing a `-c` override string
+
+```python
+style = CommodityStyle.parse_style_override("$1,000.00")
+# → CommodityStyle(commodity="$", prefix=True, ...)
+
+style = CommodityStyle.parse_style_override("1.000,00 EUR")
+# → CommodityStyle(commodity="EUR", prefix=False, decimal_mark=",", ...)
+```
+
+---
+
+## DataFrame Export (optional pandas)
+
+Install the pandas extra first:
+
+```bash
+pip install ledgerkit[pandas]
+```
+
+### Journal-level export
+
+```python
+df = journal.to_dataframe()
+# Columns: date, description, cleared, pending, account,
+#          amount (Decimal), commodity, amount_formatted
+```
+
+Apply a `Query` to pre-filter:
+
+```python
+from ledgerkit import Query
+df = journal.to_dataframe(query=Query(account="expenses"))
+```
+
+### Report-object export
+
+All report return types expose `to_dataframe()`:
+
+```python
+# Balance: one row per (account, commodity) pair
+balance_df  = journal.balance().to_dataframe()
+
+# Register: one row per posting
+register_df = journal.register().to_dataframe()
+
+# Accounts: single-column DataFrame
+accounts_df = journal.accounts().to_dataframe()
+
+# ReportSectionResult: rows + subtotal
+from ledgerkit import ReportSpec, ReportSection, balance_from_spec
+spec = ReportSpec(name="Expenses",
+                  sections=(ReportSection("Expenses", accounts=("expenses",)),))
+results = balance_from_spec(journal, spec)
+section_df = results[0].to_dataframe()
+# Includes a final "Total Expenses" row with the section subtotal
+```
+
+### Result wrappers (transparent)
+
+`journal.balance()`, `journal.register()`, and `journal.accounts()` return
+thin wrapper objects (`BalanceResult`, `RegisterResult`, `AccountsResult`)
+that behave exactly like the underlying `dict`/`list` but also carry
+`to_dataframe()`. Existing code that treats these return values as plain
+dicts or lists continues to work without modification.
+
+---
+
 ## Error Handling
 
 ```python
-from PyLedger.parser import ParseError
+from ledgerkit.parser import ParseError
 
 try:
-    journal = PyLedger.load("myfile.journal")
+    journal = ledgerkit.load("myfile.journal")
 except FileNotFoundError:
     print("File not found")
 except ParseError as e:
@@ -227,9 +335,9 @@ except ParseError as e:
 ## Example: Iterate Transactions
 
 ```python
-import PyLedger
+import ledgerkit
 
-journal = PyLedger.load("myfile.journal")
+journal = ledgerkit.load("myfile.journal")
 
 for txn in journal.transactions:
     status = "*" if txn.cleared else ("!" if txn.pending else " ")

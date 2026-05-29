@@ -1,12 +1,46 @@
 # Changelog
 
-All notable changes to PyLedger are recorded here.
+All notable changes to ledgerkit are recorded here.
 
 Each entry corresponds to one GitHub commit. The **Human** line summarises what
 the user directed or decided; the **Claude** line summarises what Claude
 researched, designed, or implemented.
 
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+---
+
+## [0.1.0] — 2026-05-29
+
+### Rename: PyLedger → ledgerkit
+
+**Human:** Rename the project to `ledgerkit` for the PyPI release (`pyledger` was already taken).
+
+**Claude:** Renamed source package directory `PyLedger/` → `ledgerkit/`. Updated all internal imports, `pyproject.toml` (name, scripts, packages.find), CLI prog name and error prefixes, all doc and knowledge files, and all test imports. 538 tests continue to pass.
+
+### Python 3.8+ compatibility
+
+**Human:** Lower the minimum Python requirement from 3.10 to 3.8.
+
+**Claude:** Confirmed all source files already have `from __future__ import annotations` (PEP 563), making `str | None`/`list[str]` annotation syntax safe in Python 3.8. No code changes required. Updated `pyproject.toml` (`requires-python = ">=3.8"`, `target-version = ["py38"]`) and `README.md`.
+
+### Commodity display style (`CommodityStyle`)
+
+**Human:** Implement hledger commodity display style inference and CLI `-c` flag.
+
+**Claude:** Created `ledgerkit/commodity_style.py` with `CommodityStyle` dataclass, `infer()` classmethod (detects prefix/suffix, spacing, decimal mark, group separator, precision from raw amount string), `format()` method (applies inferred style; prefix-symbol negatives as `£-5.00`, suffix-symbol negatives as `-5.00 EUR`), and `parse_style_override()` (parses `-c` CLI strings). Added `Amount.raw` field to models so the parser preserves the original amount text. Added `Journal._commodity_directive_raws` to capture style-declaring `commodity` directives. Added `Journal.commodity_styles` property that merges inferred and directive-based styles with directive priority. Updated `cli.py` to use styles in `balance`, `register`, and `print` output and accept `-c`/`--commodity-style` override flag. 29 new tests in `tests/test_commodity_style.py`.
+
+### Pandas DataFrame export (optional)
+
+**Human:** Add optional pandas export with `pip install ledgerkit[pandas]`.
+
+**Claude:** Created `ledgerkit/_pandas_compat.py` (lazy import helper). Added `[project.optional-dependencies] pandas = ["pandas>=1.3"]` to `pyproject.toml`. Added `Journal.to_dataframe(query)` returning one row per posting. Added transparent result wrappers `BalanceResult`, `RegisterResult`, `AccountsResult` (with `__eq__` for existing-code compatibility) and `ReportSectionResult.to_dataframe()`. Updated `balance()`, `register()`, `accounts()` to return wrappers; updated `balance_from_spec()` to pass commodity styles. Exported new types from `ledgerkit/__init__.py`. 24 new tests in `tests/test_dataframe.py` (skipped gracefully if pandas absent).
+
+### Version bump and classifiers
+
+**Human:** Bump version to `0.1.0`, add PyPI classifiers.
+
+**Claude:** Set `version = "0.1.0"` in `pyproject.toml` and `__version__` in `__init__.py`. Added `Topic :: Office/Business :: Financial :: Accounting` and Python 3.8–3.12 programming language classifiers. Added pandas ecosystem section to `README.md`.
 
 ---
 

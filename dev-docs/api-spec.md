@@ -4,7 +4,7 @@ Status key: `[IMPLEMENTED]` · `[STUB — Milestone 2]` · `[PLANNED]`
 
 ---
 
-## Top-level (`PyLedger/__init__.py`)
+## Top-level (`ledgerkit/__init__.py`)
 
 ### `load` `[IMPLEMENTED]`
 
@@ -14,8 +14,8 @@ def load(path: str | os.PathLike) -> Journal:
 
     Alias for loader.load_journal(). Supports include directives.
     Intended for programmatic use:
-        import PyLedger
-        journal = PyLedger.load("myfile.journal")
+        import ledgerkit
+        journal = ledgerkit.load("myfile.journal")
 
     Raises:
         FileNotFoundError: if the path or a non-glob included file does not exist.
@@ -28,12 +28,12 @@ def load(path: str | os.PathLike) -> Journal:
 Also invocable as a module:
 
 ```
-python -m PyLedger <command> <journal-file>
+python -m ledgerkit <command> <journal-file>
 ```
 
 ---
 
-## `PyLedger/models.py`
+## `ledgerkit/models.py`
 
 ### `Amount` `[IMPLEMENTED]`
 
@@ -166,7 +166,7 @@ by the strict-mode checks in `checks.py`; `declared_tags` is reserved for the de
 `included_files` is set by `loader.load_journal()`. When `parse_string()` is
 called directly (no file I/O), it remains `0`.
 
-**Report methods** (delegate to `PyLedger.reports` via lazy import):
+**Report methods** (delegate to `ledgerkit.reports` via lazy import):
 
 ```python
 def balance(self, accounts: list[str] | None = None,
@@ -201,7 +201,7 @@ semantically equivalent to `query=None` (no filter). `account`, `not_account`, a
 `payee` patterns are matched as plain case-insensitive substrings unless the string
 contains a regex metacharacter, in which case `re.search` is used.
 
-Re-exported from `PyLedger.__init__` as `PyLedger.Query`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.Query`.
 
 ---
 
@@ -221,7 +221,7 @@ One row in a tree-mode balance report, as returned by `balance(tree=True)`.
 `is_subtotal` is `True` when the account name appears as a prefix in another account's
 path but has no postings directly attributed to it.
 
-Re-exported from `PyLedger.__init__` as `PyLedger.BalanceRow`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.BalanceRow`.
 
 ---
 
@@ -240,7 +240,7 @@ class RegisterRow:
 One row in a register report. `running_balance` is the cumulative sum of
 `amount.quantity` across all rows in output order.
 
-Re-exported from `PyLedger.__init__` as `PyLedger.RegisterRow`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.RegisterRow`.
 
 ---
 
@@ -261,7 +261,7 @@ Frozen dataclass — instances are immutable and safe to share across report cal
 `accounts` uses OR logic: a posting is included if it matches any pattern.
 `exclude` patterns are applied as a final subtraction.
 
-Re-exported from `PyLedger.__init__` as `PyLedger.ReportSection`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.ReportSection`.
 
 ---
 
@@ -283,7 +283,7 @@ A structured report definition composed of named sections. Frozen dataclass.
 > is `[DEFERRED — Milestone 3]`. In Milestone 2, specs are constructed
 > programmatically only.
 
-Re-exported from `PyLedger.__init__` as `PyLedger.ReportSpec`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.ReportSpec`.
 
 ---
 
@@ -299,11 +299,11 @@ class ReportSectionResult:
 
 Mutable result object returned per section by `balance_from_spec()`.
 
-Re-exported from `PyLedger.__init__` as `PyLedger.ReportSectionResult`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.ReportSectionResult`.
 
 ---
 
-## `PyLedger/parser.py`
+## `ledgerkit/parser.py`
 
 ### `ParseError` `[IMPLEMENTED]`
 
@@ -353,7 +353,7 @@ def parse_string_lenient(
     """
 ```
 
-Re-exported from `PyLedger.__init__` as `PyLedger.parse_string_lenient`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.parse_string_lenient`.
 
 ---
 
@@ -380,13 +380,13 @@ def resolve_elision(txn: Transaction) -> list[Posting]:
     """
 ```
 
-Re-exported from `PyLedger.__init__` as `PyLedger.resolve_elision`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.resolve_elision`.
 
 ---
 
 ---
 
-## `PyLedger/loader.py`
+## `ledgerkit/loader.py`
 
 ### `load_journal` `[IMPLEMENTED]`
 
@@ -418,7 +418,7 @@ def load_journal(path: str | os.PathLike) -> Journal:
 ```
 
 > **Note:** `parse_file()` was removed in this milestone. Use `load_journal()`
-> (or the `PyLedger.load` alias) for all file loading.
+> (or the `ledgerkit.load` alias) for all file loading.
 
 ---
 
@@ -456,7 +456,7 @@ def merge_journals(journals: list[Journal]) -> Journal:
 
 ---
 
-## `PyLedger/checks.py`
+## `ledgerkit/checks.py`
 
 ### `CheckError` `[UPDATED — Milestone 3]`
 
@@ -473,7 +473,7 @@ payees, ordereddates, accounts, commodities) and is `None` for errors without a
 single clear source line (e.g. `uniqueleafnames`). The default is `None` for backward
 compatibility with code that constructs `CheckError` directly.
 
-Also re-exported from `PyLedger.__init__` as `PyLedger.CheckError`.
+Also re-exported from `ledgerkit.__init__` as `ledgerkit.CheckError`.
 
 ---
 
@@ -568,11 +568,11 @@ def check_transaction_autobalanced(txn: Transaction) -> list[CheckError]:
     """
 ```
 
-Re-exported from `PyLedger.__init__` as `PyLedger.check_transaction_autobalanced`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.check_transaction_autobalanced`.
 
 ---
 
-## `PyLedger/writer.py` `[NEW — Editor Readiness]`
+## `ledgerkit/writer.py` `[NEW — Editor Readiness]`
 
 ### `transaction_to_text`
 
@@ -597,7 +597,7 @@ def transaction_to_text(txn: Transaction) -> str:
     """
 ```
 
-Re-exported from `PyLedger.__init__` as `PyLedger.transaction_to_text`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.transaction_to_text`.
 
 ### `journal_to_text`
 
@@ -610,11 +610,11 @@ def journal_to_text(journal: Journal) -> str:
     """
 ```
 
-Re-exported from `PyLedger.__init__` as `PyLedger.journal_to_text`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.journal_to_text`.
 
 ---
 
-## `PyLedger/editor_model.py` `[NEW — Editor Readiness]`
+## `ledgerkit/editor_model.py` `[NEW — Editor Readiness]`
 
 ### `EditorDocument`
 
@@ -657,11 +657,11 @@ is parsed as-is via `parse_string()`. Use `loader.load_journal()` when full incl
 support is required (source_span values will reference merged-text line numbers in
 that case).
 
-Re-exported from `PyLedger.__init__` as `PyLedger.EditorDocument`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.EditorDocument`.
 
 ---
 
-## `PyLedger/models.py` — `SourceSpan` `[NEW — Editor Readiness]`
+## `ledgerkit/models.py` — `SourceSpan` `[NEW — Editor Readiness]`
 
 ```python
 @dataclass
@@ -677,11 +677,11 @@ Attached to `Transaction.source_span` by the parser. Also available as
 (`str | None`). `Posting.inline_comment` (`str | None`) captures the text after `;`
 on a posting line.
 
-Re-exported from `PyLedger.__init__` as `PyLedger.SourceSpan`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.SourceSpan`.
 
 ---
 
-## `PyLedger/reports.py`
+## `ledgerkit/reports.py`
 
 All report functions accept a `Journal` as their first argument and are also
 accessible as methods on `Journal` directly (e.g. `journal.balance()`).
@@ -736,8 +736,8 @@ def register(
     """Return a chronological list of register rows."""
 ```
 
-`RegisterRow` is defined in `PyLedger/models.py` and re-exported from `PyLedger.__init__`.
-See `RegisterRow` under `PyLedger/models.py` above.
+`RegisterRow` is defined in `ledgerkit/models.py` and re-exported from `ledgerkit.__init__`.
+See `RegisterRow` under `ledgerkit/models.py` above.
 
 ---
 
@@ -783,7 +783,7 @@ When `query` is non-`None`, transaction-level filters (date range, payee) are ap
 before computing statistics. Account-level filters are not yet applied to `stats` fields
 (deferred to a follow-on task).
 
-Also accessible as `PyLedger.JournalStats` (re-exported from `__init__.py`).
+Also accessible as `ledgerkit.JournalStats` (re-exported from `__init__.py`).
 
 ---
 
@@ -804,17 +804,17 @@ Returns one `ReportSectionResult` per section in `spec.sections` order. The oute
 subtracted. `section.depth` overrides `query.depth` for that section only.
 `section.invert` negates all amounts after aggregation.
 
-Re-exported from `PyLedger.__init__` as `PyLedger.balance_from_spec`.
+Re-exported from `ledgerkit.__init__` as `ledgerkit.balance_from_spec`.
 
 ---
 
-## `PyLedger/cli.py`
+## `ledgerkit/cli.py`
 
 ### `main` `[IMPLEMENTED]`
 
 ```python
 def main(argv: list[str] | None = None) -> int:
-    """Entry point for the PyLedger CLI.
+    """Entry point for the ledgerkit CLI.
 
     Args:
         argv: Argument list (defaults to sys.argv[1:] when None).
@@ -824,11 +824,11 @@ def main(argv: list[str] | None = None) -> int:
     """
 ```
 
-CLI interface (via `pyproject.toml` `[project.scripts]` and `PyLedger/__main__.py`):
+CLI interface (via `pyproject.toml` `[project.scripts]` and `ledgerkit/__main__.py`):
 
 ```
-PyLedger [-f FILE]... [-s] [-v] [-1] [-o FILE] <command> [args...]
-python -m PyLedger [-f FILE]... [-s] [-v] [-1] [-o FILE] <command> [args...]
+ledgerkit [-f FILE]... [-s] [-v] [-1] [-o FILE] <command> [args...]
+python -m ledgerkit [-f FILE]... [-s] [-v] [-1] [-o FILE] <command> [args...]
 
 Flags:
   -f, --file         Read data from FILE, or stdin if -. May be specified

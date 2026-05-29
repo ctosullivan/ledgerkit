@@ -1,6 +1,6 @@
-# PyLedger Usage Guide
+# ledgerkit Usage Guide
 
-PyLedger can be used as a command-line tool or as a Python library.
+ledgerkit can be used as a command-line tool or as a Python library.
 
 ---
 
@@ -9,13 +9,13 @@ PyLedger can be used as a command-line tool or as a Python library.
 ### Syntax
 
 ```bash
-PyLedger [-f FILE]... [-s] <command> [args...]
+ledgerkit [-f FILE]... [-s] <command> [args...]
 ```
 
 You can also invoke it as a Python module (equivalent):
 
 ```bash
-python -m PyLedger [-f FILE]... [-s] <command> [args...]
+python -m ledgerkit [-f FILE]... [-s] <command> [args...]
 ```
 
 #### Specifying the journal file
@@ -25,30 +25,50 @@ merge multiple files):
 
 ```bash
 # Single file
-PyLedger -f myledger.journal stats
+ledgerkit -f myledger.journal stats
 
 # Multiple files — transactions from both are merged in order
-PyLedger -f checking.journal -f savings.journal stats
+ledgerkit -f checking.journal -f savings.journal stats
 
 # Read from stdin
-cat myledger.journal | PyLedger -f - stats
+cat myledger.journal | ledgerkit -f - stats
 ```
 
 The positional argument is a shorthand for a single `-f` (kept for
 backward compatibility):
 
 ```bash
-PyLedger stats myledger.journal
+ledgerkit stats myledger.journal
 ```
 
-If no file is specified, PyLedger checks the `$LEDGER_FILE` environment
+If no file is specified, ledgerkit checks the `$LEDGER_FILE` environment
 variable, then falls back to `~/.hledger.journal`.
+
+---
+
+### `-c` / `--commodity-style` — Override display style
+
+By default ledgerkit infers the display style for each commodity from the first
+amount it encounters in the journal. Use `-c` to override the style for a specific
+commodity.
+
+```bash
+# Show £ amounts in European style (comma decimal, dot group separator)
+ledgerkit -f myfile.journal -c '£1.000,00' balance
+
+# Multiple overrides
+ledgerkit -f myfile.journal -c '$1,000.00' -c '1.000,00 EUR' balance
+```
+
+The style string must contain at least one digit and a commodity symbol. The
+commodity symbol must match exactly — `£` and `GBP` are two distinct identifiers
+(ledgerkit does not know that they represent the same currency).
 
 ---
 
 ### `-s` / `--strict` — Strict mode
 
-By default PyLedger checks that every transaction balances (the `autobalanced`
+By default ledgerkit checks that every transaction balances (the `autobalanced`
 check). Strict mode adds two extra checks:
 
 - **`accounts`** — every posting account must be declared with an `account`
@@ -57,10 +77,10 @@ check). Strict mode adds two extra checks:
   directive
 
 ```bash
-PyLedger -s -f myledger.journal stats
+ledgerkit -s -f myledger.journal stats
 ```
 
-If any check fails, PyLedger prints an error to stderr and exits with code 1.
+If any check fails, ledgerkit prints an error to stderr and exits with code 1.
 
 ---
 
@@ -71,14 +91,14 @@ demand.
 
 ```bash
 # Run basic checks only (same as the default gate on all commands)
-PyLedger check -f myledger.journal
+ledgerkit check -f myledger.journal
 
 # Run strict checks (basic + accounts + commodities)
-PyLedger -s check -f myledger.journal
+ledgerkit -s check -f myledger.journal
 
 # Run specific named checks
-PyLedger check ordereddates -f myledger.journal
-PyLedger check payees ordereddates -f myledger.journal
+ledgerkit check ordereddates -f myledger.journal
+ledgerkit check payees ordereddates -f myledger.journal
 ```
 
 Available check names:
@@ -102,7 +122,7 @@ On success: no output, exit code 0. On failure: errors printed to stderr, exit c
 Prints all transactions from the journal in a human-readable format.
 
 ```bash
-PyLedger print myledger.journal
+ledgerkit print myledger.journal
 ```
 
 Example output:
@@ -124,7 +144,7 @@ Example output:
 Prints the net balance for every account.
 
 ```bash
-PyLedger balance myledger.journal
+ledgerkit balance myledger.journal
 ```
 
 ---
@@ -134,7 +154,7 @@ PyLedger balance myledger.journal
 Prints a chronological list of all postings with running balances.
 
 ```bash
-PyLedger register myledger.journal
+ledgerkit register myledger.journal
 ```
 
 ---
@@ -144,7 +164,7 @@ PyLedger register myledger.journal
 Prints all account names found in the journal, sorted alphabetically.
 
 ```bash
-PyLedger accounts myledger.journal
+ledgerkit accounts myledger.journal
 ```
 
 ---
@@ -155,7 +175,7 @@ Prints a summary: file name, transaction count, account count, date range,
 and commodities used.
 
 ```bash
-PyLedger stats myledger.journal
+ledgerkit stats myledger.journal
 ```
 
 ---
@@ -163,10 +183,10 @@ PyLedger stats myledger.journal
 ## Python Library Usage
 
 ```python
-import PyLedger
+import ledgerkit
 
 # Load a journal file
-journal = PyLedger.load("myledger.journal")
+journal = ledgerkit.load("myledger.journal")
 
 # Access transactions directly
 for txn in journal.transactions:
@@ -186,5 +206,5 @@ See [python-api.md](python-api.md) for full library documentation.
 ## Getting Help
 
 ```bash
-PyLedger --help
+ledgerkit --help
 ```

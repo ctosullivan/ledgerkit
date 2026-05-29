@@ -1,4 +1,4 @@
-"""Tests for PyLedger.loader — load_journal, include directive, merge_journals."""
+"""Tests for ledgerkit.loader — load_journal, include directive, merge_journals."""
 
 import os
 import pathlib
@@ -6,8 +6,8 @@ import tempfile
 import textwrap
 import unittest
 
-from PyLedger.loader import load_journal, merge_journals
-from PyLedger.parser import ParseError
+from ledgerkit.loader import load_journal, merge_journals
+from ledgerkit.parser import ParseError
 
 FIXTURES = pathlib.Path(__file__).parent.parent / "fixtures"
 SAMPLE_JOURNAL = FIXTURES / "sample.journal"
@@ -32,7 +32,7 @@ class TestLoadJournalBasic(unittest.TestCase):
         self.assertEqual(j.included_files, 0)
 
     def test_returns_journal_type(self):
-        from PyLedger.models import Journal
+        from ledgerkit.models import Journal
         j = load_journal(SAMPLE_JOURNAL)
         self.assertIsInstance(j, Journal)
 
@@ -63,7 +63,7 @@ class TestLoadJournalBasic(unittest.TestCase):
         self.assertIn("unsupported file format", str(ctx.exception))
 
     def test_j_alias_raises(self):
-        """hledger accepts .j as a journal alias; PyLedger v1 does not."""
+        """hledger accepts .j as a journal alias; ledgerkit v1 does not."""
         with self.assertRaises(ParseError) as ctx:
             load_journal("myfile.j")
         self.assertIn("unsupported file format", str(ctx.exception))
@@ -350,7 +350,7 @@ class TestMergeJournals(unittest.TestCase):
     """merge_journals — combining multiple Journal objects."""
 
     def _make_journal(self, descriptions, source_file=None, included_files=0):
-        from PyLedger.parser import parse_string
+        from ledgerkit.parser import parse_string
         lines = []
         for i, desc in enumerate(descriptions, 1):
             lines.append(f"2024-0{i}-01 {desc}")
@@ -397,7 +397,7 @@ class TestMergeJournals(unittest.TestCase):
         self.assertEqual(result.included_files, 3)
 
     def test_merge_prices_combined(self):
-        from PyLedger.models import Journal, PriceDirective, Amount
+        from ledgerkit.models import Journal, PriceDirective, Amount
         from decimal import Decimal
         import datetime
         price1 = PriceDirective(
@@ -451,21 +451,21 @@ class TestStatsIntegration(unittest.TestCase):
 
 
 class TestPublicAPI(unittest.TestCase):
-    """PyLedger public API still works via the load alias."""
+    """ledgerkit public API still works via the load alias."""
 
     def test_pyledger_load_alias_works(self):
-        import PyLedger
-        j = PyLedger.load(SAMPLE_JOURNAL)
+        import ledgerkit
+        j = ledgerkit.load(SAMPLE_JOURNAL)
         self.assertEqual(len(j.transactions), 5)
 
     def test_pyledger_load_returns_journal(self):
-        import PyLedger
-        from PyLedger.models import Journal
-        j = PyLedger.load(SAMPLE_JOURNAL)
+        import ledgerkit
+        from ledgerkit.models import Journal
+        j = ledgerkit.load(SAMPLE_JOURNAL)
         self.assertIsInstance(j, Journal)
 
     def test_parse_string_skips_include_lines(self):
-        from PyLedger.parser import parse_string
+        from ledgerkit.parser import parse_string
         text = (
             "include other.journal\n"
             "2024-01-01 Test\n"
@@ -486,7 +486,7 @@ class TestMergeJournalsDeclared(unittest.TestCase):
         payees: list | None = None,
         tags: list | None = None,
     ):
-        from PyLedger.models import Journal
+        from ledgerkit.models import Journal
         return Journal(
             declared_accounts=accounts or [],
             declared_commodities=commodities or [],

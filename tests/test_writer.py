@@ -1,13 +1,13 @@
-"""Tests for PyLedger/writer.py."""
+"""Tests for ledgerkit/writer.py."""
 
 import datetime
 import unittest
 from decimal import Decimal
 from pathlib import Path
 
-from PyLedger.models import Amount, Journal, Posting, Transaction
-from PyLedger.parser import parse_string
-from PyLedger.writer import journal_to_text, transaction_to_text
+from ledgerkit.models import Amount, Journal, Posting, Transaction
+from ledgerkit.parser import parse_string
+from ledgerkit.writer import journal_to_text, transaction_to_text
 
 
 def _txn(date_str, description, postings, **kwargs):

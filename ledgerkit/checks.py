@@ -1,4 +1,4 @@
-"""Validation checks for PyLedger journals.
+"""Validation checks for ledgerkit journals.
 
 Each check function accepts a Journal and returns a (possibly empty) list of
 CheckError instances. An empty list means the check passed. Checks do not
@@ -17,7 +17,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from decimal import Decimal
 
-from PyLedger.models import Journal, Posting, Transaction
+from ledgerkit.models import Journal, Posting, Transaction
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +347,7 @@ def check_payees(journal: Journal) -> list[CheckError]:
 def check_ordereddates(journal: Journal) -> list[CheckError]:
     """Check that transactions are in non-decreasing date order.
 
-    hledger evaluates this per-file, but since PyLedger merges included
+    hledger evaluates this per-file, but since ledgerkit merges included
     files before parsing, this check operates on the full merged transaction
     list in journal order.
 

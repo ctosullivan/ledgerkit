@@ -1,4 +1,4 @@
-"""Report generators for PyLedger.
+"""Report generators for ledgerkit.
 
 Each function accepts a Journal and returns structured data — not formatted
 strings. Formatting is handled by cli.py.
@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import datetime
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from typing import Iterator
 
-from PyLedger.models import (
+from ledgerkit.models import (
     BalanceRow,
     Journal,
     Posting,
@@ -22,7 +24,153 @@ from PyLedger.models import (
     ReportSectionResult,
     Transaction,
 )
-from PyLedger.parser import resolve_elision
+from ledgerkit.parser import resolve_elision
+
+
+# ---------------------------------------------------------------------------
+# Transparent result wrappers with to_dataframe() support
+# ---------------------------------------------------------------------------
+
+class BalanceResult(Mapping):
+    """Return type of Journal.balance() (flat mode). Behaves like dict[str, dict[str, Decimal]]."""
+
+    def __init__(self, data: dict, commodity_styles: dict) -> None:
+        self._data = data
+        self._commodity_styles = commodity_styles
+
+    def __getitem__(self, key: str) -> dict:
+        return self._data[key]
+
+    def __iter__(self) -> Iterator:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, BalanceResult):
+            return self._data == other._data
+        if isinstance(other, dict):
+            return self._data == other
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return repr(self._data)
+
+    def to_dataframe(self):
+        """Export balance to a DataFrame with account, amount, commodity, amount_formatted.
+
+        One row per (account, commodity) pair (non-zero amounts only).
+        Requires pandas: pip install ledgerkit[pandas]
+        """
+        from ledgerkit._pandas_compat import require_pandas
+        pd = require_pandas()
+        rows = []
+        for account in sorted(self._data):
+            for commodity, qty in sorted(self._data[account].items()):
+                if qty == 0:
+                    continue
+                style = self._commodity_styles.get(commodity)
+                from ledgerkit.commodity_style import CommodityStyle
+                formatted = style.format(qty) if style else str(qty)
+                rows.append({
+                    "account": account,
+                    "amount": qty,
+                    "commodity": commodity,
+                    "amount_formatted": formatted,
+                })
+        df = pd.DataFrame(rows, columns=["account", "amount", "commodity", "amount_formatted"])
+        if not df.empty:
+            df["amount"] = df["amount"].astype(object)
+        return df
+
+
+class RegisterResult(Sequence):
+    """Return type of Journal.register(). Behaves like list[RegisterRow]."""
+
+    def __init__(self, data: list, commodity_styles: dict) -> None:
+        self._data = data
+        self._commodity_styles = commodity_styles
+
+    def __getitem__(self, index):
+        return self._data[index]
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, RegisterResult):
+            return self._data == other._data
+        if isinstance(other, list):
+            return self._data == other
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return repr(self._data)
+
+    def to_dataframe(self):
+        """Export register rows to a DataFrame.
+
+        Columns: date, description, cleared, pending, account,
+                 amount (Decimal), commodity, amount_formatted.
+        Requires pandas: pip install ledgerkit[pandas]
+        """
+        from ledgerkit._pandas_compat import require_pandas
+        pd = require_pandas()
+        rows = []
+        for row in self._data:
+            commodity = row.amount.commodity
+            style = self._commodity_styles.get(commodity)
+            formatted = style.format(row.amount.quantity) if style else str(row.amount.quantity)
+            rows.append({
+                "date": row.date,
+                "description": row.description,
+                "cleared": False,
+                "pending": False,
+                "account": row.account,
+                "amount": row.amount.quantity,
+                "commodity": commodity,
+                "amount_formatted": formatted,
+            })
+        df = pd.DataFrame(rows, columns=[
+            "date", "description", "cleared", "pending", "account",
+            "amount", "commodity", "amount_formatted",
+        ])
+        if not df.empty:
+            df["amount"] = df["amount"].astype(object)
+        return df
+
+
+class AccountsResult(Sequence):
+    """Return type of Journal.accounts(). Behaves like list[str]."""
+
+    def __init__(self, data: list) -> None:
+        self._data = data
+
+    def __getitem__(self, index):
+        return self._data[index]
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, AccountsResult):
+            return self._data == other._data
+        if isinstance(other, list):
+            return self._data == other
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        return repr(self._data)
+
+    def to_dataframe(self):
+        """Export account names to a single-column DataFrame.
+
+        Requires pandas: pip install ledgerkit[pandas]
+        """
+        from ledgerkit._pandas_compat import require_pandas
+        pd = require_pandas()
+        return pd.DataFrame({"account": self._data})
 
 
 @dataclass
@@ -182,7 +330,7 @@ def accounts(journal: Journal, query: Query | None = None) -> list[str]:
         for posting in txn.postings:
             if _posting_matches(posting, txn, query):
                 seen.add(posting.account)
-    return sorted(seen)
+    return AccountsResult(sorted(seen))
 
 
 def balance(
@@ -234,7 +382,7 @@ def balance(
             )
     if tree:
         return _build_balance_tree(totals)
-    return totals
+    return BalanceResult(totals, journal.commodity_styles)
 
 
 def register(
@@ -267,7 +415,7 @@ def register(
                 amount=posting.amount,
                 running_balance=running,
             ))
-    return rows
+    return RegisterResult(rows, journal.commodity_styles)
 
 
 def stats(journal: Journal, query: Query | None = None) -> JournalStats:
@@ -365,6 +513,7 @@ def balance_from_spec(
         One ReportSectionResult per section in spec.sections order.
     """
     results: list[ReportSectionResult] = []
+    commodity_styles = journal.commodity_styles
 
     for section in spec.sections:
         pairs: list[tuple[str, Decimal]] = []
@@ -414,6 +563,11 @@ def balance_from_spec(
             rows = {k: -v for k, v in rows.items()}
 
         subtotal = sum(rows.values(), Decimal(0))
-        results.append(ReportSectionResult(section=section, rows=rows, subtotal=subtotal))
+        results.append(ReportSectionResult(
+            section=section,
+            rows=rows,
+            subtotal=subtotal,
+            _commodity_styles=commodity_styles,
+        ))
 
     return results

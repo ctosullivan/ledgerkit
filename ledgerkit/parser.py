@@ -1,4 +1,4 @@
-"""Journal file parser for PyLedger.
+"""Journal file parser for ledgerkit.
 
 Converts raw .journal text into Journal/Transaction/Posting objects.
 See docs/hledger-compatibility.md for the transaction block structure and
@@ -11,7 +11,7 @@ import datetime
 import re
 from decimal import Decimal, InvalidOperation
 
-from PyLedger.models import Amount, BalanceAssertion, Journal, Posting, PriceDirective, SourceSpan, Transaction
+from ledgerkit.models import Amount, BalanceAssertion, Journal, Posting, PriceDirective, SourceSpan, Transaction
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ from PyLedger.models import Amount, BalanceAssertion, Journal, Posting, PriceDir
 #
 # Pattern: \s{2,}[;#]
 #   \s{2,}  — two or more whitespace characters (spaces or tabs)
-#   [;#]    — semicolon or hash: both are recognised comment introducers in PyLedger
+#   [;#]    — semicolon or hash: both are recognised comment introducers in ledgerkit
 #
 # Edge cases:
 #   - A single space before ';' or '#' is NOT a separator (belongs to the body)
@@ -344,7 +344,7 @@ def _parse_amount(raw: str, lineno: int, decimal_mark: str = ".") -> Amount:
     except InvalidOperation:
         raise ParseError(f"invalid numeric quantity in amount: {raw!r}", lineno)
 
-    return Amount(quantity=quantity, commodity=commodity)
+    return Amount(quantity=quantity, commodity=commodity, raw=raw.strip())
 
 
 def _strip_directive_comment(raw: str) -> str:
@@ -670,6 +670,7 @@ def _parse_string_impl(
     declared_commodities: list[str] = []
     declared_payees: list[str] = []
     declared_tags: list[str] = []
+    commodity_directive_raws: dict = {}  # symbol → raw amount string from directive
     aliases: list[tuple[str, str, bool]] = []  # (old_or_pattern, replacement, is_regex)
     decimal_mark: str = "."  # updated by decimal-mark directive
     current_txn: Transaction | None = None
@@ -896,6 +897,10 @@ def _parse_string_impl(
             body = _strip_directive_comment(rest)
             symbol = _extract_commodity_symbol(body, lineno)
             declared_commodities.append(symbol)
+            # Store the raw directive body for style inference if it looks like
+            # a sample amount (contains at least one digit).
+            if symbol and any(ch.isdigit() for ch in body):
+                commodity_directive_raws[symbol] = body
             in_subdirective = True
             continue
 
@@ -1124,6 +1129,7 @@ def _parse_string_impl(
         declared_commodities=declared_commodities,
         declared_payees=declared_payees,
         declared_tags=declared_tags,
+        _commodity_directive_raws=commodity_directive_raws,
     )
 
 

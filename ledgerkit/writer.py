@@ -1,4 +1,4 @@
-"""Journal serialiser for PyLedger.
+"""Journal serialiser for ledgerkit.
 
 Converts Transaction and Journal objects back to hledger journal-format text.
 No file I/O; no imports from parser, loader, checks, or cli.
@@ -6,7 +6,7 @@ No file I/O; no imports from parser, loader, checks, or cli.
 
 from __future__ import annotations
 
-from PyLedger.models import Amount, Journal, Transaction
+from ledgerkit.models import Amount, Journal, Transaction
 
 
 def _fmt_amount(amount: Amount) -> str:

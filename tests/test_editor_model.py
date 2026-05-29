@@ -1,4 +1,4 @@
-"""Tests for PyLedger/editor_model.py."""
+"""Tests for ledgerkit/editor_model.py."""
 
 import datetime
 import tempfile
@@ -6,9 +6,9 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
-from PyLedger.checks import CheckError
-from PyLedger.editor_model import EditorDocument
-from PyLedger.models import Amount, Posting, Transaction
+from ledgerkit.checks import CheckError
+from ledgerkit.editor_model import EditorDocument
+from ledgerkit.models import Amount, Posting, Transaction
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample.journal"
 
@@ -114,7 +114,7 @@ class TestEditorDocumentAddTransaction(unittest.TestCase):
                         "expenses:misc", "£50.00", "assets:bank:checking")
         self.doc.add_transaction(txn)
         # The new transaction should occupy exactly len(transaction_to_text lines) lines
-        from PyLedger.writer import transaction_to_text
+        from ledgerkit.writer import transaction_to_text
         expected_lines = len(transaction_to_text(txn).splitlines())
         span_len = txn.source_span.end_line - txn.source_span.start_line + 1
         self.assertEqual(span_len, expected_lines)

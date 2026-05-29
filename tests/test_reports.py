@@ -1,4 +1,4 @@
-"""Tests for PyLedger.reports — full Milestone 2 suite.
+"""Tests for ledgerkit.reports — full Milestone 2 suite.
 
 Covers: Query, pattern matching, accounts(), balance(), register(), stats(),
 ReportSpec/ReportSection dataclasses, and balance_from_spec().
@@ -22,10 +22,10 @@ import os
 import unittest
 from decimal import Decimal
 
-from PyLedger.loader import load_journal
-from PyLedger.models import Amount, Journal, Posting, Query, Transaction
-from PyLedger.parser import parse_string
-from PyLedger.reports import (
+from ledgerkit.loader import load_journal
+from ledgerkit.models import Amount, Journal, Posting, Query, Transaction
+from ledgerkit.parser import parse_string
+from ledgerkit.reports import (
     JournalStats,
     _matches_pattern,
     _posting_matches,
@@ -36,7 +36,7 @@ from PyLedger.reports import (
     stats,
 )
 
-import PyLedger
+import ledgerkit
 
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -622,28 +622,28 @@ class TestStatsModuleLevel(unittest.TestCase):
 class TestReportSpecDataclasses(unittest.TestCase):
 
     def test_frozen_report_section(self):
-        section = PyLedger.ReportSection(name="Expenses", accounts=("expenses",))
+        section = ledgerkit.ReportSection(name="Expenses", accounts=("expenses",))
         with self.assertRaises(dataclasses.FrozenInstanceError):
             section.name = "Changed"  # type: ignore[misc]
 
     def test_frozen_report_spec(self):
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="Test",
-            sections=(PyLedger.ReportSection("S", accounts=("a",)),),
+            sections=(ledgerkit.ReportSection("S", accounts=("a",)),),
         )
         with self.assertRaises(dataclasses.FrozenInstanceError):
             spec.name = "Changed"  # type: ignore[misc]
 
     def test_report_section_result_is_mutable(self):
-        from PyLedger.reports import ReportSectionResult
-        section = PyLedger.ReportSection(name="S", accounts=("a",))
+        from ledgerkit.reports import ReportSectionResult
+        section = ledgerkit.ReportSection(name="S", accounts=("a",))
         result = ReportSectionResult(section=section, rows={}, subtotal=Decimal(0))
         result.subtotal = Decimal(42)  # must not raise
         self.assertEqual(result.subtotal, Decimal(42))
 
-    def test_import_from_pyledger(self):
+    def test_import_from_ledgerkit(self):
         # All new public symbols must be importable from the top-level package.
-        from PyLedger import (  # noqa: F401
+        from ledgerkit import (  # noqa: F401
             Query,
             ReportSection,
             ReportSpec,
@@ -652,11 +652,11 @@ class TestReportSpecDataclasses(unittest.TestCase):
         )
 
     def test_construct_multi_section_spec(self):
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="Income Statement",
             sections=(
-                PyLedger.ReportSection("Income", accounts=("income",), invert=True),
-                PyLedger.ReportSection("Expenses", accounts=("expenses",)),
+                ledgerkit.ReportSection("Income", accounts=("income",), invert=True),
+                ledgerkit.ReportSection("Expenses", accounts=("expenses",)),
             ),
         )
         self.assertEqual(len(spec.sections), 2)
@@ -674,20 +674,20 @@ class TestBalanceFromSpec(unittest.TestCase):
     def setUp(self):
         self.journal = load_journal(FILTERED_JOURNAL)
 
-    def _income_expenses_spec(self) -> PyLedger.ReportSpec:
-        return PyLedger.ReportSpec(
+    def _income_expenses_spec(self) -> ledgerkit.ReportSpec:
+        return ledgerkit.ReportSpec(
             name="Income Statement",
             sections=(
-                PyLedger.ReportSection("Income",   accounts=("income",),   invert=True),
-                PyLedger.ReportSection("Expenses", accounts=("expenses",)),
+                ledgerkit.ReportSection("Income",   accounts=("income",),   invert=True),
+                ledgerkit.ReportSection("Expenses", accounts=("expenses",)),
             ),
         )
 
     def test_single_section_rows_and_subtotal(self):
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="Expenses only",
             sections=(
-                PyLedger.ReportSection("Expenses", accounts=("expenses",)),
+                ledgerkit.ReportSection("Expenses", accounts=("expenses",)),
             ),
         )
         results = balance_from_spec(self.journal, spec)
@@ -700,10 +700,10 @@ class TestBalanceFromSpec(unittest.TestCase):
         self.assertEqual(section_result.subtotal, Decimal("1359.00"))
 
     def test_single_section_invert(self):
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="Income",
             sections=(
-                PyLedger.ReportSection("Income", accounts=("income",), invert=True),
+                ledgerkit.ReportSection("Income", accounts=("income",), invert=True),
             ),
         )
         results = balance_from_spec(self.journal, spec)
@@ -735,10 +735,10 @@ class TestBalanceFromSpec(unittest.TestCase):
         self.assertEqual(grand_total, Decimal("7359.00"))
 
     def test_section_depth_overrides_outer_query(self):
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="Expenses at depth 2",
             sections=(
-                PyLedger.ReportSection("Expenses", accounts=("expenses",), depth=2),
+                ledgerkit.ReportSection("Expenses", accounts=("expenses",), depth=2),
             ),
         )
         # Outer query has no depth; section depth=2 truncates to expenses:food, expenses:housing
@@ -769,10 +769,10 @@ class TestBalanceFromSpec(unittest.TestCase):
         self.assertEqual(expense_result.subtotal, Decimal("0"))
 
     def test_section_exclude_omits_matching_accounts(self):
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="Food only",
             sections=(
-                PyLedger.ReportSection(
+                ledgerkit.ReportSection(
                     "Food",
                     accounts=("expenses",),
                     exclude=("housing",),
@@ -788,10 +788,10 @@ class TestBalanceFromSpec(unittest.TestCase):
         self.assertEqual(section_result.subtotal, Decimal("159.00"))
 
     def test_section_multiple_accounts_patterns_or_union(self):
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="Income and Housing",
             sections=(
-                PyLedger.ReportSection(
+                ledgerkit.ReportSection(
                     "Mixed",
                     accounts=("income:salary", "expenses:housing"),
                 ),
@@ -805,10 +805,10 @@ class TestBalanceFromSpec(unittest.TestCase):
 
     def test_elided_posting_inferred_in_spec(self):
         # income:salary in the last Salary txn is elided; spec should include it.
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="Income",
             sections=(
-                PyLedger.ReportSection("Income", accounts=("income",), invert=True),
+                ledgerkit.ReportSection("Income", accounts=("income",), invert=True),
             ),
         )
         results = balance_from_spec(self.journal, spec)
@@ -816,10 +816,10 @@ class TestBalanceFromSpec(unittest.TestCase):
         self.assertEqual(results[0].subtotal, Decimal("6000.00"))
 
     def test_empty_section_has_zero_subtotal(self):
-        spec = PyLedger.ReportSpec(
+        spec = ledgerkit.ReportSpec(
             name="No match",
             sections=(
-                PyLedger.ReportSection("Nothing", accounts=("nonexistent:account",)),
+                ledgerkit.ReportSection("Nothing", accounts=("nonexistent:account",)),
             ),
         )
         results = balance_from_spec(self.journal, spec)
@@ -841,8 +841,9 @@ class TestBalanceMultiCommodity(unittest.TestCase):
         self.journal = load_journal(MULTICOMMODITY_JOURNAL)
 
     def test_balance_returns_nested_dict(self):
+        from collections.abc import Mapping
         result = balance(self.journal)
-        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result, Mapping)
         for v in result.values():
             self.assertIsInstance(v, dict)
 
@@ -877,7 +878,7 @@ class TestBalanceMultiCommodity(unittest.TestCase):
         self.assertIsInstance(result, list)
 
     def test_balance_tree_contains_balance_rows(self):
-        from PyLedger.models import BalanceRow
+        from ledgerkit.models import BalanceRow
         result = balance(self.journal, tree=True)
         for row in result:
             self.assertIsInstance(row, BalanceRow)
@@ -919,13 +920,14 @@ class TestBalanceMultiCommodity(unittest.TestCase):
         self.assertEqual(accounts_list, sorted(accounts_list))
 
     def test_balance_flat_false_returns_dict(self):
+        from collections.abc import Mapping
         result = balance(self.journal, tree=False)
-        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result, Mapping)
 
     def test_register_multicommodity_elided_produces_multiple_rows(self):
         # The opening balances transaction has 1 elided posting with 3 commodities.
         # register() should produce 3 extra rows for the resolved elided posting.
-        from PyLedger.reports import register
+        from ledgerkit.reports import register
         rows = register(self.journal)
         equity_rows = [r for r in rows if r.account == "equity:opening-balances"]
         # 3 commodities → 3 synthetic postings → 3 rows for equity

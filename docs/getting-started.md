@@ -1,6 +1,6 @@
-# Getting Started with PyLedger
+# Getting Started with ledgerkit
 
-PyLedger is a Python tool for plain-text double-entry accounting, compatible
+ledgerkit is a Python tool for plain-text double-entry accounting, compatible
 with the [hledger](https://hledger.org) journal format.
 
 ---
@@ -22,15 +22,15 @@ python --version
 Clone the repository and install in editable mode:
 
 ```bash
-git clone https://github.com/ctosullivan/PyLedger.git
-cd PyLedger
+git clone https://github.com/ctosullivan/ledgerkit.git
+cd ledgerkit
 pip install -e .
 ```
 
 Verify the installation:
 
 ```bash
-PyLedger --version
+ledgerkit --version
 ```
 
 ---
@@ -51,14 +51,14 @@ Create a file called `myledger.journal`:
 
 Each transaction starts with a date and description. Indented lines are
 postings (account + amount). One posting per transaction may omit its amount —
-PyLedger infers it from the others.
+ledgerkit infers it from the others.
 
 ---
 
 ## Run Your First Command
 
 ```bash
-PyLedger print myledger.journal
+ledgerkit print myledger.journal
 ```
 
 This prints all transactions in a readable format. See [usage.md](usage.md)
@@ -70,4 +70,4 @@ for all available commands.
 
 - [usage.md](usage.md) — all CLI commands with examples
 - [journal-format.md](journal-format.md) — full journal syntax reference
-- [python-api.md](python-api.md) — use PyLedger as a Python library
+- [python-api.md](python-api.md) — use ledgerkit as a Python library

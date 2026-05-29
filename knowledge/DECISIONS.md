@@ -12,7 +12,7 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** Raising `ParseError` in the parser when postings don't balance.
 
-**Applies to:** `PyLedger/parser.py`, `PyLedger/checks.py`
+**Applies to:** `ledgerkit/parser.py`, `ledgerkit/checks.py`
 
 ---
 
@@ -24,7 +24,7 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** Strict `line.startswith("  ") or line.startswith("\t")` gate (was the original implementation; removed).
 
-**Applies to:** `PyLedger/parser.py`, `dev-docs/hledger-compatibility.md`
+**Applies to:** `ledgerkit/parser.py`, `dev-docs/hledger-compatibility.md`
 
 ---
 
@@ -36,7 +36,7 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** Silently ignoring unsupported formats or accepting any extension.
 
-**Applies to:** `PyLedger/loader.py`, `dev-docs/hledger-compatibility.md`
+**Applies to:** `ledgerkit/loader.py`, `dev-docs/hledger-compatibility.md`
 
 ---
 
@@ -48,7 +48,7 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** Keeping `parse_file()` in `parser.py` alongside `parse_string()`.
 
-**Applies to:** `PyLedger/parser.py`, `PyLedger/loader.py`
+**Applies to:** `ledgerkit/parser.py`, `ledgerkit/loader.py`
 
 ---
 
@@ -60,7 +60,7 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** Accumulating aliases across all included files and applying them in a post-processing pass.
 
-**Applies to:** `PyLedger/parser.py`, `dev-docs/hledger-compatibility.md`
+**Applies to:** `ledgerkit/parser.py`, `dev-docs/hledger-compatibility.md`
 
 ---
 
@@ -72,7 +72,7 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** Applying the decimal mark to all transactions in the file regardless of position.
 
-**Applies to:** `PyLedger/parser.py`
+**Applies to:** `ledgerkit/parser.py`
 
 ---
 
@@ -96,7 +96,7 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** Continuing to bump patch version (0.1.3, 0.1.4, …) indefinitely.
 
-**Applies to:** `PyLedger/__init__.py`, `pyproject.toml`
+**Applies to:** `ledgerkit/__init__.py`, `pyproject.toml`
 
 ---
 
@@ -120,7 +120,7 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** `OTHER_CHECK_NAMES` placement, which would match the existing pattern for `payees`, `ordereddates`, etc.
 
-**Applies to:** `PyLedger/checks.py`, `dev-docs/hledger-compatibility.md`
+**Applies to:** `ledgerkit/checks.py`, `dev-docs/hledger-compatibility.md`
 
 ---
 
@@ -132,4 +132,4 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 **Rejected alternative:** Raising a `ParseError` when a balance assignment is encountered (too strict — valid hledger files should load without error even if the assignment isn't validated).
 
-**Applies to:** `PyLedger/parser.py`, `PyLedger/checks.py`
+**Applies to:** `ledgerkit/parser.py`, `ledgerkit/checks.py`

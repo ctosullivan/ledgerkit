@@ -1,11 +1,11 @@
-"""Tests for PyLedger.parser — directive parsing."""
+"""Tests for ledgerkit.parser — directive parsing."""
 
 import datetime
 import unittest
 from decimal import Decimal
 
-from PyLedger.models import Journal
-from PyLedger.parser import ParseError, parse_string
+from ledgerkit.models import Journal
+from ledgerkit.parser import ParseError, parse_string
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +288,7 @@ class TestDecimalMarkDirective(unittest.TestCase):
         self.assertEqual(amt.quantity, Decimal("1.50"))
 
     def test_invalid_decimal_mark_raises(self):
-        from PyLedger.parser import ParseError
+        from ledgerkit.parser import ParseError
         with self.assertRaises(ParseError):
             parse_string("decimal-mark ;\n")
 

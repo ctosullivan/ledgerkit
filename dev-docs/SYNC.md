@@ -4,7 +4,7 @@
 
 | Code location | Doc to keep in sync |
 |---|---|
-| Public function/class signatures in `PyLedger/parser.py`, `PyLedger/models.py`, `PyLedger/reports.py`, `PyLedger/cli.py` | `dev-docs/api-spec.md` |
+| Public function/class signatures in `ledgerkit/parser.py`, `ledgerkit/models.py`, `ledgerkit/reports.py`, `ledgerkit/cli.py` | `dev-docs/api-spec.md` |
 | Module responsibilities, data flow, import rules | `dev-docs/architecture.md` |
 | Supported/unsupported hledger journal features | `dev-docs/hledger-compatibility.md` |
 | Folder structure, rules, policies | `CLAUDE.md` |
@@ -19,7 +19,7 @@ response**. Do not defer doc updates to a follow-up message or commit.
 
 ## How to Verify Sync Is Current
 
-1. Check `dev-docs/api-spec.md` — every public function in `PyLedger/` must
+1. Check `dev-docs/api-spec.md` — every public function in `ledgerkit/` must
    have an entry. Every entry must match the current signature (name,
    parameters, return type, docstring summary).
 
@@ -36,7 +36,7 @@ response**. Do not defer doc updates to a follow-up message or commit.
 A quick audit checklist:
 
 ```
-[ ] Every public function in PyLedger/ has a dev-docs/api-spec.md entry
+[ ] Every public function in ledgerkit/ has a dev-docs/api-spec.md entry
 [ ] No api-spec.md entry is stale (wrong signature or removed function)
 [ ] architecture.md data-flow diagram matches actual import structure
 [ ] hledger-compatibility.md "In Scope" matches parser capabilities

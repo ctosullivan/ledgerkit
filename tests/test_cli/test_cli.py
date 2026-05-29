@@ -1,4 +1,4 @@
-"""Tests for PyLedger.cli — -f/--file flag, _resolve_files, and multi-file loading."""
+"""Tests for ledgerkit.cli — -f/--file flag, _resolve_files, and multi-file loading."""
 
 import os
 import pathlib
@@ -9,7 +9,7 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from PyLedger.cli import _resolve_files, main
+from ledgerkit.cli import _resolve_files, main
 
 FIXTURES = pathlib.Path(__file__).parent.parent / "fixtures"
 SAMPLE_JOURNAL = FIXTURES / "sample.journal"
@@ -76,7 +76,7 @@ class TestResolveFiles(unittest.TestCase):
         args = _FakeArgs()
         with patch.dict(os.environ, {}, clear=True):
             # Patch Path.home() so ~/.hledger.journal won't accidentally exist
-            with patch("PyLedger.cli.Path") as mock_path_cls:
+            with patch("ledgerkit.cli.Path") as mock_path_cls:
                 mock_home = mock_path_cls.home.return_value
                 mock_home.__truediv__ = lambda self, other: mock_home
                 mock_home.exists.return_value = False
@@ -148,7 +148,7 @@ class TestFileFlagCLI(unittest.TestCase):
 
     def test_no_file_no_env_exits_with_message(self):
         with patch.dict(os.environ, {}, clear=True):
-            with patch("PyLedger.cli.Path") as mock_path_cls:
+            with patch("ledgerkit.cli.Path") as mock_path_cls:
                 mock_home = mock_path_cls.home.return_value
                 mock_home.__truediv__ = lambda self, other: mock_home
                 mock_home.exists.return_value = False
@@ -202,7 +202,7 @@ class TestBalanceOutput(unittest.TestCase):
         self.assertIn("£-5,000.00", output)
 
     def test_account_after_amount(self):
-        # hledger format: amount first, then account (reversed from old PyLedger)
+        # hledger format: amount first, then account (reversed from old pyledger)
         output = self._run_balance()
         for line in output.splitlines():
             if "assets:bank:checking" in line:
@@ -294,7 +294,7 @@ class TestBalanceAssertions(unittest.TestCase):
 
     def _run(self, *args: str) -> tuple[int, str, str]:
         """Run main() with the given args; return (exit_code, stdout, stderr)."""
-        with patch("sys.argv", ["PyLedger", *args]):
+        with patch("sys.argv", ["ledgerkit", *args]):
             out = StringIO()
             err = StringIO()
             with patch("sys.stdout", out), patch("sys.stderr", err):

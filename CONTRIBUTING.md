@@ -1,4 +1,4 @@
-# Contributing to PyLedger
+# Contributing to ledgerkit
 
 Thank you for your interest in contributing! Your help is essential for keeping
 this project great.

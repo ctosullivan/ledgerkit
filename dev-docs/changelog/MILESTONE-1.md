@@ -8,29 +8,29 @@ GitHub commits: 0.1.0-dev.1 … 0.1.0-dev.10 · 11c35f8 · 17207ce · a2d68b3 ·
 
 **What changed:**
 - `docs/` renamed → `dev-docs/` (git mv; all cross-references updated)
-- `dev-docs/SYNC.md` — stale `hledger/` refs fixed to `PyLedger/`; human-docs
+- `dev-docs/SYNC.md` — stale `hledger/` refs fixed to `ledgerkit/`; human-docs
   sync rule added
-- `dev-docs/api-spec.md` — all `pyLedger/` refs → `PyLedger/`; `Journal` report
-  methods, `load()`, `PriceDirective`, and `python -m PyLedger` usage added
+- `dev-docs/api-spec.md` — all `ledgerkit/` refs → `ledgerkit/`; `Journal` report
+  methods, `load()`, `PriceDirective`, and `python -m ledgerkit` usage added
 - `dev-docs/hledger-compatibility.md` — P directive and alias directive moved
   from Undecided/Out of Scope → **In Scope (v1)**; Directives table added
 - `CLAUDE.md` — all `docs/` refs → `dev-docs/`; folder diagram corrected
-  (`pyLedger/` → `PyLedger/`, `MANIFEST.in` and `__main__.py` added, `docs/`
+  (`ledgerkit/` → `ledgerkit/`, `MANIFEST.in` and `__main__.py` added, `docs/`
   human section added); SYNC table updated; milestone archive path updated
-- `README.md` — CLI command updated to `PyLedger`; Python library example added;
+- `README.md` — CLI command updated to `ledgerkit`; Python library example added;
   docs table added; Contributing section with sparse-checkout command added
 - `ROADMAP.md` — all `docs/` refs → `dev-docs/`; Milestone 1 scope extended with
-  P directive, alias directive, and module-level API; `pyLedger.cli` → `PyLedger`;
+  P directive, alias directive, and module-level API; `ledgerkit.cli` → `ledgerkit`;
   Commodity price directives removed from backlog (now in Milestone 1)
-- `pyproject.toml` — script entry `pyLedger = "pyLedger.cli:main"` →
-  `PyLedger = "PyLedger.cli:main"`; `include = ["pyLedger*"]` → `["PyLedger*"]`
+- `pyproject.toml` — script entry `ledgerkit = "ledgerkit.cli:main"` →
+  `ledgerkit = "ledgerkit.cli:main"`; `include = ["ledgerkit*"]` → `["ledgerkit*"]`
 - `MANIFEST.in` — new file; excludes `CLAUDE.md`, `CHANGELOG.md`, `ROADMAP.md`,
   `dev-docs/` from sdist
-- `PyLedger/models.py` — `PriceDirective` dataclass added; `Journal.prices` field
+- `ledgerkit/models.py` — `PriceDirective` dataclass added; `Journal.prices` field
   added; four report methods added to `Journal` (lazy-import delegation to reports)
-- `PyLedger/__init__.py` — `load()` convenience function exported
-- `PyLedger/__main__.py` — new file; enables `python -m PyLedger`
-- `PyLedger/cli.py` — `prog="pyLedger"` → `prog="PyLedger"`
+- `ledgerkit/__init__.py` — `load()` convenience function exported
+- `ledgerkit/__main__.py` — new file; enables `python -m ledgerkit`
+- `ledgerkit/cli.py` — `prog="ledgerkit"` → `prog="ledgerkit"`
 - `docs/` — new human-facing documentation folder created with four guides:
   `getting-started.md`, `usage.md`, `journal-format.md`, `python-api.md`
 
@@ -46,17 +46,17 @@ four human guide files.
 
 ---
 
-### [17207ce] — 2026-04-15 — Fix: normalise internal imports to PyLedger (capital P)
+### [17207ce] — 2026-04-15 — Fix: normalise internal imports to ledgerkit (capital P)
 
 **What changed:**
-- `PyLedger/parser.py` — `from pyLedger.models import` → `from PyLedger.models import`
-- `PyLedger/reports.py` — `from pyLedger.models import` → `from PyLedger.models import`
-- `PyLedger/cli.py` — all three `pyLedger` references updated to `PyLedger`
-- `PyLedger/parser.py` — posting-outside-block guard restored: indented lines
+- `ledgerkit/parser.py` — `from ledgerkit.models import` → `from ledgerkit.models import`
+- `ledgerkit/reports.py` — `from ledgerkit.models import` → `from ledgerkit.models import`
+- `ledgerkit/cli.py` — all three `ledgerkit` references updated to `ledgerkit`
+- `ledgerkit/parser.py` — posting-outside-block guard restored: indented lines
   outside a transaction block still raise `ParseError`; non-indented lines outside
   a block are silently skipped
 
-**Human:** Directed that all internal imports be normalised to `PyLedger`
+**Human:** Directed that all internal imports be normalised to `ledgerkit`
 (capital P) to match the package directory name and resolve the
 `ModuleNotFoundError` that prevented the test suite from running.
 
@@ -70,7 +70,7 @@ outside a block, and confirmed 36/36 pass.
 ### [0.1.0-dev.10] — Fix: relax posting-line indentation requirement
 
 **What changed:**
-- `pyLedger/parser.py` — state machine restructured: transaction-header and
+- `ledgerkit/parser.py` — state machine restructured: transaction-header and
   directive checks now run before posting detection; posting branch changed from
   `line.startswith("  ") or line.startswith("\t")` to `current_txn is not None`,
   making indentation conventional rather than mandatory; `parse_string` docstring
@@ -91,7 +91,7 @@ treated as a posting regardless of indentation.
 ### [0.1.0-dev.1] — Feature: journal parser + tests
 
 **What changed:**
-- `pyLedger/parser.py` — `parse_string` and `parse_file` implemented;
+- `ledgerkit/parser.py` — `parse_string` and `parse_file` implemented;
   private helpers `_parse_txn_header`, `_parse_amount`, `_parse_posting` added
 - `tests/test_parser.py` — created with 18 assertions across 10 test classes
   (happy paths: date/description/flag/code/comment/commodity/thousands;
@@ -130,7 +130,7 @@ the `[IMPLEMENTED]` status updates, and wrote the wire→model mapping.
 - `CLAUDE.md` — new "Regex Documentation Rule" in the Code Style section:
   every regex must be accompanied by a multiline comment covering purpose,
   group breakdown, and edge cases
-- `pyLedger/parser.py` — all four regexes (`_TXN_HEADER`, `_AMOUNT`, the
+- `ledgerkit/parser.py` — all four regexes (`_TXN_HEADER`, `_AMOUNT`, the
   date-check `re.match`, and the posting-split `re.split`) updated with full
   explanatory comments per the new rule
 
@@ -168,18 +168,18 @@ already implements the rule via `re.split(r"\s{2,}", ...)`).
 - `docs/hledger-compatibility.md` — new "Supported File Formats" section
   documenting the `.journal` and `.ledger` extensions as the only accepted
   formats; full deviation table listing all seven hledger 1.52 format families
-  and PyLedger's stance on each (with reference to the hledger 1.52 spec)
+  and ledgerkit's stance on each (with reference to the hledger 1.52 spec)
 - `docs/api-spec.md` — `parse_file` docstring updated to state supported
   extensions and new `ParseError` condition for unsupported extensions;
   `Journal.source_file` comment updated accordingly
 - `CLAUDE.md` — "Format target" updated to list both supported extensions
-- `pyLedger/parser.py` — `_SUPPORTED_EXTENSIONS` constant added; `parse_file`
+- `ledgerkit/parser.py` — `_SUPPORTED_EXTENSIONS` constant added; `parse_file`
   extended with an extension check that raises `ParseError` for unsupported
   formats (`.csv`, `.timeclock`, `.j`, etc.)
 - `tests/test_parser.py` — 5 new assertions (3 unsupported extension cases,
   2 accepted extension cases including a `.ledger` tempfile round-trip)
 
-**Human:** Specified that PyLedger should support `.journal` and `.ledger` only,
+**Human:** Specified that ledgerkit should support `.journal` and `.ledger` only,
 identified this as a deliberate deviation from hledger 1.52, and provided the
 hledger 1.52 data-formats reference URL for the full format list.
 
@@ -192,7 +192,7 @@ the extension guard in `parse_file`, and added tests for all new behaviour.
 ### [0.1.0-dev.6] — Feature: simple date formats
 
 **What changed:**
-- `pyLedger/parser.py` — `_TXN_HEADER` date group broadened to capture all
+- `ledgerkit/parser.py` — `_TXN_HEADER` date group broadened to capture all
   simple date variants; new `_SIMPLE_DATE` regex added with full group/edge-case
   comments; new `_parse_simple_date()` helper handles year inference; transaction
   header detection updated to match year-omitted dates; `parse_string` gains an
@@ -218,7 +218,7 @@ year inference via `default_year`, updated all affected docs and the test suite.
 ### [0.1.0-dev.7] — Feature: block comments + comment coverage audit
 
 **What changed:**
-- `pyLedger/parser.py` — `in_block_comment` state variable added to
+- `ledgerkit/parser.py` — `in_block_comment` state variable added to
   `parse_string`; `comment` directive detected before the silent-skip
   fallthrough and enters block-comment mode (flushing any open transaction);
   all lines in block-comment mode are consumed until `end comment` or EOF;
@@ -286,7 +286,7 @@ summary link.
 ### [0.1.0-dev.10] — Fix: relax posting-line indentation requirement
 
 **What changed:**
-- `pyLedger/parser.py` — state machine restructured: transaction-header and
+- `ledgerkit/parser.py` — state machine restructured: transaction-header and
   directive checks now run before posting detection; posting branch changed from
   `line.startswith("  ") or line.startswith("\t")` to `current_txn is not None`,
   making indentation conventional rather than mandatory; `parse_string` docstring
@@ -304,17 +304,17 @@ treated as a posting regardless of indentation.
 
 ---
 
-### [17207ce] — 2026-04-15 — Fix: normalise internal imports to PyLedger (capital P)
+### [17207ce] — 2026-04-15 — Fix: normalise internal imports to ledgerkit (capital P)
 
 **What changed:**
-- `PyLedger/parser.py` — `from pyLedger.models import` → `from PyLedger.models import`
-- `PyLedger/reports.py` — `from pyLedger.models import` → `from PyLedger.models import`
-- `PyLedger/cli.py` — all three `pyLedger` references updated to `PyLedger`
-- `PyLedger/parser.py` — posting-outside-block guard restored: indented lines
+- `ledgerkit/parser.py` — `from ledgerkit.models import` → `from ledgerkit.models import`
+- `ledgerkit/reports.py` — `from ledgerkit.models import` → `from ledgerkit.models import`
+- `ledgerkit/cli.py` — all three `ledgerkit` references updated to `ledgerkit`
+- `ledgerkit/parser.py` — posting-outside-block guard restored: indented lines
   outside a transaction block still raise `ParseError`; non-indented lines outside
   a block are silently skipped
 
-**Human:** Directed that all internal imports be normalised to `PyLedger`
+**Human:** Directed that all internal imports be normalised to `ledgerkit`
 (capital P) to match the package directory name and resolve the
 `ModuleNotFoundError` that prevented the test suite from running.
 
@@ -329,29 +329,29 @@ outside a block, and confirmed 36/36 pass.
 
 **What changed:**
 - `docs/` renamed → `dev-docs/` (git mv; all cross-references updated)
-- `dev-docs/SYNC.md` — stale `hledger/` refs fixed to `PyLedger/`; human-docs
+- `dev-docs/SYNC.md` — stale `hledger/` refs fixed to `ledgerkit/`; human-docs
   sync rule added
-- `dev-docs/api-spec.md` — all `pyLedger/` refs → `PyLedger/`; `Journal` report
-  methods, `load()`, `PriceDirective`, and `python -m PyLedger` usage added
+- `dev-docs/api-spec.md` — all `ledgerkit/` refs → `ledgerkit/`; `Journal` report
+  methods, `load()`, `PriceDirective`, and `python -m ledgerkit` usage added
 - `dev-docs/hledger-compatibility.md` — P directive and alias directive moved
   from Undecided/Out of Scope → **In Scope (v1)**; Directives table added
 - `CLAUDE.md` — all `docs/` refs → `dev-docs/`; folder diagram corrected
-  (`pyLedger/` → `PyLedger/`, `MANIFEST.in` and `__main__.py` added, `docs/`
+  (`ledgerkit/` → `ledgerkit/`, `MANIFEST.in` and `__main__.py` added, `docs/`
   human section added); SYNC table updated; milestone archive path updated
-- `README.md` — CLI command updated to `PyLedger`; Python library example added;
+- `README.md` — CLI command updated to `ledgerkit`; Python library example added;
   docs table added; Contributing section with sparse-checkout command added
 - `ROADMAP.md` — all `docs/` refs → `dev-docs/`; Milestone 1 scope extended with
-  P directive, alias directive, and module-level API; `pyLedger.cli` → `PyLedger`;
+  P directive, alias directive, and module-level API; `ledgerkit.cli` → `ledgerkit`;
   Commodity price directives removed from backlog (now in Milestone 1)
-- `pyproject.toml` — script entry `pyLedger = "pyLedger.cli:main"` →
-  `PyLedger = "PyLedger.cli:main"`; `include = ["pyLedger*"]` → `["PyLedger*"]`
+- `pyproject.toml` — script entry `ledgerkit = "ledgerkit.cli:main"` →
+  `ledgerkit = "ledgerkit.cli:main"`; `include = ["ledgerkit*"]` → `["ledgerkit*"]`
 - `MANIFEST.in` — new file; excludes `CLAUDE.md`, `CHANGELOG.md`, `ROADMAP.md`,
   `dev-docs/` from sdist
-- `PyLedger/models.py` — `PriceDirective` dataclass added; `Journal.prices` field
+- `ledgerkit/models.py` — `PriceDirective` dataclass added; `Journal.prices` field
   added; four report methods added to `Journal` (lazy-import delegation to reports)
-- `PyLedger/__init__.py` — `load()` convenience function exported
-- `PyLedger/__main__.py` — new file; enables `python -m PyLedger`
-- `PyLedger/cli.py` — `prog="pyLedger"` → `prog="PyLedger"`
+- `ledgerkit/__init__.py` — `load()` convenience function exported
+- `ledgerkit/__main__.py` — new file; enables `python -m ledgerkit`
+- `ledgerkit/cli.py` — `prog="ledgerkit"` → `prog="ledgerkit"`
 - `docs/` — new human-facing documentation folder created with four guides:
   `getting-started.md`, `usage.md`, `journal-format.md`, `python-api.md`
 
@@ -415,10 +415,10 @@ candidate scope in the roadmap.
 ### [Unreleased] — Project: add CONTRIBUTING.md and CODE_OF_CONDUCT.md
 
 **What changed:**
-- `CONTRIBUTING.md` added at project root (moved from `PyLedger/` subfolder);
-  title corrected from "hledger-textual" to "PyLedger"; test command updated
+- `CONTRIBUTING.md` added at project root (moved from `ledgerkit/` subfolder);
+  title corrected from "hledger-textual" to "ledgerkit"; test command updated
   from `uv run pytest` to `python -m unittest tests.test_parser -v`
-- `CODE_OF_CONDUCT.md` added at project root (moved from `PyLedger/` subfolder)
+- `CODE_OF_CONDUCT.md` added at project root (moved from `ledgerkit/` subfolder)
 - `README.md` — Contributing section updated with brief reference to
   `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`
 - `CLAUDE.md` — Commit Message Format subsection added under Changelog & Roadmap
@@ -453,7 +453,7 @@ span days, per-day rates, last-7/30 days, payee count, account depth, commodity
 list, price count); implemented `reports.stats()`; rewrote CLI stats block with
 runtime timing and all three flags; added `TYPE_CHECKING` guard and return type
 to `Journal.stats()` in models.py; re-exported `JournalStats` from
-`PyLedger.__init__`; added 30 tests in `tests/test_reports.py`; updated
+`ledgerkit.__init__`; added 30 tests in `tests/test_reports.py`; updated
 `dev-docs/api-spec.md` (status → `[IMPLEMENTED]`, expanded dataclass, CLI flags);
 added three roadmap items to `ROADMAP.md`.
 
@@ -462,7 +462,7 @@ added three roadmap items to `ROADMAP.md`.
 ### [Unreleased] — chore: release v0.1.1
 
 **Human:** Bump version to v0.1.1.
-**Claude:** Updated `version` in `PyLedger/__init__.py` and `pyproject.toml` from `0.1.0` to `0.1.1`.
+**Claude:** Updated `version` in `ledgerkit/__init__.py` and `pyproject.toml` from `0.1.0` to `0.1.1`.
 
 ---
 
@@ -477,14 +477,14 @@ added three roadmap items to `ROADMAP.md`.
 
 **Human:** Implement a file loader in a separate module and implement the `include` directive (full hledger 1.52 spec). This is a major upgrade — refactor as necessary, update dev-docs/user docs, and update the public API.
 
-**Claude:** Extracted all file I/O into a new `PyLedger/loader.py` module (`load_journal()`). Implemented the `include` directive with text-expansion strategy: relative/absolute/tilde paths, glob patterns (`*`, `**`, `?`, `[range]`), recursive expansion, circular include detection, format-prefix rejection, and `FileNotFoundError` for missing non-glob targets. Added `Journal.included_files: int = 0` field to models.py. Removed `parse_file()` and `_SUPPORTED_EXTENSIONS` from parser.py (pure text-only module). Updated `PyLedger.load` alias, cli.py, reports.py. Added 10 fixture files and 40+ tests in `tests/test_loader.py`. Updated architecture.md, api-spec.md, hledger-compatibility.md, journal-format.md, python-api.md, and ROADMAP.md. All 102 tests pass.
+**Claude:** Extracted all file I/O into a new `ledgerkit/loader.py` module (`load_journal()`). Implemented the `include` directive with text-expansion strategy: relative/absolute/tilde paths, glob patterns (`*`, `**`, `?`, `[range]`), recursive expansion, circular include detection, format-prefix rejection, and `FileNotFoundError` for missing non-glob targets. Added `Journal.included_files: int = 0` field to models.py. Removed `parse_file()` and `_SUPPORTED_EXTENSIONS` from parser.py (pure text-only module). Updated `ledgerkit.load` alias, cli.py, reports.py. Added 10 fixture files and 40+ tests in `tests/test_loader.py`. Updated architecture.md, api-spec.md, hledger-compatibility.md, journal-format.md, python-api.md, and ROADMAP.md. All 102 tests pass.
 
 ---
 
 ### [Unreleased] — chore: release v0.1.2
 
 **Human:** Update version number to 0.1.2.
-**Claude:** Updated `version` in `PyLedger/__init__.py` and `pyproject.toml` from `0.1.1` to `0.1.2`.
+**Claude:** Updated `version` in `ledgerkit/__init__.py` and `pyproject.toml` from `0.1.1` to `0.1.2`.
 
 ---
 
@@ -500,7 +500,7 @@ added three roadmap items to `ROADMAP.md`.
 
 **Human:** Extend Milestone 1 to include: `account`, `commodity`, and `payee` directive parsing; a new `checks.py` module with `autobalanced`, `accounts`, `commodities`, `payees`, `ordereddates`, and `uniqueleafnames` checks; default autobalanced validation on all CLI commands; `-s`/`--strict` flag; and a `check [NAME...]` CLI command.
 
-**Claude:** Added `declared_accounts`, `declared_commodities`, `declared_payees` fields to `Journal` (models.py). Added `account`, `commodity`, and `payee` directive parsing to `parser.py` (with 2-space comment separator rule, subdirective consumption, quoted payee/commodity support, and full hledger 1.52 symbol-extraction algorithm). Extended `merge_journals()` to concatenate all three declared-* lists. Created `PyLedger/checks.py` with `CheckError` dataclass, seven check functions, and three runners (`run_basic_checks`, `run_strict_checks`, `run_checks`). Updated `cli.py`: default basic-check gate on all commands, `-s`/`--strict` flag, `check [NAME...]` command, and `nargs="*"` for the positional to support multiple check names. Re-exported `CheckError` from `PyLedger.__init__`. Added `tests/test_checks.py` (56 tests), extended `test_parser.py` (26 new tests), `test_loader.py` (5 new tests), and `test_cli.py` (3 updated tests). Added `tests/fixtures/strict_valid.journal`. Updated `api-spec.md`, `architecture.md`, `hledger-compatibility.md`, `docs/usage.md`. All 213 tests pass.
+**Claude:** Added `declared_accounts`, `declared_commodities`, `declared_payees` fields to `Journal` (models.py). Added `account`, `commodity`, and `payee` directive parsing to `parser.py` (with 2-space comment separator rule, subdirective consumption, quoted payee/commodity support, and full hledger 1.52 symbol-extraction algorithm). Extended `merge_journals()` to concatenate all three declared-* lists. Created `ledgerkit/checks.py` with `CheckError` dataclass, seven check functions, and three runners (`run_basic_checks`, `run_strict_checks`, `run_checks`). Updated `cli.py`: default basic-check gate on all commands, `-s`/`--strict` flag, `check [NAME...]` command, and `nargs="*"` for the positional to support multiple check names. Re-exported `CheckError` from `ledgerkit.__init__`. Added `tests/test_checks.py` (56 tests), extended `test_parser.py` (26 new tests), `test_loader.py` (5 new tests), and `test_cli.py` (3 updated tests). Added `tests/fixtures/strict_valid.journal`. Updated `api-spec.md`, `architecture.md`, `hledger-compatibility.md`, `docs/usage.md`. All 213 tests pass.
 
 ---
 
@@ -514,7 +514,7 @@ added three roadmap items to `ROADMAP.md`.
 
 ### [Unreleased] — feat: tag directive and decimal-mark directive
 
-**Human:** Implement the `tag` and `decimal-mark` directives from hledger 1.52 in PyLedger.
+**Human:** Implement the `tag` and `decimal-mark` directives from hledger 1.52 in ledgerkit.
 
 **Claude:** Added `declared_tags: list[str]` field to `Journal` (models.py). Added `tag TAGNAME` directive parsing to `parse_string()` (parser.py) — strips inline comments with the 2-space rule, consumes indented subdirectives, stores names in `declared_tags`. Added `decimal-mark .` / `decimal-mark ,` directive parsing — switches amount parsing mode for all subsequent postings; default is period-decimal. Added `_AMOUNT_COMMA` regex for EU-style comma-decimal amounts (e.g. `1.234,56` → `Decimal("1234.56")`); `_parse_amount` and `_parse_posting` accept a `decimal_mark` parameter. Extended `merge_journals()` in `loader.py` to concatenate `declared_tags`. Added `TestTagDirective` (6 tests) and `TestDecimalMarkDirective` (8 tests) to `test_parser.py`; added `test_merge_declared_tags_concatenated` to `test_loader.py`. Updated `api-spec.md` and `hledger-compatibility.md`. Periodic transactions (`~`) remain silently ignored (out of scope).
 

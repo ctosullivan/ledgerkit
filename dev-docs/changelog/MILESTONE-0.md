@@ -5,21 +5,21 @@ GitHub commits: cfc1bd0
 
 ---
 
-### [0.1.0-dev.0] — Project scaffold + rename to PyLedger
+### [0.1.0-dev.0] — Project scaffold + rename to ledgerkit
 
 **What changed:**
 - Initial project structure created: `CLAUDE.md`, `README.md`, `pyproject.toml`,
   `docs/` (architecture, api-spec, hledger-compatibility, SYNC), `tests/`
-  (fixtures, README), `pyLedger/` (models, parser stub, reports stub, cli stub)
-- Project renamed from `hledger-python` → `PyLedger`; package folder renamed
-  `hledger/` → `pyLedger/`; CLI command renamed `hledger-py` → `pyLedger`;
+  (fixtures, README), `ledgerkit/` (models, parser stub, reports stub, cli stub)
+- Project renamed from `hledger-python` → `ledgerkit`; package folder renamed
+  `hledger/` → `ledgerkit/`; CLI command renamed `hledger-py` → `ledgerkit`;
   all internal references updated
 - `.gitignore` added covering secrets/credentials, Python build artefacts,
   virtual environments, IDEs, and private `.journal` files
 
 **Human:** Defined the full project brief: module structure, CLAUDE.md contract
 rules (doc-sync, unauthorised-change, testing, code style, hledger compatibility),
-and directed the rename to PyLedger.
+and directed the rename to ledgerkit.
 
 **Claude:** Generated all scaffold files, wrote the initial docs, implemented
 the data models (`Amount`, `Posting`, `Transaction`, `Journal`), created CLI
@@ -72,7 +72,7 @@ hledger CREDITS page.
 ### [0.1.0-dev.7] — Feature: block comments + comment coverage audit
 
 **What changed:**
-- `pyLedger/parser.py` — `in_block_comment` state variable added to
+- `ledgerkit/parser.py` — `in_block_comment` state variable added to
   `parse_string`; `comment` directive detected before the silent-skip
   fallthrough and enters block-comment mode (flushing any open transaction);
   all lines in block-comment mode are consumed until `end comment` or EOF;
@@ -99,7 +99,7 @@ state machine, and updated docs accordingly.
 ### [0.1.0-dev.6] — Feature: simple date formats
 
 **What changed:**
-- `pyLedger/parser.py` — `_TXN_HEADER` date group broadened to capture all
+- `ledgerkit/parser.py` — `_TXN_HEADER` date group broadened to capture all
   simple date variants; new `_SIMPLE_DATE` regex added with full group/edge-case
   comments; new `_parse_simple_date()` helper handles year inference; transaction
   header detection updated to match year-omitted dates; `parse_string` gains an
@@ -128,18 +128,18 @@ year inference via `default_year`, updated all affected docs and the test suite.
 - `docs/hledger-compatibility.md` — new "Supported File Formats" section
   documenting the `.journal` and `.ledger` extensions as the only accepted
   formats; full deviation table listing all seven hledger 1.52 format families
-  and PyLedger's stance on each (with reference to the hledger 1.52 spec)
+  and ledgerkit's stance on each (with reference to the hledger 1.52 spec)
 - `docs/api-spec.md` — `parse_file` docstring updated to state supported
   extensions and new `ParseError` condition for unsupported extensions;
   `Journal.source_file` comment updated accordingly
 - `CLAUDE.md` — "Format target" updated to list both supported extensions
-- `pyLedger/parser.py` — `_SUPPORTED_EXTENSIONS` constant added; `parse_file`
+- `ledgerkit/parser.py` — `_SUPPORTED_EXTENSIONS` constant added; `parse_file`
   extended with an extension check that raises `ParseError` for unsupported
   formats (`.csv`, `.timeclock`, `.j`, etc.)
 - `tests/test_parser.py` — 5 new assertions (3 unsupported extension cases,
   2 accepted extension cases including a `.ledger` tempfile round-trip)
 
-**Human:** Specified that PyLedger should support `.journal` and `.ledger` only,
+**Human:** Specified that ledgerkit should support `.journal` and `.ledger` only,
 identified this as a deliberate deviation from hledger 1.52, and provided the
 hledger 1.52 data-formats reference URL for the full format list.
 
@@ -174,7 +174,7 @@ already implements the rule via `re.split(r"\s{2,}", ...)`).
 - `CLAUDE.md` — new "Regex Documentation Rule" in the Code Style section:
   every regex must be accompanied by a multiline comment covering purpose,
   group breakdown, and edge cases
-- `pyLedger/parser.py` — all four regexes (`_TXN_HEADER`, `_AMOUNT`, the
+- `ledgerkit/parser.py` — all four regexes (`_TXN_HEADER`, `_AMOUNT`, the
   date-check `re.match`, and the posting-split `re.split`) updated with full
   explanatory comments per the new rule
 
@@ -208,7 +208,7 @@ the `[IMPLEMENTED]` status updates, and wrote the wire→model mapping.
 ### [0.1.0-dev.1] — Feature: journal parser + tests
 
 **What changed:**
-- `pyLedger/parser.py` — `parse_string` and `parse_file` implemented;
+- `ledgerkit/parser.py` — `parse_string` and `parse_file` implemented;
   private helpers `_parse_txn_header`, `_parse_amount`, `_parse_posting` added
 - `tests/test_parser.py` — created with 18 assertions across 10 test classes
   (happy paths: date/description/flag/code/comment/commodity/thousands;

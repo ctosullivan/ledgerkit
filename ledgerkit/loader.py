@@ -1,4 +1,4 @@
-"""File loader for PyLedger.
+"""File loader for ledgerkit.
 
 Handles file I/O, include directive expansion, path resolution, glob
 matching, and circular include detection. Calls parse_string() for
@@ -12,14 +12,14 @@ import os
 import re
 from pathlib import Path
 
-from PyLedger.models import Journal
-from PyLedger.parser import ParseError, parse_string
+from ledgerkit.models import Journal
+from ledgerkit.parser import ParseError, parse_string
 
 
 _SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".journal", ".ledger"})
 
 # Known hledger format type prefixes (e.g. "timedot:", "csv:").
-# These are not supported in PyLedger v1.
+# These are not supported in ledgerkit v1.
 _FORMAT_PREFIXES: frozenset[str] = frozenset({
     "journal", "ledger", "timeclock", "timedot", "csv", "ssv", "tsv", "rules",
 })
@@ -60,7 +60,7 @@ def _validate_extension(
         supported = ", ".join(sorted(_SUPPORTED_EXTENSIONS))
         src = f" in {source}" if source is not None else ""
         raise ParseError(
-            f"unsupported file format {ext!r} — PyLedger accepts: {supported}{src}",
+            f"unsupported file format {ext!r} — ledgerkit accepts: {supported}{src}",
             lineno,
         )
 
@@ -68,7 +68,7 @@ def _validate_extension(
 def _check_format_prefix(raw: str, lineno: int, source: Path) -> None:
     """Raise ParseError if raw begins with a known hledger format type prefix.
 
-    Format prefixes (e.g. "timedot:notes.md") are not supported in PyLedger v1.
+    Format prefixes (e.g. "timedot:notes.md") are not supported in ledgerkit v1.
     Single-character prefixes are treated as Windows drive letters (e.g. "C:")
     and are not flagged here.
     """
@@ -77,7 +77,7 @@ def _check_format_prefix(raw: str, lineno: int, source: Path) -> None:
         prefix = raw[:colon].lower()
         if prefix in _FORMAT_PREFIXES:
             raise ParseError(
-                f"format prefixes not supported in PyLedger v1 — "
+                f"format prefixes not supported in ledgerkit v1 — "
                 f"remove the '{prefix}:' prefix from the include path",
                 lineno,
             )
@@ -200,7 +200,7 @@ def load_journal_stdin() -> Journal:
     with resolvable relative paths.
 
     Returns:
-        A :class:`~PyLedger.models.Journal` with ``source_file``
+        A :class:`~ledgerkit.models.Journal` with ``source_file``
         set to ``"(stdin)"``.
 
     Raises:
@@ -225,7 +225,7 @@ def merge_journals(journals: list[Journal]) -> Journal:
         journals: Non-empty list of Journal objects to merge.
 
     Returns:
-        A new :class:`~PyLedger.models.Journal` containing the
+        A new :class:`~ledgerkit.models.Journal` containing the
         combined data, or the original object when the list has
         exactly one entry.
 
@@ -271,7 +271,7 @@ def load_journal(path: str | os.PathLike) -> Journal:
         path: Absolute or relative path to the root journal file.
 
     Returns:
-        A :class:`~PyLedger.models.Journal` with ``source_file`` and
+        A :class:`~ledgerkit.models.Journal` with ``source_file`` and
         ``included_files`` populated.
 
     Raises:

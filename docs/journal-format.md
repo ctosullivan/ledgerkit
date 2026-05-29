@@ -1,6 +1,6 @@
 # Journal Format Reference
 
-PyLedger reads `.journal` and `.ledger` files. The format follows the
+ledgerkit reads `.journal` and `.ledger` files. The format follows the
 [hledger 1.52](https://hledger.org/1.52/hledger.html) journal specification.
 
 ---
@@ -31,7 +31,7 @@ terminated by a blank line (or end of file).
 ## Date Formats
 
 All three separator characters are accepted. Leading zeros on month and day
-are optional. The year may be omitted — PyLedger infers it from the current
+are optional. The year may be omitted — ledgerkit infers it from the current
 calendar year.
 
 | Format | Example |
@@ -56,7 +56,7 @@ as part of the account name.
 ```
 
 **Elided amount:** Exactly one posting per transaction may omit its amount.
-PyLedger records it as `None`; the value is inferred at report time.
+ledgerkit records it as `None`; the value is inferred at report time.
 
 ```
     assets:bank:checking                 ← no amount — inferred from other postings
@@ -231,7 +231,7 @@ A glob pattern that matches no files raises a `ParseError`.
 
 ### Format prefixes
 
-Format prefixes (e.g. `timedot:`, `csv:`) are **not supported** in PyLedger v1.
+Format prefixes (e.g. `timedot:`, `csv:`) are **not supported** in ledgerkit v1.
 Using them raises a `ParseError`. Remove the prefix and ensure the file has a
 `.journal` or `.ledger` extension.
 
@@ -258,7 +258,7 @@ alias checking = assets:bank:wells fargo:checking
 
 Syntax: `alias OLD = NEW` (spaces around `=` are optional)
 
-PyLedger replaces any account name that **equals** `OLD`, or that **begins**
+ledgerkit replaces any account name that **equals** `OLD`, or that **begins**
 with `OLD:` (subaccounts). For example, the alias above rewrites:
 
 - `checking` → `assets:bank:wells fargo:checking`
@@ -327,7 +327,7 @@ included files).
 
 ## Unsupported in v1
 
-The following hledger features are not supported in PyLedger v1:
+The following hledger features are not supported in ledgerkit v1:
 
 - Timeclock, timedot, CSV, SSV, TSV, rules file formats
 - Secondary dates (`2024-01-15=2024-01-20`)

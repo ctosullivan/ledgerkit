@@ -1,4 +1,4 @@
-"""Tests for PyLedger.checks — check functions and CLI integration."""
+"""Tests for ledgerkit.checks — check functions and CLI integration."""
 
 import datetime
 import os
@@ -10,7 +10,7 @@ from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 
-from PyLedger.checks import (
+from ledgerkit.checks import (
     CheckError,
     BASIC_CHECK_NAMES,
     STRICT_CHECK_NAMES,
@@ -28,8 +28,8 @@ from PyLedger.checks import (
     run_strict_checks,
     run_checks,
 )
-from PyLedger.models import Amount, BalanceAssertion, Journal, Posting, Transaction
-from PyLedger.parser import parse_string
+from ledgerkit.models import Amount, BalanceAssertion, Journal, Posting, Transaction
+from ledgerkit.parser import parse_string
 
 FIXTURES = pathlib.Path(__file__).parent.parent / "fixtures"
 SAMPLE_JOURNAL = FIXTURES / "sample.journal"
@@ -52,7 +52,7 @@ def _txn(
     Each posting is (account, amount_str) where amount_str is a parseable
     amount string like '£10.00' or '-$5.00', or None for an elided posting.
     """
-    from PyLedger.parser import _parse_amount
+    from ledgerkit.parser import _parse_amount
 
     parsed_postings = []
     for account, amount_str in postings:
@@ -139,7 +139,7 @@ class TestCheckAutobalanced(unittest.TestCase):
         self.assertEqual(check_autobalanced(_journal()), [])
 
     def test_sample_journal_passes(self):
-        from PyLedger.loader import load_journal
+        from ledgerkit.loader import load_journal
         j = load_journal(SAMPLE_JOURNAL)
         self.assertEqual(check_autobalanced(j), [])
 
@@ -294,7 +294,7 @@ class TestCheckOrdereddates(unittest.TestCase):
         self.assertEqual(check_ordereddates(_journal()), [])
 
     def test_sample_journal_passes(self):
-        from PyLedger.loader import load_journal
+        from ledgerkit.loader import load_journal
         j = load_journal(SAMPLE_JOURNAL)
         self.assertEqual(check_ordereddates(j), [])
 
@@ -415,7 +415,7 @@ def _posting_with_assertion(
     sole_commodity: bool = False,
 ) -> Posting:
     """Helper: build a Posting with a BalanceAssertion for direct check tests."""
-    from PyLedger.parser import _parse_amount
+    from ledgerkit.parser import _parse_amount
     amount = _parse_amount(amount_str, 0) if amount_str else None
     return Posting(
         account=account,
@@ -575,12 +575,12 @@ class TestCheckAssertions(unittest.TestCase):
         self.assertEqual(check_assertions(_journal(txn1, txn2)), [])
 
     def test_fixture_assertions_pass(self):
-        from PyLedger.loader import load_journal
+        from ledgerkit.loader import load_journal
         j = load_journal(FIXTURES / "assertions_pass.journal")
         self.assertEqual(check_assertions(j), [])
 
     def test_fixture_assertions_fail(self):
-        from PyLedger.loader import load_journal
+        from ledgerkit.loader import load_journal
         j = load_journal(FIXTURES / "assertions_fail.journal")
         errors = check_assertions(j)
         self.assertEqual(len(errors), 1)
@@ -632,7 +632,7 @@ class TestCLIDefaultAutobalanced(unittest.TestCase):
         try:
             buf = StringIO()
             with patch("sys.stderr", buf):
-                from PyLedger.cli import main
+                from ledgerkit.cli import main
                 code = main(["-f", str(tmp), "stats"])
             self.assertEqual(code, 1)
             self.assertIn("not balanced", buf.getvalue())
@@ -642,7 +642,7 @@ class TestCLIDefaultAutobalanced(unittest.TestCase):
     def test_unbalanced_journal_exits_1_on_print(self):
         tmp = _write_temp(_UNBALANCED_JOURNAL)
         try:
-            from PyLedger.cli import main
+            from ledgerkit.cli import main
             code = main(["-f", str(tmp), "print"])
             self.assertEqual(code, 1)
         finally:
@@ -653,14 +653,14 @@ class TestCLIDefaultAutobalanced(unittest.TestCase):
         try:
             buf = StringIO()
             with patch("sys.stdout", buf):
-                from PyLedger.cli import main
+                from ledgerkit.cli import main
                 code = main(["-f", str(tmp), "stats"])
             self.assertEqual(code, 0)
         finally:
             os.unlink(str(tmp))
 
     def test_sample_journal_passes_by_default(self):
-        from PyLedger.cli import main
+        from ledgerkit.cli import main
         code = main(["-f", str(SAMPLE_JOURNAL), "stats"])
         self.assertEqual(code, 0)
 
@@ -673,7 +673,7 @@ class TestCLIStrictFlag(unittest.TestCase):
         try:
             buf = StringIO()
             with patch("sys.stderr", buf):
-                from PyLedger.cli import main
+                from ledgerkit.cli import main
                 code = main(["-s", "-f", str(tmp), "stats"])
             self.assertEqual(code, 1)
             output = buf.getvalue()
@@ -687,7 +687,7 @@ class TestCLIStrictFlag(unittest.TestCase):
         try:
             buf = StringIO()
             with patch("sys.stdout", buf):
-                from PyLedger.cli import main
+                from ledgerkit.cli import main
                 code = main(["-s", "-f", str(tmp), "stats"])
             self.assertEqual(code, 0)
         finally:
@@ -696,7 +696,7 @@ class TestCLIStrictFlag(unittest.TestCase):
     def test_strict_fails_missing_account_declarations(self):
         buf = StringIO()
         with patch("sys.stderr", buf):
-            from PyLedger.cli import main
+            from ledgerkit.cli import main
             code = main(["-s", "-f", str(STRICT_MISSING_ACCOUNTS), "stats"])
         self.assertEqual(code, 1)
         output = buf.getvalue()
@@ -706,7 +706,7 @@ class TestCLIStrictFlag(unittest.TestCase):
     def test_strict_fails_missing_commodity_declarations(self):
         buf = StringIO()
         with patch("sys.stderr", buf):
-            from PyLedger.cli import main
+            from ledgerkit.cli import main
             code = main(["-s", "-f", str(STRICT_MISSING_COMMODITY), "stats"])
         self.assertEqual(code, 1)
         output = buf.getvalue()
@@ -716,7 +716,7 @@ class TestCLIStrictFlag(unittest.TestCase):
     def test_strict_passes_valid_fixture(self):
         buf = StringIO()
         with patch("sys.stdout", buf):
-            from PyLedger.cli import main
+            from ledgerkit.cli import main
             code = main(["-s", "-f", str(STRICT_VALID), "stats"])
         self.assertEqual(code, 0)
 
@@ -725,12 +725,12 @@ class TestCLICheckCommand(unittest.TestCase):
     """check command runs checks and exits 0/1."""
 
     def test_check_no_args_passes_balanced(self):
-        from PyLedger.cli import main
+        from ledgerkit.cli import main
         code = main(["-f", str(SAMPLE_JOURNAL), "check"])
         self.assertEqual(code, 0)
 
     def test_check_ordereddates_passes_ordered(self):
-        from PyLedger.cli import main
+        from ledgerkit.cli import main
         code = main(["-f", str(SAMPLE_JOURNAL), "check", "ordereddates"])
         self.assertEqual(code, 0)
 
@@ -748,7 +748,7 @@ class TestCLICheckCommand(unittest.TestCase):
         try:
             buf = StringIO()
             with patch("sys.stderr", buf):
-                from PyLedger.cli import main
+                from ledgerkit.cli import main
                 code = main(["-f", str(tmp), "check", "ordereddates"])
             self.assertEqual(code, 1)
             self.assertIn("out of order", buf.getvalue())
@@ -756,7 +756,7 @@ class TestCLICheckCommand(unittest.TestCase):
             os.unlink(str(tmp))
 
     def test_check_unknown_name_exits_1(self):
-        from PyLedger.cli import main
+        from ledgerkit.cli import main
         buf = StringIO()
         with patch("sys.stderr", buf):
             code = main(["-f", str(SAMPLE_JOURNAL), "check", "notacheck"])
@@ -768,7 +768,7 @@ class TestCLICheckCommand(unittest.TestCase):
         try:
             buf = StringIO()
             with patch("sys.stderr", buf):
-                from PyLedger.cli import main
+                from ledgerkit.cli import main
                 code = main(["-s", "-f", str(tmp), "check"])
             self.assertEqual(code, 1)
             output = buf.getvalue()
@@ -781,7 +781,7 @@ class TestCLICheckCommand(unittest.TestCase):
         out_buf = StringIO()
         err_buf = StringIO()
         with patch("sys.stdout", out_buf), patch("sys.stderr", err_buf):
-            from PyLedger.cli import main
+            from ledgerkit.cli import main
             code = main(["-f", str(SAMPLE_JOURNAL), "check"])
         self.assertEqual(code, 0)
         self.assertEqual(out_buf.getvalue(), "")

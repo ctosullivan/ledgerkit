@@ -1,7 +1,7 @@
-"""Command-line interface for PyLedger.
+"""Command-line interface for ledgerkit.
 
 Parses arguments, loads the journal, calls reports, and formats output.
-Entry point: main() — wired to `pyLedger` via pyproject.toml.
+Entry point: main() — wired to `ledgerkit` via pyproject.toml.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pathlib import Path
 # Captured as early as possible so elapsed time includes import overhead.
 _PROGRAM_START = time.perf_counter()
 
-from PyLedger import __version__
+from ledgerkit import __version__
 
 
 COMMANDS = ("balance", "register", "accounts", "print", "stats", "check")
@@ -26,10 +26,11 @@ _ANSI_RED   = "\033[31m"
 _ANSI_RESET = "\033[0m"
 
 
-# Formats a quantity+commodity pair in hledger style:
-#   positive → £5,000.00   negative → £-3,000.00
-# Commodity symbol is always placed before the sign.
-def _fmt_amount(quantity: Decimal, commodity: str) -> str:
+# Formats a quantity+commodity pair.  When a CommodityStyle is provided it
+# takes priority; otherwise falls back to hledger-style prefix+comma format.
+def _fmt_amount(quantity: Decimal, commodity: str, style: object = None) -> str:
+    if style is not None:
+        return style.format(quantity)  # type: ignore[attr-defined]
     if quantity < 0:
         return f"{commodity}-{abs(quantity):,.2f}"
     return f"{commodity}{quantity:,.2f}"
@@ -37,10 +38,10 @@ def _fmt_amount(quantity: Decimal, commodity: str) -> str:
 
 # Formats the running balance; shows bare "0" (no commodity) when zero,
 # matching hledger's convention for balanced-transaction nets.
-def _fmt_balance(balance: Decimal, commodity: str) -> str:
+def _fmt_balance(balance: Decimal, commodity: str, style: object = None) -> str:
     if balance == 0:
         return "0"
-    return _fmt_amount(balance, commodity)
+    return _fmt_amount(balance, commodity, style)
 
 
 # Abbreviates a colon-separated account name to fit within max_width by
@@ -64,7 +65,7 @@ def _abbreviate_account(account: str, max_width: int = 20) -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="PyLedger",
+        prog="ledgerkit",
         description="Plain-text accounting (hledger-compatible)",
     )
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -101,6 +102,16 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="ignore_assertions",
         action="store_true",
         help="Disable balance assertion checking",
+    )
+    p.add_argument(
+        "-c", "--commodity-style",
+        dest="commodity_styles_override",
+        action="append",
+        metavar="STYLE",
+        help=(
+            "Override display style for a commodity, e.g. '$1,000.00' or "
+            "'1.000,00 EUR'. May be specified more than once."
+        ),
     )
     p.add_argument(
         "command",
@@ -141,7 +152,7 @@ def _resolve_files(args: argparse.Namespace) -> list[str]:
 
     if args.files and positional_file:
         print(
-            "pyLedger: cannot combine -f/--file flags with a positional "
+            "ledgerkit: cannot combine -f/--file flags with a positional "
             "journal argument",
             file=sys.stderr,
         )
@@ -157,14 +168,14 @@ def _resolve_files(args: argparse.Namespace) -> list[str]:
     if default.exists():
         return [str(default)]
     print(
-        "pyLedger: no journal file specified; use -f FILE or set $LEDGER_FILE",
+        "ledgerkit: no journal file specified; use -f FILE or set $LEDGER_FILE",
         file=sys.stderr,
     )
     raise SystemExit(1)
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point for the pyLedger CLI.
+    """Entry point for the ledgerkit CLI.
 
     Args:
         argv: Argument list (defaults to sys.argv[1:] when None).
@@ -181,8 +192,8 @@ def main(argv: list[str] | None = None) -> int:
         return int(exc.code) if exc.code is not None else 1
 
     try:
-        from PyLedger.loader import load_journal, load_journal_stdin, merge_journals
-        from PyLedger.models import Journal
+        from ledgerkit.loader import load_journal, load_journal_stdin, merge_journals
+        from ledgerkit.models import Journal
 
         loaded: list[Journal] = []
         for f in file_list:
@@ -192,14 +203,25 @@ def main(argv: list[str] | None = None) -> int:
                 loaded.append(load_journal(f))
         journal = merge_journals(loaded)
     except FileNotFoundError as exc:
-        print(f"pyLedger: file not found: {exc}", file=sys.stderr)
+        print(f"ledgerkit: file not found: {exc}", file=sys.stderr)
         return 1
     except Exception as exc:
-        print(f"pyLedger: {exc}", file=sys.stderr)
+        print(f"ledgerkit: {exc}", file=sys.stderr)
         return 1
 
+    # --- Build commodity styles map (inferred + -c overrides) ---
+    from ledgerkit.commodity_style import CommodityStyle as _CommodityStyle
+    commodity_styles: dict = journal.commodity_styles
+    for override_str in (getattr(args, "commodity_styles_override", None) or []):
+        try:
+            override = _CommodityStyle.parse_style_override(override_str)
+            commodity_styles[override.commodity] = override
+        except ValueError as exc:
+            print(f"ledgerkit: invalid -c value {override_str!r}: {exc}", file=sys.stderr)
+            return 1
+
     # --- Default basic-check gate (runs before every command) ---
-    from PyLedger import checks as _checks
+    from ledgerkit import checks as _checks
 
     _skip: frozenset[str] = (
         frozenset({"assertions"}) if getattr(args, "ignore_assertions", False) else frozenset()
@@ -208,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     basic_errors = _checks.run_basic_checks(journal, skip=_skip)
     if basic_errors:
         for e in basic_errors:
-            print(f"pyLedger: {e.message}", file=sys.stderr)
+            print(f"ledgerkit: {e.message}", file=sys.stderr)
         return 1
 
     # --- Strict-mode checks (-s/--strict) ---
@@ -219,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
         ]
         if strict_only:
             for e in strict_only:
-                print(f"pyLedger: {e.message}", file=sys.stderr)
+                print(f"ledgerkit: {e.message}", file=sys.stderr)
             return 1
 
     # --- check command (no output on success; errors → stderr + exit 1) ---
@@ -230,11 +252,11 @@ def main(argv: list[str] | None = None) -> int:
                 journal, names=list(check_names), strict=args.strict, skip=_skip
             )
         except ValueError as exc:
-            print(f"pyLedger: {exc}", file=sys.stderr)
+            print(f"ledgerkit: {exc}", file=sys.stderr)
             return 1
         if errors:
             for e in errors:
-                print(f"pyLedger: {e.message}", file=sys.stderr)
+                print(f"ledgerkit: {e.message}", file=sys.stderr)
             return 1
         return 0
 
@@ -243,11 +265,11 @@ def main(argv: list[str] | None = None) -> int:
         try:
             outfile = open(args.output_file, "w", encoding="utf-8")
         except OSError as exc:
-            print(f"pyLedger: cannot open output file: {exc}", file=sys.stderr)
+            print(f"ledgerkit: cannot open output file: {exc}", file=sys.stderr)
             return 1
 
     try:
-        import PyLedger.reports as reports
+        import ledgerkit.reports as reports
 
         with contextlib.redirect_stdout(outfile) if outfile else contextlib.nullcontext():
             if args.command == "balance":
@@ -271,14 +293,20 @@ def main(argv: list[str] | None = None) -> int:
                     for _, comm, qty in lines:
                         commodity_totals[comm] = commodity_totals.get(comm, Decimal(0)) + qty
 
-                    formatted_amts = [_fmt_amount(qty, comm) for _, comm, qty in lines]
+                    formatted_amts = [
+                        _fmt_amount(qty, comm, commodity_styles.get(comm))
+                        for _, comm, qty in lines
+                    ]
                     # Only show non-zero commodity totals; a single bare "0" when all net zero.
                     nonzero_totals = [
                         (comm, qty)
                         for comm, qty in sorted(commodity_totals.items())
                         if qty != 0
                     ]
-                    total_strs = [_fmt_amount(qty, comm) for comm, qty in nonzero_totals]
+                    total_strs = [
+                        _fmt_amount(qty, comm, commodity_styles.get(comm))
+                        for comm, qty in nonzero_totals
+                    ]
                     col_w = max(
                         20,
                         *(len(s) for s in formatted_amts),
@@ -322,14 +350,15 @@ def main(argv: list[str] | None = None) -> int:
                     desc_str = row.description if is_first else ""
                     acct_str = _abbreviate_account(row.account)
                     commodity = row.amount.commodity
+                    style = commodity_styles.get(commodity)
 
                     # Right-align before colorising — ANSI escape codes have nonzero
                     # string length but zero display width, so padding must come first.
-                    amt_str = f"{_fmt_amount(row.amount.quantity, commodity):>12}"
+                    amt_str = f"{_fmt_amount(row.amount.quantity, commodity, style):>12}"
                     if row.amount.quantity < 0:
                         amt_str = f"{_ANSI_RED}{amt_str}{_ANSI_RESET}"
 
-                    bal_str = f"{_fmt_balance(row.running_balance, commodity):>13}"
+                    bal_str = f"{_fmt_balance(row.running_balance, commodity, style):>13}"
                     if row.running_balance < 0:
                         bal_str = f"{_ANSI_RED}{bal_str}{_ANSI_RESET}"
 
@@ -348,10 +377,13 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"{txn.date}{flag}{txn.description}")
                     for posting in txn.postings:
                         if posting.amount:
-                            print(
-                                f"    {posting.account:<40}"
-                                f"  {posting.amount.commodity}{posting.amount.quantity}"
+                            amt_style = commodity_styles.get(posting.amount.commodity)
+                            amt_txt = _fmt_amount(
+                                posting.amount.quantity,
+                                posting.amount.commodity,
+                                amt_style,
                             )
+                            print(f"    {posting.account:<40}  {amt_txt}")
                         else:
                             print(f"    {posting.account}")
                     print()
@@ -398,12 +430,12 @@ def main(argv: list[str] | None = None) -> int:
 
     except NotImplementedError:
         print(
-            f"pyLedger: '{args.command}' is not yet implemented",
+            f"ledgerkit: '{args.command}' is not yet implemented",
             file=sys.stderr,
         )
         return 1
     except Exception as exc:
-        print(f"pyLedger: {exc}", file=sys.stderr)
+        print(f"ledgerkit: {exc}", file=sys.stderr)
         return 1
     finally:
         if outfile:

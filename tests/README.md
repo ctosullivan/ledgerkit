@@ -67,7 +67,7 @@ tests/
 
 ### What to test
 
-- Every public function in `PyLedger/` must have at least one test.
+- Every public function in `ledgerkit/` must have at least one test.
 - Tests should cover the happy path and the most important error paths.
 - For parser tests: test both valid input (produces expected model) and
   invalid input (raises `ParseError` with a useful message).

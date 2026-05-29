@@ -1,4 +1,4 @@
-"""In-memory editable document model for PyLedger.
+"""In-memory editable document model for ledgerkit.
 
 Provides EditorDocument: load a journal file, mutate transactions in memory,
 validate individual transactions, and write changes back to disk faithfully.
@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyLedger.checks import CheckError, check_transaction_autobalanced
-from PyLedger.models import Journal, SourceSpan, Transaction
-from PyLedger.parser import parse_string
-from PyLedger.writer import transaction_to_text
+from ledgerkit.checks import CheckError, check_transaction_autobalanced
+from ledgerkit.models import Journal, SourceSpan, Transaction
+from ledgerkit.parser import parse_string
+from ledgerkit.writer import transaction_to_text
 
 
 class EditorDocument:

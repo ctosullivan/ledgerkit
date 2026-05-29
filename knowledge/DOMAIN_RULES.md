@@ -1,6 +1,6 @@
 # Domain Rules
 
-Tacit knowledge about the hledger journal format and PyLedger's implementation that Claude cannot infer from code alone.
+Tacit knowledge about the hledger journal format and ledgerkit's implementation that Claude cannot infer from code alone.
 
 ---
 

@@ -2,12 +2,12 @@
 
 ## Project Identity
 
-This is **PyLedger**: a Python implementation of the [hledger](https://hledger.org)
+This is **ledgerkit**: a Python implementation of the [hledger](https://hledger.org)
 plain-text accounting tool.
 
-- **Target Python**: 3.10+
+- **Target Python**: 3.8+
 - **Dependency policy**: Prefer Python built-in libraries. No third-party packages
-  in `PyLedger/` core modules without explicit user approval.
+  in `ledgerkit/` core modules without explicit user approval.
 - **Supported file formats**: `.journal`, `.ledger` (see `dev-docs/hledger-compatibility.md`)
 
 ---
@@ -21,7 +21,7 @@ Project-specific knowledge that Claude cannot infer from code lives in `knowledg
 | `knowledge/DECISIONS.md` | Non-obvious judgment calls — what was chosen, why, and what was rejected |
 | `knowledge/EDGE_CASES.md` | Human-identified edge cases that are non-obvious or regression-prone |
 | `knowledge/ANTIPATTERNS.md` | Approaches tried and abandoned — do not revisit without reading these first |
-| `knowledge/DOMAIN_RULES.md` | Tacit hledger format rules and PyLedger invariants Claude can't infer from code |
+| `knowledge/DOMAIN_RULES.md` | Tacit hledger format rules and ledgerkit invariants Claude can't infer from code |
 
 **When to update:** Add an entry to the relevant file whenever a non-obvious decision is made, an edge case is identified, or an approach is abandoned. Do this **in the same response** as the change.
 
@@ -100,7 +100,7 @@ python -m unittest discover -s tests -t . -v
 
 - **Type hints** on all public functions and methods
 - **Docstrings** on all public classes and functions (one-line summary minimum)
-- No third-party imports in `PyLedger/` without user approval
+- No third-party imports in `ledgerkit/` without user approval
 - Keep modules focused: see `dev-docs/architecture.md` for each module's
   single responsibility
 
@@ -150,7 +150,7 @@ retroactively if editing a file that already contains undocumented regexes.
 
 ## Module Size & Refactoring
 
-When a module (`PyLedger/*.py`) or test file (`tests/test_*.py`) approaches or exceeds
+When a module (`ledgerkit/*.py`) or test file (`tests/test_*.py`) approaches or exceeds
 **300–500 lines**, or is handling more than one clear responsibility, it is a signal that
 a refactor should be considered.
 
@@ -227,7 +227,7 @@ Rules:
 ## Folder Structure (do not change without approval)
 
 ```
-PyLedger/
+ledgerkit/
 ├── CLAUDE.md
 ├── CONTEXT.md                       ← Claude's session working memory (overwrite each session)
 ├── README.md
@@ -275,7 +275,7 @@ PyLedger/
 │   ├── test_reports/            ← earmarked for future report tests
 │   ├── test_reports.py
 │   └── README.md
-└── PyLedger/
+└── ledgerkit/
     ├── __init__.py
     ├── __main__.py
     ├── parser.py

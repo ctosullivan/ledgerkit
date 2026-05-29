@@ -3,26 +3,26 @@
 Reference: https://hledger.org/1.52/hledger.html
 
 This document tracks which hledger format features are in scope for **v1** of
-PyLedger, which are explicitly out of scope, and which are undecided.
+ledgerkit, which are explicitly out of scope, and which are undecided.
 
 ---
 
 ## Supported File Formats
 
-PyLedger accepts the following file extensions. This is a deliberate subset of
+ledgerkit accepts the following file extensions. This is a deliberate subset of
 what hledger 1.52 supports (full comparison below).
 
 | Extension | Description |
 |---|---|
 | `.journal` | Primary hledger journal format — fully supported |
-| `.ledger` | Ledger-CLI compatible journal syntax — supported to the same degree as `.journal`; both use identical parsing in PyLedger v1 |
+| `.ledger` | Ledger-CLI compatible journal syntax — supported to the same degree as `.journal`; both use identical parsing in ledgerkit v1 |
 
 ### Deviation from hledger 1.52
 
 hledger 1.52 supports seven format families. The table below documents every
-format and PyLedger's stance. Reference: https://hledger.org/1.52/hledger.html#data-formats
+format and ledgerkit's stance. Reference: https://hledger.org/1.52/hledger.html#data-formats
 
-| hledger 1.52 format | Extensions | PyLedger v1 |
+| hledger 1.52 format | Extensions | ledgerkit v1 |
 |---|---|---|
 | journal | `.journal` `.j` `.hledger` `.ledger` | **Supported** for `.journal` and `.ledger` only; `.j` and `.hledger` aliases are **not** accepted |
 | timeclock | `.timeclock` | **Not supported** — out of scope |
@@ -32,7 +32,7 @@ format and PyLedger's stance. Reference: https://hledger.org/1.52/hledger.html#d
 | tsv | `.tsv` | **Not supported** — out of scope |
 | rules | `.rules` | **Not supported** — out of scope |
 
-**Note on `.ledger`:** PyLedger does not aim for full Ledger-CLI compatibility.
+**Note on `.ledger`:** ledgerkit does not aim for full Ledger-CLI compatibility.
 The `.ledger` extension is accepted because the hledger-compatible subset of
 Ledger syntax is identical to `.journal` syntax within v1 scope. Ledger-specific
 features (e.g. automated transactions, periodic transactions, value expressions)
@@ -133,7 +133,7 @@ Three distinct comment forms are supported. **Indentation is the discriminator**
 |---|---|---|
 | P directive | `P DATE COMMODITY PRICE` | **[IMPLEMENTED]** Market price declaration; stored in `Journal.prices` as `PriceDirective` objects. DATE uses simple date format; COMMODITY1SYMBOL is the commodity being priced; COMMODITY2AMOUNT is the price as an amount (prefix or suffix symbol). Inline comments (`  ;`) stripped. Scope: prices propagate through `include` naturally (text-expansion strategy). Commodity valuation using stored prices is in scope for Milestone 2. Reference: https://hledger.org/1.52/hledger.html#p-directive |
 | alias directive | `alias OLD=NEW` / `alias /REGEX/=REPLACEMENT` / `end aliases` | **[IMPLEMENTED]** Account name rewriting applied at parse time. Basic aliases match `OLD` as an exact account name or as a colon-delimited prefix (e.g. `alias checking = assets:bank` rewrites `checking` and `checking:savings`). Regex aliases substitute any matching substring (case-insensitive per hledger spec; backreferences `\1` supported). Multiple aliases accumulate; `end aliases` clears all active rules. Aliases also rewrite account names in `account` directives. Inline comments using `  ;` or `  #` (two-space rule) are stripped from alias bodies. **Application order:** most-recently-defined alias applied first (LIFO), matching hledger behaviour. **Scoping deviation:** because `include` is handled as a separate `parse_string()` call in `loader.py`, alias rules defined in one file do NOT propagate into included files — a deviation from hledger 1.52 (where aliases propagate into includes). Command-line `--alias` option deferred to a future milestone. Reference: https://hledger.org/1.52/hledger.html#alias-directive |
-| include directive | `include other.journal` | **[IMPLEMENTED]** Embeds entries and directives from another `.journal` or `.ledger` file inline at the point of the directive; directives active before the include apply to the included file (text-expansion strategy). Path resolution: relative to containing file's directory, absolute, and `~` tilde expansion; glob patterns (`*`, `**`, `?`, `[range]`) expanded via `glob.glob(recursive=True)`; the containing file is always excluded from glob results. A glob that matches no files raises `ParseError`. Circular includes raise `ParseError`. Format prefixes (e.g. `timedot:`) raise `ParseError` — not supported in PyLedger v1. Only `.journal` and `.ledger` targets accepted (other extensions raise `ParseError`). **Dot-file glob behaviour**: uses Python `glob.glob()` defaults, which may differ from hledger 1.52 (hledger excludes dot files from `*`/`**`; Python's glob may include them). Reference: https://hledger.org/1.52/hledger.html#include-directive |
+| include directive | `include other.journal` | **[IMPLEMENTED]** Embeds entries and directives from another `.journal` or `.ledger` file inline at the point of the directive; directives active before the include apply to the included file (text-expansion strategy). Path resolution: relative to containing file's directory, absolute, and `~` tilde expansion; glob patterns (`*`, `**`, `?`, `[range]`) expanded via `glob.glob(recursive=True)`; the containing file is always excluded from glob results. A glob that matches no files raises `ParseError`. Circular includes raise `ParseError`. Format prefixes (e.g. `timedot:`) raise `ParseError` — not supported in ledgerkit v1. Only `.journal` and `.ledger` targets accepted (other extensions raise `ParseError`). **Dot-file glob behaviour**: uses Python `glob.glob()` defaults, which may differ from hledger 1.52 (hledger excludes dot files from `*`/`**`; Python's glob may include them). Reference: https://hledger.org/1.52/hledger.html#include-directive |
 | account directive | `account assets:bank:checking` | **[IMPLEMENTED]** Declares an account name. Stored in `Journal.declared_accounts`. Inline comments (2-space + `;`) and Ledger-style indented subdirectives are stripped. Used by `check accounts` / `-s`. Account types (`type:` tag), display ordering, and tag propagation are deferred. Reference: https://hledger.org/1.52/hledger.html#account-directive |
 | commodity directive | `commodity $1,000.00` / `commodity EUR` | **[IMPLEMENTED]** Declares a commodity symbol. Symbol extracted from sample amount (prefix `$`, suffix `EUR`) or bare token. Quoted symbols (`"AAPL 2023"`) supported. Indented `format` subdirectives consumed and ignored. Stored in `Journal.declared_commodities`. Used by `check commodities` / `-s`. Commodity display style and decimal-mark inference are deferred. Reference: https://hledger.org/1.52/hledger.html#commodity-directive |
 | payee directive | `payee Whole Foods` | **[IMPLEMENTED]** Declares a payee name. Inline comments stripped with 2-space rule. Quoted names (`payee ""`) supported. Stored in `Journal.declared_payees`. Used by `check payees`. Reference: https://hledger.org/1.52/hledger.html#payee-directive |
@@ -142,7 +142,7 @@ Three distinct comment forms are supported. **Indentation is the discriminator**
 
 ### Validation / Checks
 
-PyLedger runs validation checks after parsing. Checks are grouped into tiers.
+ledgerkit runs validation checks after parsing. Checks are grouped into tiers.
 
 | Check | Tier | Description |
 |---|---|---|
@@ -210,7 +210,7 @@ feature below.
 
 ## Compatibility Notes
 
-- PyLedger does **not** aim for 100% hledger compatibility in v1.
+- ledgerkit does **not** aim for 100% hledger compatibility in v1.
 - The goal is to correctly parse the most common single-currency personal
   finance journal files.
 - When a file is not parseable, `ParseError` should include the line number

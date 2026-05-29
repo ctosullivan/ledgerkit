@@ -1,4 +1,4 @@
-# PyLedger
+# ledgerkit
 
 A Python implementation of the [hledger](https://hledger.org) plain-text accounting tool.
 
@@ -12,7 +12,7 @@ A Python implementation of the [hledger](https://hledger.org) plain-text account
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.8+
 
 ## Installation
 
@@ -25,25 +25,25 @@ pip install -e .
 ### CLI
 
 ```bash
-PyLedger balance myfile.journal
-PyLedger register myfile.journal
-PyLedger accounts myfile.journal
-PyLedger print myfile.journal
-PyLedger stats myfile.journal
+ledgerkit balance myfile.journal
+ledgerkit register myfile.journal
+ledgerkit accounts myfile.journal
+ledgerkit print myfile.journal
+ledgerkit stats myfile.journal
 ```
 
-You can also invoke PyLedger as a Python module:
+You can also invoke ledgerkit as a Python module:
 
 ```bash
-python -m PyLedger balance myfile.journal
+python -m ledgerkit balance myfile.journal
 ```
 
 ### Python library
 
 ```python
-import PyLedger
+import ledgerkit
 
-journal = PyLedger.load("myfile.journal")
+journal = ledgerkit.load("myfile.journal")
 accounts = journal.accounts()
 balance  = journal.balance()
 ```
@@ -59,11 +59,36 @@ See [docs/python-api.md](docs/python-api.md) for the full library reference.
 | [docs/journal-format.md](docs/journal-format.md) | Supported journal syntax with annotated examples |
 | [docs/python-api.md](docs/python-api.md) | Python library reference |
 
+## Python ecosystem (pandas)
+
+Install the optional pandas extra for DataFrame export:
+
+```bash
+pip install ledgerkit[pandas]
+```
+
+Then:
+
+```python
+import ledgerkit
+
+journal = ledgerkit.load("myfile.journal")
+
+# Export all postings to a DataFrame
+df = journal.to_dataframe()
+print(df.groupby("account")["amount"].sum())
+
+# Or export directly from a report object
+balance_df = journal.balance().to_dataframe()
+register_df = journal.register().to_dataframe()
+accounts_df = journal.accounts().to_dataframe()
+```
+
 ## Development
 
 ```bash
 # Run all tests
-python -m unittest tests.test_parser -v
+python -m unittest discover -s tests -t . -v
 ```
 
 See [dev-docs/architecture.md](dev-docs/architecture.md) for module design and
@@ -85,7 +110,7 @@ message format, and branch naming. This project follows the
 Clone the full repository including AI-workflow files:
 
 ```bash
-git clone https://github.com/ctosullivan/PyLedger.git
+git clone https://github.com/ctosullivan/ledgerkit.git
 ```
 
 ### Without AI tooling
@@ -94,14 +119,14 @@ Use sparse checkout to clone only the source code, tests, and human docs
 (excludes `CLAUDE.md`, `dev-docs/`, `CHANGELOG.md`, `ROADMAP.md`):
 
 ```bash
-git clone --filter=blob:none --sparse https://github.com/ctosullivan/PyLedger.git
-cd PyLedger
-git sparse-checkout set PyLedger tests docs README.md LICENSE pyproject.toml
+git clone --filter=blob:none --sparse https://github.com/ctosullivan/ledgerkit.git
+cd ledgerkit
+git sparse-checkout set ledgerkit tests docs README.md LICENSE pyproject.toml
 ```
 
 ## Acknowledgements
 
-PyLedger is a Python implementation inspired by two pioneering plain-text
+ledgerkit is a Python implementation inspired by two pioneering plain-text
 accounting projects. We gratefully acknowledge their authors and contributors.
 
 ### Ledger
@@ -116,7 +141,7 @@ ecosystem is built upon.
 
 **Simon Michael** created hledger, a Haskell implementation of Ledger's concepts,
 which has since evolved its own rich feature set and extensive documentation.
-PyLedger's journal format support is modelled primarily on the hledger 1.52
+ledgerkit's journal format support is modelled primarily on the hledger 1.52
 specification.
 
   https://github.com/simonmichael/hledger
@@ -125,5 +150,5 @@ A full list of hledger contributors can be found at:
 
   https://github.com/simonmichael/hledger/blob/main/doc/CREDITS.md
 
-Their work — and the broader plain-text accounting community — makes PyLedger
+Their work — and the broader plain-text accounting community — makes ledgerkit
 possible.

@@ -1,4 +1,4 @@
-"""Tests for PyLedger.parser — core transaction and amount parsing."""
+"""Tests for ledgerkit.parser — core transaction and amount parsing."""
 
 import datetime
 import os
@@ -6,8 +6,8 @@ import pathlib
 import unittest
 from decimal import Decimal
 
-from PyLedger.models import Amount, Journal, Posting, Transaction
-from PyLedger.parser import ParseError, parse_string, parse_string_lenient, resolve_elision
+from ledgerkit.models import Amount, Journal, Posting, Transaction
+from ledgerkit.parser import ParseError, parse_string, parse_string_lenient, resolve_elision
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "..", "fixtures")
 SAMPLE_JOURNAL = os.path.join(FIXTURES, "sample.journal")
