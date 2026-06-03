@@ -162,6 +162,62 @@ save journal files without reaching into ledgerkit internals.
 
 ---
 
+## Milestone 4 — Comprehensive Format Compatibility `[PLANNED]`
+
+Enable ledgerkit to load `tests/fixtures/comprehensive-hledger-test.journal`
+(and its included `comprehensive-hledger-test-commodities.journal`) with
+**zero `ParseError` objects** and `python -m ledgerkit check` exiting 0.
+
+The two fixture files were authored to exercise almost every hledger 1.52
+journal-syntax feature and serve as a living regression suite for parser breadth.
+
+**Scope:**
+
+*Amount parser fixes (`parser.py` — `_AMOUNT` regex and `_parse_amount`)*
+- Sign after prefix symbol: `$-300`, `£-10` (currently only leading `-$300` works)
+- Cost annotations: `@ UNIT_PRICE` / `@@ TOTAL_PRICE` — strip before parsing; store
+  raw annotation text on `Posting` for future valuation use
+- Lot annotations: `{UNIT}` / `{{TOTAL}}` / `[DATE]` / `(LABEL)` — strip; not stored v1
+- Quoted commodity suffix: `-3 "Chocolate Frogs"` (suffix with spaces/special chars)
+- Space digit-group separator: `1 000 000 JPY`
+- Scientific E-notation: `1E3 EUR`, `1e-2 BTC`
+
+*Transaction header fix (`parser.py` — `_TXN_HEADER` regex and `_parse_txn_header`)*
+- Secondary/auxiliary date: `2024-02-20=2024-02-22` → store `Transaction.date2`
+
+*New directives (`parser.py` — `_parse_string_impl`)*
+- `D AMOUNT` — set default commodity; applied to no-symbol amounts like `2.00`
+- `Y YEAR` — override internal `default_year` from journal file
+- `apply account PREFIX` / `end apply account` — prepend PREFIX to every account name
+  inside the block (mirrors hledger behaviour)
+- `~` periodic-transaction rule lines — recognise header, skip block without error
+- `=` auto-posting rule lines — recognise header, skip block without error
+
+*Commodity directive fix (`parser.py` — `_extract_commodity_symbol`)*
+- Handle `1,000. "Chocolate Frogs"` form: numeric sample + quoted suffix symbol
+
+*Model change (`models.py`)*
+- `Transaction.date2: Optional[datetime.date] = None` — secondary date field
+
+**Exit criteria:**
+- `parse_string_lenient(open('tests/fixtures/comprehensive-hledger-test.journal').read())`
+  returns `(journal, [])` — zero errors, all transactions parsed
+- `python -m ledgerkit check -f tests/fixtures/comprehensive-hledger-test.journal` exits 0
+- All 485 existing tests continue to pass
+- 20+ new tests in `tests/test_parser/test_parser.py` covering each root cause above
+- `dev-docs/api-spec.md` updated with `Transaction.date2`
+- `dev-docs/hledger-compatibility.md` updated (all new features added to supported table)
+- `CHANGELOG.md` entry added
+
+**Intentionally deferred:**
+- `--forecast` periodic transaction generation
+- `--auto` auto-posting application
+- Lot price tracking / cost-basis reporting
+- Virtual posting balance semantics (`()` unbalanced, `[]` balanced)
+- Commodity conversion entries (`equity:conversion`)
+
+---
+
 ## Future / Backlog `[BACKLOG]`
 
 Items not scheduled for a milestone yet. Promote to a milestone when prioritised.
