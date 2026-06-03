@@ -72,6 +72,7 @@ class Posting:
     account: str                                    # e.g. "expenses:food"
     amount: Amount | None = None                    # None means "infer from other postings"
     balance_assertion: BalanceAssertion | None = None  # optional inline assertion
+    cost_raw: str | None = None                     # raw cost annotation text (e.g. "$180.00" from "@ $180.00") [ADDED IN v0.2.0]
     source_line: int | None = None                  # 1-based line number; None for programmatic objects
     inferred: bool = False                          # True for postings synthesised by resolve_elision()
 ```
@@ -96,6 +97,7 @@ dataclass repr clean.
 class Transaction:
     date: datetime.date
     description: str
+    date2: datetime.date | None = None  # secondary/auxiliary date (e.g. "2024-01-01=2024-01-03") [ADDED IN v0.2.0]
     postings: list[Posting]
     cleared: bool = False          # True if marked with "*"
     pending: bool = False          # True if marked with "!"

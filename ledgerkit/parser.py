@@ -9,9 +9,26 @@ from __future__ import annotations
 
 import datetime
 import re
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from typing import Optional
 
 from ledgerkit.models import Amount, BalanceAssertion, Journal, Posting, PriceDirective, SourceSpan, Transaction
+
+
+@dataclass
+class _ParseContext:
+    """Mutable parser state threaded through the parsing call chain.
+
+    Holds directive-accumulated values that must be visible to both
+    _parse_amount and _parse_posting without threading multiple individual
+    parameters. Fields are mutated in-place as directives are encountered.
+    """
+
+    default_year: int
+    decimal_mark: str
+    default_commodity: Optional[str] = None
+    account_prefix: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -307,18 +324,18 @@ def _parse_txn_header(line: str, lineno: int, default_year: int) -> Transaction:
     )
 
 
-def _parse_amount(raw: str, lineno: int, decimal_mark: str = ".") -> Amount:
+def _parse_amount(raw: str, lineno: int, ctx: _ParseContext) -> Amount:
     """Parse a raw amount string into an Amount.
 
     Supports prefix commodity (£30.00), suffix commodity (30.00 EUR),
     negative amounts (-£5.00, -30.00 EUR), and digit-group separators.
 
-    When decimal_mark is "." (default), commas are treated as thousands
+    When ctx.decimal_mark is "." (default), commas are treated as thousands
     separators and periods as decimal marks (e.g. 1,234.56).
-    When decimal_mark is ",", periods are thousands separators and commas
+    When ctx.decimal_mark is ",", periods are thousands separators and commas
     are decimal marks (e.g. 1.234,56).
     """
-    if decimal_mark == ",":
+    if ctx.decimal_mark == ",":
         m = _AMOUNT_COMMA.match(raw.strip())
     else:
         m = _AMOUNT.match(raw.strip())
@@ -332,7 +349,7 @@ def _parse_amount(raw: str, lineno: int, decimal_mark: str = ".") -> Amount:
     if not commodity:
         raise ParseError(f"amount has no commodity symbol: {raw!r}", lineno)
 
-    if decimal_mark == ",":
+    if ctx.decimal_mark == ",":
         # Period is the digit-group mark; comma is the decimal mark.
         quantity_clean = quantity_str.replace(".", "").replace(",", ".")
     else:
@@ -446,12 +463,12 @@ def _extract_commodity_symbol(raw: str, lineno: int) -> str:
 _ASSERTION_MARKER_RE = re.compile(r"\s+(==\*|==|=\*|=)\s+")
 
 
-def _parse_posting(line: str, lineno: int, decimal_mark: str = ".") -> Posting:
+def _parse_posting(line: str, lineno: int, ctx: _ParseContext) -> Posting:
     """Parse a single posting line (already stripped of leading whitespace).
 
     Splits on two-or-more whitespace to separate account from amount.
     If no amount token is present the posting is elided (amount=None).
-    decimal_mark controls how the amount's numeric portion is interpreted
+    ctx.decimal_mark controls how the amount's numeric portion is interpreted
     ("." = period-decimal default; "," = comma-decimal / EU style).
     """
     # Purpose: split the posting line into (account, amount) on the first run
@@ -497,7 +514,7 @@ def _parse_posting(line: str, lineno: int, decimal_mark: str = ".") -> Posting:
         posting_amount_raw = amount_raw[: am.start()].strip()
         assertion_amount_raw = amount_raw[am.end() :].strip()
         assertion = BalanceAssertion(
-            amount=_parse_amount(assertion_amount_raw, lineno, decimal_mark),
+            amount=_parse_amount(assertion_amount_raw, lineno, ctx),
             inclusive="*" in marker,
             sole_commodity=marker.startswith("=="),
         )
@@ -515,7 +532,7 @@ def _parse_posting(line: str, lineno: int, decimal_mark: str = ".") -> Posting:
 
     return Posting(
         account=account,
-        amount=_parse_amount(amount_raw, lineno, decimal_mark),
+        amount=_parse_amount(amount_raw, lineno, ctx),
         balance_assertion=assertion,
         source_line=lineno,
         inline_comment=posting_inline_comment,
@@ -672,7 +689,7 @@ def _parse_string_impl(
     declared_tags: list[str] = []
     commodity_directive_raws: dict = {}  # symbol → raw amount string from directive
     aliases: list[tuple[str, str, bool]] = []  # (old_or_pattern, replacement, is_regex)
-    decimal_mark: str = "."  # updated by decimal-mark directive
+    ctx = _ParseContext(default_year=default_year, decimal_mark=".")
     current_txn: Transaction | None = None
     current_txn_last_lineno: int | None = None  # tracks end_line for source_span
     last_posting_in_txn: Posting | None = None  # for standalone comment attribution
@@ -971,7 +988,7 @@ def _parse_string_impl(
                     raise _err
                 errors_out.append(_err)
                 continue
-            decimal_mark = dm
+            ctx.decimal_mark = dm
             continue
 
         # --- P directive ---
@@ -1000,7 +1017,7 @@ def _parse_string_impl(
             amount_clean = _strip_directive_comment(amount_raw)
             try:
                 p_date = _parse_simple_date(date_str, lineno, default_year)
-                p_price = _parse_amount(amount_clean, lineno, decimal_mark)
+                p_price = _parse_amount(amount_clean, lineno, ctx)
             except ParseError as _err:
                 if errors_out is None:
                     raise
@@ -1076,7 +1093,7 @@ def _parse_string_impl(
             continue
         if current_txn is not None:
             try:
-                posting = _parse_posting(stripped, lineno, decimal_mark)
+                posting = _parse_posting(stripped, lineno, ctx)
             except ParseError as _err:
                 if errors_out is None:
                     raise

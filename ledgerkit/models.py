@@ -73,6 +73,7 @@ class Posting:
     account: str
     amount: Amount | None = None
     balance_assertion: BalanceAssertion | None = field(default=None)
+    cost_raw: Optional[str] = None   # raw cost annotation (e.g. "$180.00" from "@ $180.00")
     source_line: int | None = field(default=None, repr=False)
     inferred: bool = field(default=False, repr=False)
     inline_comment: str | None = field(default=None, repr=False, compare=False)
@@ -84,6 +85,7 @@ class Transaction:
 
     date: datetime.date
     description: str
+    date2: Optional[datetime.date] = None   # secondary/auxiliary date
     postings: list[Posting] = field(default_factory=list)
     cleared: bool = False    # True when marked with "*"
     pending: bool = False    # True when marked with "!"
