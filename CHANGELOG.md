@@ -12,11 +12,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Milestone 4 Phase 1 — Model prerequisites and parser context refactor
+---
 
-**Human:** Add `Transaction.date2` and `Posting.cost_raw` fields as prerequisites for Milestone 4 parser work; introduce `_ParseContext` dataclass to consolidate parser state threading.
+## [0.2.0] — 2026-06-06
 
-**Claude:** Added `date2: Optional[datetime.date] = None` to `Transaction` and `cost_raw: Optional[str] = None` to `Posting` in `models.py`. Added `_ParseContext` dataclass to `parser.py` with fields `default_year`, `decimal_mark`, `default_commodity`, and `account_prefix`; replaced individual `decimal_mark` parameter threading through `_parse_string_impl` → `_parse_posting` → `_parse_amount` with a single `ctx: _ParseContext` argument. Updated direct `_parse_amount` callers in `tests/test_checks/test_checks.py` to supply a context. 538 tests pass.
+### [Milestone 4 — Comprehensive Format Compatibility]
+
+Full detail: [dev-docs/changelog/MILESTONE-4.md](dev-docs/changelog/MILESTONE-4.md)
+
+**Summary:** Added comprehensive hledger format compatibility. New model fields `Transaction.date2` (secondary date) and `Posting.cost_raw` (cost annotation text). New `ParseWarning` class for non-fatal parser notices. Amount parser now handles sign-after-prefix-symbol (`$-300`), cost/lot annotations (`@ $180`, `{$182}`), quoted commodity suffix (`3 "Chocolate Frogs"`), space digit-group separators (`1 000 000 JPY`), and E-notation (`1E3 EUR`). New directives: `Y` (default year), `D` (default commodity), `apply account`/`end apply account`. Periodic (`~`) and auto-posting (`=`) rule blocks skipped gracefully with `ParseWarning`. Zero hard errors on the comprehensive fixture; 575 tests pass.
 
 ---
 

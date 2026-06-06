@@ -29,15 +29,15 @@ the main file's 22 errors when running `ledgerkit check`.
 
 ## TODO — Implementation Progress
 
-- [ ] Phase 1 — models.py prerequisites (Transaction.date2, Posting.cost_raw)
-- [ ] Phase 1b — _ParseContext dataclass in parser.py
-- [ ] Phase 2a — Amount parser A1–A3 (sign, cost annotations, lot annotations)
-- [ ] Phase 2b — Amount parser A4–A6, D1 (quoted suffix, space separator, E-notation, commodity directive)
-- [ ] Phase 3a — Secondary date (B1)
-- [ ] Phase 3b/c — Skip ~ and = rule blocks (C4, C5)
-- [ ] Phase 3d/e/f — Y, D, apply account directives (C1, C2, C3)
-- [ ] Phase 4 — Tests
-- [ ] Phase 5 — Documentation
+- [x] Phase 1 — models.py prerequisites (Transaction.date2, Posting.cost_raw)
+- [x] Phase 1b — _ParseContext dataclass in parser.py
+- [x] Phase 2a — Amount parser A1–A3 (sign, cost annotations, lot annotations)
+- [x] Phase 2b — Amount parser A4–A6, D1 (quoted suffix, space separator, E-notation, commodity directive)
+- [x] Phase 3a — Secondary date (B1)
+- [x] Phase 3b/c — Skip ~ and = rule blocks (C4, C5)
+- [x] Phase 3d/e/f — Y, D, apply account directives (C1, C2, C3)
+- [x] Phase 4 — Tests
+- [x] Phase 5 — Documentation
 
 > **Updating this TODO:** At the end of each phase, once all checkpoint commands
 > pass and no new test failures are introduced, mark the corresponding item `[x]`.

@@ -86,6 +86,7 @@ A transaction block is the fundamental unit of a journal file.
 | Feature | Example | Notes |
 |---|---|---|
 | Simple date | `2024-01-15`, `2024/1/15`, `2024.1.15`, `1/15` | Separators: `-` `/` `.`; leading zeros optional; year may be omitted (inferred from current date) |
+| Secondary date | `2024-02-20=2024-02-22 * Payroll` | Optional `=DATE2` suffix after primary date; stored in `Transaction.date2` |
 | Description | `2024-01-15 Groceries` | Free text after the date |
 | Cleared flag | `2024-01-15 * Groceries` | `*` = cleared |
 | Pending flag | `2024-01-15 ! Groceries` | `!` = pending |
@@ -108,8 +109,14 @@ A transaction block is the fundamental unit of a journal file.
 | Prefixed symbol | `£30.00`, `$10` | Symbol before quantity |
 | Suffixed symbol | `30.00 EUR` | Symbol after quantity (space optional) |
 | Negative amounts | `-£5.00` | Leading minus |
+| Sign after prefix symbol | `$-300`, `£-30.00` | Sign may appear before OR after a prefix commodity symbol; both `-$300` and `$-300` are accepted |
 | Decimal separator | `1,234.56` | Comma thousands separator, period decimal |
 | No decimal | `£100` | Integer quantities |
+| Space digit-group separator | `1 000 EUR`, `1 000 000 JPY` | Space-separated three-digit groups collapsed before parsing; e.g. `1 000 000 JPY` → quantity `1000000` |
+| Scientific notation | `1E3 EUR`, `1.5E-2 USD` | Standard E-notation; Python `Decimal` handles this natively |
+| Quoted commodity suffix | `3 "Chocolate Frogs"` | Commodity symbol may be a double-quoted string; spaces allowed inside quotes |
+| Cost annotation | `10 AAPL @ $180.00`, `10 AAPL @@ $1800.00` | `@ UNIT_PRICE` and `@@ TOTAL_PRICE` stripped before amount parsing; raw annotation text stored in `Posting.cost_raw` |
+| Lot annotations | `10 AAPL {$182}`, `{{$370}}`, `[2024-01-01]`, `(lot1)` | Braces, date brackets, and label parens stripped before amount parsing; discarded (not stored) |
 
 ### Comments
 
@@ -139,6 +146,9 @@ Three distinct comment forms are supported. **Indentation is the discriminator**
 | payee directive | `payee Whole Foods` | **[IMPLEMENTED]** Declares a payee name. Inline comments stripped with 2-space rule. Quoted names (`payee ""`) supported. Stored in `Journal.declared_payees`. Used by `check payees`. Reference: https://hledger.org/1.52/hledger.html#payee-directive |
 | tag directive | `tag TAGNAME` | **[IMPLEMENTED]** Declares a tag name. Stored in `Journal.declared_tags`. Inline comments stripped with the 2-space rule. Indented subdirectives consumed and ignored. Used by `check tags` — deferred until inline tag-comment parsing is implemented. Reference: https://hledger.org/1.52/hledger.html#tag-directive |
 | decimal-mark directive | `decimal-mark .` / `decimal-mark ,` | **[IMPLEMENTED]** Declares the decimal mark for amount parsing from this point forward in the file. Default is `.` (period). Setting `,` enables EU-style amounts where `.` = thousands separator and `,` = decimal mark (e.g. `1.234,56` → `1234.56`). Raises `ParseError` for any character other than `.` or `,`. Reference: https://hledger.org/1.52/hledger.html#decimal-mark-directive |
+| Y directive | `Y 2024` | **[IMPLEMENTED]** Sets the default year for all year-omitted dates that follow this directive in the file. Multiple `Y` directives allowed; last one wins. Reference: https://hledger.org/1.52/hledger.html#y-directive |
+| D directive | `D $1,000.00` | **[IMPLEMENTED]** Declares the default commodity symbol and display style for amounts with no explicit symbol. Symbol extracted from sample amount; raw sample stored for style inference alongside `commodity` directives. Reference: https://hledger.org/1.52/hledger.html#d-directive |
+| apply account / end apply account | `apply account company` / `end apply account` | **[IMPLEMENTED]** Prepends `PREFIX:` to every account name in postings and `account` directives within the block. Aliases are applied to the base name BEFORE the prefix. A second `apply account` without an intervening `end apply account` replaces the previous prefix and emits a `ParseWarning` in lenient mode. Reference: https://hledger.org/1.52/hledger.html#apply-account-directive |
 
 ### Validation / Checks
 
@@ -184,13 +194,13 @@ feature below.
 
 | Feature | hledger syntax | v1 behaviour |
 |---|---|---|
-| Auto postings | `= expenses:food` rules | `ParseError` |
-| Periodic transactions | `~ monthly` | `ParseError` |
+| Auto postings | `= expenses:food` rules | Skipped; `ParseWarning` emitted in lenient mode (`parse_string_lenient`); no rule expansion |
+| Periodic transactions | `~ monthly` | Skipped; `ParseWarning` emitted in lenient mode; no forecast expansion |
 | Timeclock entries | `i`, `o`, `b`, `h` records | `ParseError` |
 | Decimal comma | `1.234,56` (EU style) | **Supported** via `decimal-mark ,` directive — amounts parsed using comma as decimal mark |
-| Secondary dates | `2024-01-15=2024-01-20` | Secondary date ignored |
+| Secondary dates | `2024-01-15=2024-01-20` | **[IMPLEMENTED]** — stored in `Transaction.date2`; see Transactions table above |
 | Tags | `; tag:value` | Inline tag annotations silently ignored; `tag` directive (declaring allowed tag names) is **[IMPLEMENTED]** — stored in `Journal.declared_tags` |
-| Lot prices | `10 AAPL @ $150.00` | `ParseError` |
+| Lot prices / cost annotations | `10 AAPL @ $150.00`, `{$182}` | **[IMPLEMENTED (stripped)]** — annotations removed before amount parsing; cost text stored in `Posting.cost_raw`; lot metadata discarded |
 | Balance assertions | `assets:checking = £500` | **[IMPLEMENTED]** — see `assertions` check above |
 | Virtual postings | `(expenses:food)` or `[expenses:food]` | `ParseError` |
 | Multi-currency auto-conversion | | Not supported |

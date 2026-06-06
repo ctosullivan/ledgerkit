@@ -148,3 +148,15 @@ transaction identity field, so the CLI cannot distinguish the boundary without a
 **Previous behaviour (ledgerkit):** `ParseError: invalid amount` — regex required `\d+` after the decimal point.
 **Fix:** Changed `(?:\.\d+)?` → `(?:\.\d*)?` in `_AMOUNT`; `(?:,\d+)?` → `(?:,\d*)?` in `_AMOUNT_COMMA`. Python's `Decimal("1350000.")` is valid and equals `Decimal("1350000")`.
 **Status:** Handled ✓ (`test_trailing_decimal_period`, `test_trailing_decimal_comma_mode`)
+
+---
+
+## EC-015 — Lot annotation stripping must not consume virtual posting account names
+
+**Trigger:** A posting whose account name is written in parentheses or square brackets (virtual posting syntax), e.g. `(expenses:food)` or `[expenses:food]`. These look superficially similar to lot annotation labels `(lot1)` and lot-date brackets `[2024-01-01]`.
+
+**Expected behaviour:** Virtual posting account names must NEVER be fed into `_parse_amount`. The posting account is parsed by `_parse_posting` as the text before the two-space separator; `_parse_amount` only sees the text AFTER the separator. Since the virtual-posting parentheses/brackets are part of the account name (before the separator), they are never present in the string passed to `_strip_lot_annotations`.
+
+**Why it matters:** If the lot-annotation stripper were to run on the full posting line rather than only on the amount substring, it would incorrectly consume `(expenses:food)` as a lot label, leaving no account name.
+
+**Status:** Non-issue by construction ✓ — `_parse_posting` extracts the account and amount substrings independently before calling `_parse_amount`. Added here to document the invariant explicitly so future refactors do not accidentally feed the full posting line into the lot stripper.

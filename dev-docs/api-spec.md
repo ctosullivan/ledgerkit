@@ -318,6 +318,28 @@ Raised on malformed journal input. `line_number` is 1-based when available.
 
 ---
 
+### `ParseWarning` `[ADDED IN v0.2.0]`
+
+```python
+class ParseWarning(ParseError):
+    """A non-fatal parse notice; does not prevent journal loading."""
+```
+
+Subclass of `ParseError` appended to `errors_out` in `parse_string_lenient` for
+unsupported-but-skippable constructs (`~` periodic rule blocks, `=` auto-posting rule
+blocks, nested `apply account` directives). Does **not** cause a transaction or
+directive to be dropped; the surrounding context is preserved.
+
+Callers distinguish warnings from hard errors with `isinstance`:
+
+```python
+journal, errors = parse_string_lenient(text)
+hard = [e for e in errors if not isinstance(e, ParseWarning)]
+warnings = [e for e in errors if isinstance(e, ParseWarning)]
+```
+
+---
+
 ### `parse_string` `[IMPLEMENTED]`
 
 ```python
@@ -348,7 +370,9 @@ def parse_string_lenient(
     Never raises. Intended for editor on_text_changed callbacks. Malformed
     transactions are skipped; valid transactions are included in the returned
     Journal. Directive-level errors (bad P directive, etc.) are also collected
-    rather than raised.
+    rather than raised. The error list may include `ParseWarning` instances
+    (non-fatal notices) alongside hard `ParseError` objects; use
+    `isinstance(e, ParseWarning)` to distinguish them.
 
     default_year: used for year-omitted dates; defaults to the current calendar
     year when None.

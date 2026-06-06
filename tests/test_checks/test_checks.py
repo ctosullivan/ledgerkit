@@ -60,8 +60,9 @@ def _txn(
         if amount_str is None:
             parsed_postings.append(Posting(account=account, amount=None))
         else:
+            _amount, _ = _parse_amount(amount_str, 0, _ctx)
             parsed_postings.append(
-                Posting(account=account, amount=_parse_amount(amount_str, 0, _ctx))
+                Posting(account=account, amount=_amount)
             )
     return Transaction(
         date=datetime.date.fromisoformat(date),
@@ -418,12 +419,13 @@ def _posting_with_assertion(
     """Helper: build a Posting with a BalanceAssertion for direct check tests."""
     from ledgerkit.parser import _parse_amount, _ParseContext
     _ctx = _ParseContext(default_year=2024, decimal_mark=".")
-    amount = _parse_amount(amount_str, 0, _ctx) if amount_str else None
+    amount, _ = _parse_amount(amount_str, 0, _ctx) if amount_str else (None, None)
+    assertion_amount, _ = _parse_amount(assertion_str, 0, _ctx)
     return Posting(
         account=account,
         amount=amount,
         balance_assertion=BalanceAssertion(
-            amount=_parse_amount(assertion_str, 0, _ctx),
+            amount=assertion_amount,
             inclusive=inclusive,
             sole_commodity=sole_commodity,
         ),

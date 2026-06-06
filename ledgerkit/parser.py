@@ -67,6 +67,10 @@ class ParseError(ValueError):
         super().__init__(f"{message}{location}")
 
 
+class ParseWarning(ParseError):
+    """A non-fatal parse notice; does not prevent journal loading."""
+
+
 # ---------------------------------------------------------------------------
 # Regex patterns
 # ---------------------------------------------------------------------------
@@ -78,11 +82,12 @@ class ParseError(ValueError):
 #          non-indented line that begins a transaction block.
 #
 # Group breakdown:
-#   (1) simple date             — captured as a raw string and passed to
-#                                 _parse_simple_date; see _SIMPLE_DATE for detail.
-#                                 Handles YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD,
-#                                 and year-omitted forms (M/DD, MM-DD, etc.);
-#                                 leading zeros optional on month and day.
+#   (1) primary date (and optional =DATE2)
+#         — captured as a single raw string and passed to _parse_txn_header,
+#           which splits on '=' when present to obtain both dates.
+#           Handles YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD, and year-omitted forms
+#           (M/DD, MM-DD, etc.); leading zeros optional on month and day.
+#           The secondary date uses the same format rules as the primary date.
 #   (2) [*!]?                  — status flag: '*' = cleared, '!' = pending;
 #                                absent means uncleared
 #   (3) (?:\(([^)]*)\))?       — transaction code in parentheses, e.g. (INV-42);
@@ -102,8 +107,13 @@ class ParseError(ValueError):
 #   - Mixed separators (e.g. "2024-01/15") are captured here without complaint;
 #     _parse_simple_date accepts them since each separator pair is matched
 #     independently
+#   - "2024-02-20=2024-02-22 * desc" → group 1 = "2024-02-20=2024-02-22";
+#     _parse_txn_header splits on '=' to obtain both dates
+#   - A trailing '=' without a following date2 pattern is not matched by the
+#     optional group, so group 1 contains only the primary date
 _TXN_HEADER = re.compile(
-    r"^((?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2}))"
+    r"^((?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})"
+    r"(?:=(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2}))?)"
     r"\s*([*!])?"
     r"\s*(?:\(([^)]*)\))?"
     r"\s*(.*?)"
@@ -140,36 +150,50 @@ _SIMPLE_DATE = re.compile(
 # Purpose: parse the quantity and commodity out of an amount token that has
 #          already been separated from the account name.  Supports both
 #          '£30.00' (symbol before number) and '30.00 EUR' (symbol after number),
-#          optional thousands-separator commas, and a leading minus sign.
+#          optional thousands-separator commas, a leading minus sign, and a
+#          mid-minus sign that appears after the prefix symbol (e.g. '$-300').
 #
 # Group breakdown:
-#   (1) (-?)                      — optional leading minus sign; always applied
-#                                   to the quantity regardless of symbol position
+#   (1) (-?)                      — optional leading minus sign before the symbol;
+#                                   applies when the minus precedes everything
 #   (2) ([^\d,.\s-]*)             — prefix commodity: any run of characters that
 #                                   are not digits, commas, dots, whitespace, or
 #                                   minus; matches '£', '$', '€', etc.; empty
 #                                   string when the commodity is a suffix
-#   (3) ([\d,]+(?:\.\d*)?)         — numeric quantity: one or more digits/commas
-#                                   followed by an optional decimal part; commas
-#                                   are stripped before Decimal conversion
-#   (4) ([A-Za-z][A-Za-z0-9]*)?   — suffix commodity: a letter-started alphanumeric
+#   (3) (-?)                      — optional mid-minus: sign that appears AFTER the
+#                                   prefix symbol, e.g. '$-300.00'; combined with
+#                                   group 1 in _parse_amount — effective sign is
+#                                   group 1 OR group 3
+#   (4) ([\d,]+(?:\.\d*)?(?:[Ee][+-]?\d+)?)
+#                                    — numeric quantity: one or more digits/commas
+#                                      optionally followed by a decimal part, then
+#                                      an optional E-notation exponent ([Ee][+-]?\d+);
+#                                      commas are stripped before Decimal conversion
+#   (5) ([A-Za-z][A-Za-z0-9]*)?   — suffix commodity: a letter-started alphanumeric
 #                                   token (e.g. EUR, USD, AAPL); absent when the
 #                                   commodity is a prefix symbol
 #
 # Edge cases:
-#   - Exactly one of group 2 or group 4 must be non-empty; if both are empty
+#   - Exactly one of group 2 or group 5 must be non-empty; if both are empty
 #     the caller raises ParseError (no commodity)
 #   - A space between prefix symbol and quantity is allowed: '£ 30.00' matches
-#     because \s* between groups 2 and 3 absorbs it
+#     because \s* between groups 2/3 and 4 absorbs it
 #   - Integer quantities ('£100') are valid; the decimal part is optional
 #   - Negative suffix amounts ('-30.00 EUR'): the minus in group 1 precedes the
-#     empty group 2, then the quantity in group 3, then EUR in group 4
+#     empty group 2, empty group 3, then the quantity in group 4, then EUR in 5
+#   - Mid-sign after prefix symbol ('$-300'): group 1 is empty, group 3 is '-';
+#     combined so Decimal('-300') is produced correctly
+#   - Both group 1 and group 3 present is malformed but harmless; either '-'
+#     makes the effective sign negative
 #   - Trailing decimal with no fractional digits ('$1,000.') is accepted;
 #     Python's Decimal('1000.') is valid and equals Decimal('1000')
+#   - E-notation ('1E3 EUR', '1.5e-2 GBP'): Decimal natively handles these forms;
+#     no extra conversion needed beyond comma-stripping
 _AMOUNT = re.compile(
     r"^(-?)"
     r"([^\d,.\s-]*)"
-    r"\s*([\d,]+(?:\.\d*)?)"
+    r"(-?)"
+    r"\s*([\d,]+(?:\.\d*)?(?:[Ee][+-]?\d+)?)"
     r"\s*([A-Za-z][A-Za-z0-9]*)?"
     r"$"
 )
@@ -179,31 +203,38 @@ _AMOUNT = re.compile(
 #
 # Purpose: parse amounts of the form "1.234,56" or "€1.234,56" where the
 #          convention is the reverse of the default _AMOUNT regex.  Selected
-#          by _parse_amount when decimal_mark == ",".
+#          by _parse_amount when decimal_mark == ",".  Also supports a mid-minus
+#          sign after the prefix symbol (e.g. '€-1.234,56').
 #
 # Group breakdown: (mirrors _AMOUNT; only the numeric group differs)
-#   (1) (-?)                      — optional leading minus sign
+#   (1) (-?)                      — optional leading minus sign before the symbol
 #   (2) ([^\d,.\s-]*)             — prefix commodity symbol (£, $, €, etc.)
-#   (3) ([\d.]*(?:,\d*)?)          — numeric quantity in comma-decimal form:
-#                                   zero or more digits/periods (digit-group marks)
-#                                   followed by an optional comma+decimal digits;
-#                                   periods are stripped and the comma is replaced
-#                                   with a period before Decimal conversion
-#   (4) ([A-Za-z][A-Za-z0-9]*)?   — suffix commodity symbol (EUR, USD, etc.)
+#   (3) (-?)                      — optional mid-minus: sign after prefix symbol;
+#                                   combined with group 1 in _parse_amount
+#   (4) ([\d.]*(?:,\d*)?(?:[Ee][+-]?\d+)?)
+#                                   — numeric quantity in comma-decimal form:
+#                                     zero or more digits/periods followed by
+#                                     optional comma+decimal digits, then
+#                                     an optional E-notation exponent;
+#                                     periods stripped and comma→period before Decimal
+#   (5) ([A-Za-z][A-Za-z0-9]*)?   — suffix commodity symbol (EUR, USD, etc.)
 #
 # Edge cases:
-#   - "1.234,56"  → period=thousands, comma=decimal → Decimal("1234.56")
-#   - "100,50"    → no thousands separator          → Decimal("100.50")
-#   - "1.234"     → period=thousands, no decimal    → Decimal("1234")
-#   - "100"       → no separators at all            → Decimal("100")
-#   - "€1.234,56" → prefix "€" + comma-decimal numeric
+#   - "1.234,56"   → period=thousands, comma=decimal → Decimal("1234.56")
+#   - "100,50"     → no thousands separator          → Decimal("100.50")
+#   - "1.234"      → period=thousands, no decimal    → Decimal("1234")
+#   - "100"        → no separators at all            → Decimal("100")
+#   - "€1.234,56"  → prefix "€" + comma-decimal numeric
+#   - "€-1.234,56" → prefix "€", mid-minus '-', comma-decimal numeric
 #   - "1.234,56 EUR" → suffix "EUR" style
 #   - Trailing comma with no fractional digits ('1.234,') is accepted;
 #     Python's Decimal('1234.') is valid and equals Decimal('1234')
+#   - "1E3 EUR" in comma-decimal mode: no comma/period, exponent appended directly
 _AMOUNT_COMMA = re.compile(
     r"^(-?)"
     r"([^\d,.\s-]*)"
-    r"\s*([\d.]*(?:,\d*)?)"
+    r"(-?)"
+    r"\s*([\d.]*(?:,\d*)?(?:[Ee][+-]?\d+)?)"
     r"\s*([A-Za-z][A-Za-z0-9]*)?"
     r"$"
 )
@@ -307,12 +338,19 @@ def _parse_txn_header(line: str, lineno: int, default_year: int) -> Transaction:
     if not m:
         raise ParseError(f"invalid transaction header: {line!r}", lineno)
 
-    date_str, flag, code, description, comment = m.groups()
-    date = _parse_simple_date(date_str, lineno, default_year)
+    date_raw, flag, code, description, comment = m.groups()
+    if "=" in date_raw:
+        primary_raw, secondary_raw = date_raw.split("=", 1)
+        date = _parse_simple_date(primary_raw, lineno, default_year)
+        date2 = _parse_simple_date(secondary_raw, lineno, default_year)
+    else:
+        date = _parse_simple_date(date_raw, lineno, default_year)
+        date2 = None
 
     comment_text = (comment or "").strip()
     return Transaction(
         date=date,
+        date2=date2,
         description=(description or "").strip(),
         postings=[],
         cleared=(flag == "*"),
@@ -324,30 +362,153 @@ def _parse_txn_header(line: str, lineno: int, default_year: int) -> Transaction:
     )
 
 
-def _parse_amount(raw: str, lineno: int, ctx: _ParseContext) -> Amount:
-    """Parse a raw amount string into an Amount.
+def _strip_cost_annotation(raw: str) -> tuple[str, str | None]:
+    """Strip a cost annotation (@/@@ PRICE) from a raw amount token.
+
+    Returns (cleaned_amount, cost_raw) where cost_raw is the text after the
+    marker (without the marker itself), or None if absent.
+    Checks @@ before @ so the two-char marker takes priority.
+    """
+    for marker in (" @@ ", " @ "):
+        idx = raw.find(marker)
+        if idx != -1:
+            return raw[:idx].strip(), raw[idx + len(marker):].strip()
+    return raw, None
+
+
+# Matches one lot-annotation token appended to an amount in hledger journal format.
+# Purpose: identify the four recognised annotation syntaxes so they can be removed
+#          before the amount regex is applied.  hledger supports cost annotations
+#          ({AMOUNT}, {{AMOUNT}}), lot dates ([DATE]), and lot labels ((LABEL))
+#          appended after the commodity token with leading whitespace.
+#
+# Group breakdown: no capture groups — used only for substitution via re.sub
+#   \s+               — one or more whitespace chars separating amount from annotation
+#   (?:...)           — non-capturing alternation of the four annotation forms:
+#     \{\{[^}]*\}\}   — double-brace total-cost annotation: {{...}}
+#     \{[^}]*\}       — single-brace per-unit-cost annotation: {...}
+#     \[[^\]]*\]      — square-bracket lot date: [DATE]
+#     \([^)]*\)       — round-bracket lot label: (LABEL)
+#
+# Edge cases:
+#   - Double-brace must be listed before single-brace (longer match wins)
+#   - Nested brackets are not supported (hledger itself does not allow them)
+#   - Multiple annotations in sequence (e.g. "{$1} [2024-01-01]") are all removed
+#     because re.sub replaces all non-overlapping matches
+#   - An annotation with no preceding whitespace is not matched (requires \s+);
+#     such input is malformed and will fail the amount regex anyway
+_LOT_ANNOTATION_RE = re.compile(
+    r'\s+(?:\{\{[^}]*\}\}|\{[^}]*\}|\[[^\]]*\]|\([^)]*\))'
+)
+
+
+def _strip_lot_annotations(raw: str) -> str:
+    """Remove all lot-annotation tokens from a raw amount string."""
+    return _LOT_ANNOTATION_RE.sub("", raw).strip()
+
+
+# Matches a space used as a digit-group separator between a digit and a group of
+# exactly three digits (followed by another digit-group boundary or non-digit).
+#
+# Purpose: normalise space-separated amounts like '1 000 000 JPY' → '1000000 JPY'
+#          so the main amount regex (which does not allow spaces in the numeric
+#          group) can parse them. Applied iteratively in _normalise_space_separators.
+#
+# Group breakdown:
+#   (1) (\d)         — the digit immediately before the space
+#   (2) (\d{3})      — exactly three digits forming the group after the space
+#   (?=\s|\D|$)      — lookahead: next char is whitespace, non-digit, or end-of-string;
+#                       prevents collapsing a space before a non-three-digit run
+#
+# Edge cases:
+#   - '1 000 000 JPY' → after two iterations → '1000000 JPY' ✓
+#   - '1 JPY' → single digit before space, followed by non-digit 'J' → NOT collapsed ✓
+#   - '1 00 JPY' → two-digit group → NOT collapsed (requires exactly 3 digits)
+#   - Applied iteratively because each pass collapses one separator; two passes
+#     handle '1 000 000' → '1000 000' → '1000000'
+_SPACE_DIGIT_GROUP_RE = re.compile(r'(\d) (\d{3})(?=\s|\D|$)')
+
+
+def _normalise_space_separators(s: str) -> str:
+    """Collapse space digit-group separators: '1 000 000 JPY' → '1000000 JPY'."""
+    prev = None
+    while prev != s:
+        prev = s
+        s = _SPACE_DIGIT_GROUP_RE.sub(r'\1\2', s)
+    return s
+
+
+# Matches an amount with a quoted commodity suffix, e.g. '-3 "Chocolate Frogs"'.
+#
+# Purpose: handle commodity names that require double quotes because they
+#          contain spaces or start with non-letter characters. This branch is
+#          checked BEFORE the main _AMOUNT regex, which cannot match quoted names.
+#
+# Group breakdown:
+#   (1) (-?)     — optional leading minus sign
+#   (2) (.*?)    — numeric quantity, possibly with prefix symbol (lazy match
+#                  stops before the quoted suffix); may include the sign if
+#                  the commodity is a prefix symbol
+#   (3) ([^"]+)  — quoted commodity name, inner text only; outer quotes consumed
+#
+# Edge cases:
+#   - '-3 "Chocolate Frogs"' → sign='-', numeric='3', sym='Chocolate Frogs'
+#   - '3 "Foo Bar"'          → sign='', numeric='3', sym='Foo Bar'
+#   - Quantity with comma/period ('1,000 "AAAA"'): commas stripped in branch
+#   - Empty quoted name '""' is technically matched but will produce a commodity
+#     of empty string; the caller does not separately reject it here
+#   - Cost/lot annotations are already stripped before this branch is reached,
+#     so "@@ $10" tails will never appear in raw at this point
+_QUOTED_SUFFIX_RE = re.compile(r'^(-?)(.*?)\s+"([^"]+)"\s*$')
+
+
+def _parse_amount(raw: str, lineno: int, ctx: _ParseContext) -> tuple[Amount, str | None]:
+    """Parse a raw amount string into an (Amount, cost_raw) tuple.
+
+    Strips cost annotations (@ PRICE / @@ TOTAL) and lot annotations
+    ({...}, {{...}}, [...], (...)) before parsing.  The stripped cost
+    annotation text is returned as the second element (None if absent).
 
     Supports prefix commodity (£30.00), suffix commodity (30.00 EUR),
-    negative amounts (-£5.00, -30.00 EUR), and digit-group separators.
+    negative amounts (-£5.00, $-300, -30.00 EUR), and digit-group separators.
 
     When ctx.decimal_mark is "." (default), commas are treated as thousands
     separators and periods as decimal marks (e.g. 1,234.56).
     When ctx.decimal_mark is ",", periods are thousands separators and commas
     are decimal marks (e.g. 1.234,56).
     """
+    raw = raw.strip()
+    raw, cost_raw = _strip_cost_annotation(raw)
+    raw = _strip_lot_annotations(raw)
+    raw = _normalise_space_separators(raw)
+
+    m_qs = _QUOTED_SUFFIX_RE.match(raw)
+    if m_qs:
+        sign, numeric_part, quoted_sym = m_qs.groups()
+        numeric_clean = numeric_part.strip().replace(",", "")
+        try:
+            quantity = Decimal(sign + numeric_clean) if numeric_clean else Decimal(0)
+        except InvalidOperation:
+            raise ParseError(f"invalid numeric quantity in amount: {raw!r}", lineno)
+        return Amount(quantity=quantity, commodity=quoted_sym, raw=raw), cost_raw
+
     if ctx.decimal_mark == ",":
-        m = _AMOUNT_COMMA.match(raw.strip())
+        m = _AMOUNT_COMMA.match(raw)
     else:
-        m = _AMOUNT.match(raw.strip())
+        m = _AMOUNT.match(raw)
 
     if not m:
         raise ParseError(f"invalid amount: {raw!r}", lineno)
 
-    minus, prefix_sym, quantity_str, suffix_sym = m.groups()
+    minus, prefix_sym, mid_minus, quantity_str, suffix_sym = m.groups()
+    negative = minus or mid_minus
 
     commodity = (prefix_sym or suffix_sym or "").strip()
     if not commodity:
-        raise ParseError(f"amount has no commodity symbol: {raw!r}", lineno)
+        if ctx.default_commodity:
+            commodity = ctx.default_commodity
+        else:
+            raise ParseError(f"amount has no commodity symbol: {raw!r}", lineno)
 
     if ctx.decimal_mark == ",":
         # Period is the digit-group mark; comma is the decimal mark.
@@ -357,11 +518,11 @@ def _parse_amount(raw: str, lineno: int, ctx: _ParseContext) -> Amount:
         quantity_clean = quantity_str.replace(",", "")
 
     try:
-        quantity = Decimal(minus + quantity_clean)
+        quantity = Decimal(negative + quantity_clean)
     except InvalidOperation:
         raise ParseError(f"invalid numeric quantity in amount: {raw!r}", lineno)
 
-    return Amount(quantity=quantity, commodity=commodity, raw=raw.strip())
+    return Amount(quantity=quantity, commodity=commodity, raw=raw), cost_raw
 
 
 def _strip_directive_comment(raw: str) -> str:
@@ -373,6 +534,27 @@ def _strip_directive_comment(raw: str) -> str:
     """
     parts = _TWO_SPACE_SEP.split(raw, maxsplit=1)
     return parts[0].strip()
+
+
+# Matches a commodity directive body where the symbol is a quoted trailing name,
+# e.g. '1,000. "Chocolate Frogs"' or '0. "My Fund"'.
+#
+# Purpose: detect the trailing-quoted-symbol form BEFORE _COMMODITY_AMOUNT.match
+#          is tried, since _COMMODITY_AMOUNT's suffix group cannot match quoted names
+#          containing spaces.
+#
+# Group breakdown:
+#   (1) ([\d,. ]*)  — numeric sample: digits, commas, dots, internal spaces;
+#                     may be empty if the directive is just a quoted name
+#   (2) ([^"]+)     — quoted commodity name, inner text only; outer quotes consumed
+#
+# Edge cases:
+#   - '1,000. "Chocolate Frogs"' → numeric='1,000. ', sym='Chocolate Frogs'
+#   - '"Chocolate Frogs"'         → numeric='', sym='Chocolate Frogs'
+#     (but this form is caught by the earlier startswith('"') block)
+#   - Trailing whitespace after closing quote: absorbed by \s*$
+#   - Empty quoted name '""' is accepted (produces empty-string commodity)
+_TRAILING_QUOTED_COMMODITY_RE = re.compile(r'^([\d,. ]*)\s*"([^"]+)"\s*$')
 
 
 # Matches the numeric-and-optional-suffix part of a commodity sample amount.
@@ -430,6 +612,11 @@ def _extract_commodity_symbol(raw: str, lineno: int) -> str:
         if end == -1:
             raise ParseError(f"commodity directive has unterminated quoted symbol: {body!r}", lineno)
         return body[1:end]
+
+    # Trailing quoted symbol: e.g. '1,000. "Chocolate Frogs"'
+    m_tq = _TRAILING_QUOTED_COMMODITY_RE.match(body)
+    if m_tq:
+        return m_tq.group(2)
 
     m = _COMMODITY_AMOUNT.match(body)
     if not m:
@@ -513,8 +700,9 @@ def _parse_posting(line: str, lineno: int, ctx: _ParseContext) -> Posting:
         marker = am.group(1)
         posting_amount_raw = amount_raw[: am.start()].strip()
         assertion_amount_raw = amount_raw[am.end() :].strip()
+        assertion_amount, _ = _parse_amount(assertion_amount_raw, lineno, ctx)
         assertion = BalanceAssertion(
-            amount=_parse_amount(assertion_amount_raw, lineno, ctx),
+            amount=assertion_amount,
             inclusive="*" in marker,
             sole_commodity=marker.startswith("=="),
         )
@@ -530,10 +718,12 @@ def _parse_posting(line: str, lineno: int, ctx: _ParseContext) -> Posting:
             inline_comment=posting_inline_comment,
         )
 
+    posting_amount, cost_raw = _parse_amount(amount_raw, lineno, ctx)
     return Posting(
         account=account,
-        amount=_parse_amount(amount_raw, lineno, ctx),
+        amount=posting_amount,
         balance_assertion=assertion,
+        cost_raw=cost_raw,
         source_line=lineno,
         inline_comment=posting_inline_comment,
     )
@@ -734,7 +924,7 @@ def _parse_string_impl(
                 skip_until_blank = False
                 in_subdirective = False
                 continue
-            if not re.match(r"^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(]|$)", line):
+            if not re.match(r"^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(=]|$)", line):
                 continue
             skip_until_blank = False
             # Fall through: treat this line as a new transaction header.
@@ -794,6 +984,65 @@ def _parse_string_impl(
                             last_posting_in_txn.inline_comment = comment_text or None
             continue
 
+        # --- ~ (periodic transaction rule) ---
+        #
+        # Purpose: recognise a periodic transaction rule header and skip its
+        #          posting lines without raising ParseError. The rule and its
+        #          postings are not stored; --forecast expansion is out of scope
+        #          for v1. A ParseWarning is appended in lenient mode (not a
+        #          hard error).
+        #
+        # Group breakdown: no capture groups — match is a boolean gate only.
+        #
+        # Edge cases:
+        #   - "~ monthly  budget goals" — leading ~ is sufficient; rest ignored
+        #   - If a transaction is currently open, flush it first (malformed input)
+        #   - skip_until_blank consumes indented postings until next blank line
+        if not line[0:1].isspace() and line.startswith("~"):
+            if current_txn is not None:
+                end = current_txn_last_lineno or (current_txn.source_line or 1)
+                _flush_txn(current_txn, end, all_lines, source_file)
+                transactions.append(current_txn)
+                current_txn = None
+                current_txn_last_lineno = None
+                last_posting_in_txn = None
+            if errors_out is not None:
+                errors_out.append(ParseWarning(
+                    "periodic transaction rule (~) skipped (not supported in v1)",
+                    lineno,
+                ))
+            skip_until_blank = True
+            continue
+
+        # --- = (auto-posting rule) ---
+        #
+        # Purpose: recognise an auto-posting rule header and skip its posting
+        #          lines. Only the "= QUERY" form (space after =) is matched;
+        #          bare "=account" is not valid hledger auto-posting syntax.
+        #          A ParseWarning is appended in lenient mode (not a hard error).
+        #
+        # Group breakdown: no capture groups — match is a boolean gate only.
+        #
+        # Edge cases:
+        #   - "= expenses:food" matches; "=expenses:food" (no space) does NOT
+        #   - Balance-assignment postings begin with "=" but are indented; the
+        #     indentation guard (`not line[0:1].isspace()`) distinguishes them
+        if not line[0:1].isspace() and re.match(r"^=\s+\S", line):
+            if current_txn is not None:
+                end = current_txn_last_lineno or (current_txn.source_line or 1)
+                _flush_txn(current_txn, end, all_lines, source_file)
+                transactions.append(current_txn)
+                current_txn = None
+                current_txn_last_lineno = None
+                last_posting_in_txn = None
+            if errors_out is not None:
+                errors_out.append(ParseWarning(
+                    "auto-posting rule (=) skipped (not supported in v1)",
+                    lineno,
+                ))
+            skip_until_blank = True
+            continue
+
         # --- Transaction header (non-indented line starting with a simple date) ---
         #
         # Purpose: quickly determine whether a non-indented line opens a new
@@ -801,21 +1050,23 @@ def _parse_string_impl(
         #          This check runs before posting detection so that a date-like
         #          token at column 0 is always treated as a new header, never as
         #          an un-indented posting inside an open block.
-        # Pattern: ^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(]|$)
+        # Pattern: ^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(=]|$)
         #   ^                         — anchored to start of the rstripped line
         #   (?:\d{4}[-/.])?           — optional four-digit year + separator
         #   (?:\d{1,2})[-/.]          — month (1–2 digits) + separator
         #   (?:\d{1,2})               — day (1–2 digits)
-        #   (?=[\s*!(]|$)             — lookahead: must be followed by whitespace,
-        #                               a status flag, the start of a code, or
-        #                               end-of-line; prevents matching bare numeric
-        #                               expressions that aren't transaction dates
+        #   (?=[\s*!(=]|$)            — lookahead: must be followed by whitespace,
+        #                               a status flag, the start of a code, an '='
+        #                               introducing a secondary date, or end-of-line;
+        #                               prevents matching bare numeric expressions
         # Edge cases:
         #   - "2024-13-45 Bad" passes this check but fails in _parse_simple_date
         #     when datetime.date() rejects the invalid calendar values
         #   - "1.5" without a trailing space/flag does NOT match (lookahead fails),
         #     preventing accidental collision with decimal amounts on directive lines
-        if re.match(r"^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(]|$)", line):
+        #   - "2024-02-20=2024-02-22" passes because '=' is in the lookahead set;
+        #     the full _TXN_HEADER regex validates the secondary date format
+        if re.match(r"^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(=]|$)", line):
             if current_txn is not None:
                 # No blank line between transactions — flush previous block
                 end = current_txn_last_lineno or (current_txn.source_line or 1)
@@ -890,6 +1141,8 @@ def _parse_string_impl(
         if not line[0:1].isspace() and re.match(r"^account\s+", line):
             body = line[len("account"):].lstrip()
             account_name = _strip_directive_comment(body)
+            if ctx.account_prefix:
+                account_name = f"{ctx.account_prefix}:{account_name}"
             if account_name:
                 declared_accounts.append(_apply_aliases(account_name, aliases))
             in_subdirective = True
@@ -1017,7 +1270,7 @@ def _parse_string_impl(
             amount_clean = _strip_directive_comment(amount_raw)
             try:
                 p_date = _parse_simple_date(date_str, lineno, default_year)
-                p_price = _parse_amount(amount_clean, lineno, ctx)
+                p_price, _ = _parse_amount(amount_clean, lineno, ctx)
             except ParseError as _err:
                 if errors_out is None:
                     raise
@@ -1071,6 +1324,84 @@ def _parse_string_impl(
             aliases.clear()
             continue
 
+        # --- Y directive (default year) ---
+        #
+        # Purpose: set the default year for all year-omitted dates in this file,
+        #          overriding the default_year parameter passed to parse_string.
+        #          All yearless dates parsed AFTER this directive use the declared
+        #          year. Multiple Y directives are allowed; last one wins.
+        #
+        # Group breakdown: no capture groups — year extracted from directive body.
+        #
+        # Edge cases:
+        #   - "Y 2024  ; comment" → comment stripped, year = 2024
+        #   - "Y 20xx" (non-integer body) → ParseError in lenient; raises in strict
+        if not line[0:1].isspace() and re.match(r"^Y\s", line):
+            body = _strip_directive_comment(line[len("Y"):].strip())
+            try:
+                default_year = int(body)
+            except ValueError:
+                _err = ParseError(f"invalid Y directive year: {body!r}", lineno)
+                if errors_out is None:
+                    raise _err
+                errors_out.append(_err)
+            continue
+
+        # --- D directive (default commodity + style) ---
+        #
+        # Purpose: declare a default commodity symbol and display style for
+        #          amounts that carry no explicit symbol. e.g. "D $1,000.00"
+        #          sets ctx.default_commodity = "$". The raw sample amount is
+        #          stored in commodity_directive_raws for style inference, just
+        #          like a commodity directive.
+        #
+        # Group breakdown: no capture groups — body extracted from directive text.
+        #
+        # Edge cases:
+        #   - "D $1,000.00  ; comment" → comment stripped before symbol extraction
+        #   - "D EUR" (bare symbol, no numeric sample) → default_commodity = "EUR"
+        #   - Invalid or unparseable body → ParseError in lenient; raises in strict
+        if not line[0:1].isspace() and re.match(r"^D\s", line):
+            body = _strip_directive_comment(line[len("D"):].strip())
+            try:
+                sym = _extract_commodity_symbol(body, lineno)
+            except ParseError as _err:
+                if errors_out is None:
+                    raise
+                errors_out.append(_err)
+                continue
+            ctx.default_commodity = sym
+            if body and sym not in commodity_directive_raws:
+                commodity_directive_raws[sym] = body
+            continue
+
+        # --- apply account / end apply account directives ---
+        #
+        # Purpose: prepend PREFIX: to every account name in postings and account
+        #          directives encountered inside this block. Mirrors hledger's
+        #          "apply account" / "end apply account" syntax. Aliases are
+        #          applied to the base account name BEFORE the prefix is prepended.
+        #
+        # Group breakdown: no capture groups — prefix extracted from directive body.
+        #
+        # Edge cases:
+        #   - Nested apply account: second directive replaces first; ParseWarning emitted in lenient mode
+        #   - "end apply account" with no active prefix: silently ignored
+        #   - Empty body "apply account  ; comment" → prefix set to None
+        if not line[0:1].isspace() and re.match(r"^apply\s+account\s+", line):
+            body = _strip_directive_comment(line[len("apply account"):].strip())
+            if ctx.account_prefix is not None and errors_out is not None:
+                errors_out.append(ParseWarning(
+                    "nested apply account: previous prefix replaced (nesting not supported)",
+                    lineno,
+                ))
+            ctx.account_prefix = body or None
+            continue
+
+        if not line[0:1].isspace() and re.match(r"^end\s+apply\s+account\b", line):
+            ctx.account_prefix = None
+            continue
+
         # --- Posting line ---
         #
         # Posting lines are conventionally written with 2+ leading spaces or a
@@ -1108,6 +1439,16 @@ def _parse_string_impl(
                     account=_apply_aliases(posting.account, aliases),
                     amount=posting.amount,
                     balance_assertion=posting.balance_assertion,
+                    cost_raw=posting.cost_raw,
+                    source_line=posting.source_line,
+                    inline_comment=posting.inline_comment,
+                )
+            if ctx.account_prefix:
+                posting = Posting(
+                    account=f"{ctx.account_prefix}:{posting.account}",
+                    amount=posting.amount,
+                    balance_assertion=posting.balance_assertion,
+                    cost_raw=posting.cost_raw,
                     source_line=posting.source_line,
                     inline_comment=posting.inline_comment,
                 )

@@ -103,3 +103,16 @@ There are two distinct comment forms inside a journal, and **indentation** is th
 - **Glob pattern** (`*`, `**`, `?`, `[range]`): silently produces no entries if no files match — this is NOT an error.
 
 This matches the hledger 1.52 `include` spec.
+
+---
+
+## Sign may appear before OR after a prefix commodity symbol
+
+Both `-$300` and `$-300` are valid in hledger. The sign may appear:
+- Before the commodity symbol: `-$300` (conventional leading-minus form)
+- Between the symbol and the quantity: `$-300` (sign after prefix symbol)
+
+ledgerkit accepts both forms. The effective sign is the logical OR of the leading
+minus and the mid-minus captured by the `_AMOUNT`/`_AMOUNT_COMMA` regex groups.
+
+This means `$-300` parses as quantity `-300`, commodity `$` — identical to `-$300`.

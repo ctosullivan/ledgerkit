@@ -1,34 +1,36 @@
-# Context — 2026-06-04
+# Context — 2026-06-06
 
 ## Current Task
 Implement Milestone 4 — Comprehensive Format Compatibility: make `parse_string_lenient` return zero errors on the two comprehensive test fixtures.
 
 ## Where We Are
-Phase 1 and Phase 1b are complete. Next step is **Phase 2a** — amount parser fixes A1–A3 (sign-after-prefix, cost annotation stripping, lot annotation stripping) in `ledgerkit/parser.py`.
+Phase 5 complete. All five phases of Milestone 4 are done. 575 tests pass; 0 hard errors on the comprehensive fixture. Awaiting user confirmation that Milestone 4 is done before marking `[DONE]` in ROADMAP.md.
 
 ## Decisions In Flight
-- `_ParseContext` introduced as an internal dataclass (leading underscore, not public API) — no API-spec change needed for the dataclass itself, only for the fields it enables.
-- `Transaction.date2` placed after `description` (not directly after `date`) to satisfy Python dataclass ordering: fields with defaults must follow all fields without defaults.
+- `_parse_amount` returns `tuple[Amount, str | None]` — second element is stripped cost annotation. All call sites updated.
+- `ParseWarning(ParseError)` is added to `errors_out` in lenient mode for `~` and `=` blocks but is NOT a hard error. Callers filter with `isinstance(e, ParseWarning)`.
+- Transaction-header quick-detection lookahead extended from `[\s*!(]` to `[\s*!(=]` to accept secondary-date lines.
+- Nested `apply account` emits a `ParseWarning` (added in Phase 4) and silently replaces the old prefix.
 
 ## Files Currently Relevant
-- `ledgerkit/parser.py` — Phase 2a target: `_parse_amount`, `_AMOUNT`, `_AMOUNT_COMMA` regexes, new helpers `_strip_cost_annotation`, `_strip_lot_annotations`
-- `ledgerkit/models.py` — already updated; `Posting.cost_raw` will be set by `_parse_posting` in Phase 2a
-- `tests/fixtures/comprehensive-hledger-test.journal` — primary fixture; 22 errors expected before Phase 2a, 8 after
-- `dev-docs/planning/milestone-4.md` — full spec; sections A1–A3 cover Phase 2a work
+- `ROADMAP.md` — mark Milestone 4 `[DONE]` when user confirms
+- `dev-docs/changelog/` — create MILESTONE-4.md archive when user confirms
 
 ## Blockers / Open Questions
-None.
+- User must explicitly confirm Milestone 4 is complete before `[DONE]` is set in ROADMAP.md.
 
 ## What NOT To Revisit
 - `_ParseContext` is internal and does not need to be exported or documented in api-spec.md beyond its effects.
-- `Transaction.date2` field order: it is after `description`, not directly after `date` — required by Python dataclass rules.
+- `Transaction.date2` and `Posting.cost_raw` already documented in api-spec.md since Phase 1.
 - `#` is intentionally not an inline comment delimiter (only `;` is). Matches hledger spec.
+- `ParseWarning` items in `errors_out` do NOT count as hard errors; verify with `isinstance` filter.
+- The `=` rule handler requires `^=\s+\S` (space + non-space after `=`) to avoid clashing with balance-assertion syntax.
 
 ## Recent Git State
 ```
+5442e73 feat: Milestone 4 Phase 1 — model fields and _ParseContext refactor
 11b3b57 docs: add Milestone 4 plan, fixtures, and ROADMAP entry
 67f8c7f chore: release v0.1.0 — rename to ledgerkit, add commodity styles and pandas export
 b2d10be fix: correct column-0 comment handling inside open transaction blocks
 8b5fc81 chore: release v0.5.0 and mark Milestone 3 done
-d393b8c feat: Milestone 3 — lenient parser, multi-commodity balance, tree mode, CheckError.line_number
 ```

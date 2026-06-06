@@ -5,9 +5,10 @@ import os
 import pathlib
 import unittest
 from decimal import Decimal
+from pathlib import Path
 
 from ledgerkit.models import Amount, Journal, Posting, Transaction
-from ledgerkit.parser import ParseError, parse_string, parse_string_lenient, resolve_elision
+from ledgerkit.parser import ParseError, ParseWarning, parse_string, parse_string_lenient, resolve_elision
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "..", "fixtures")
 SAMPLE_JOURNAL = os.path.join(FIXTURES, "sample.journal")
@@ -1082,6 +1083,420 @@ class TestCommentSpec(unittest.TestCase):
         )
         self.assertEqual(j.transactions[0].source_span.end_line, 3)
         self.assertEqual(j.transactions[1].source_span.start_line, 9)
+
+
+class TestSignAfterPrefixSymbol(unittest.TestCase):
+    """A1: amount sign may follow a prefix commodity symbol (e.g. $-300)."""
+
+    def test_dollar_negative(self):
+        j = parse_string("2024-01-01 T\n    expenses  $-300\n    assets  $300\n")
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("-300"))
+        self.assertEqual(a.commodity, "$")
+
+    def test_pound_negative(self):
+        j = parse_string("2024-01-01 T\n    expenses  £-30.00\n    assets  £30.00\n")
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("-30.00"))
+        self.assertEqual(a.commodity, "£")
+
+    def test_suffix_commodity_unaffected(self):
+        j = parse_string("2024-01-01 T\n    expenses  -30.00 EUR\n    assets  30.00 EUR\n")
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("-30.00"))
+        self.assertEqual(a.commodity, "EUR")
+
+
+class TestCostAnnotations(unittest.TestCase):
+    """A2: @ / @@ cost annotations are stripped; raw text stored on posting."""
+
+    def test_at_unit_cost_stripped(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL @ $180.00\n"
+            "    assets:cash  $-1800.00\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("10"))
+        self.assertEqual(a.commodity, "AAPL")
+
+    def test_atat_total_cost_stripped(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL @@ $1800.00\n"
+            "    assets:cash  $-1800.00\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("10"))
+        self.assertEqual(a.commodity, "AAPL")
+
+    def test_cost_raw_stored_on_posting(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL @ $180.00\n"
+            "    assets:cash  $-1800.00\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].cost_raw, "$180.00")
+
+    def test_cost_with_lot_annotation(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL {$182.00} @ $185.00\n"
+            "    assets:cash  $-1850.00\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("10"))
+        self.assertEqual(a.commodity, "AAPL")
+        self.assertEqual(j.transactions[0].postings[0].cost_raw, "$185.00")
+
+
+class TestLotAnnotations(unittest.TestCase):
+    """A3: lot annotations {}, {{}}, [], () are stripped before amount parsing."""
+
+    def test_unit_lot_brace(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL {$182.00}\n"
+            "    assets:cash  $-1820.00\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("10"))
+        self.assertEqual(a.commodity, "AAPL")
+
+    def test_total_lot_double_brace(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL {{$1820.00}}\n"
+            "    assets:cash  $-1820.00\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].amount.commodity, "AAPL")
+
+    def test_lot_date(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL [2023-11-01]\n"
+            "    assets:cash  $-1800.00\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].amount.commodity, "AAPL")
+
+    def test_lot_label(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL (lot1)\n"
+            "    assets:cash  $-1800.00\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].amount.commodity, "AAPL")
+
+    def test_all_annotations_combined(self):
+        j = parse_string(
+            "2024-01-01 Buy\n"
+            "    assets:brokerage  10 AAPL {$182.00} [2023-11-01] (lot1) @ $185.00\n"
+            "    assets:cash  $-1850.00\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("10"))
+        self.assertEqual(a.commodity, "AAPL")
+
+
+class TestQuotedCommodityAmount(unittest.TestCase):
+    """A4: quoted commodity suffix in amounts, e.g. 3 "Chocolate Frogs"."""
+
+    def test_quoted_suffix_in_amount(self):
+        j = parse_string(
+            "2024-01-01 Shop\n"
+            '    expenses:sweets  3 "Chocolate Frogs"\n'
+            "    assets:cash  $-3.00\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("3"))
+        self.assertEqual(a.commodity, "Chocolate Frogs")
+
+    def test_quoted_suffix_negative(self):
+        j = parse_string(
+            "2024-01-01 Shop\n"
+            '    expenses:sweets  -3 "Chocolate Frogs"\n'
+            '    assets:cash  3 "Chocolate Frogs"\n'
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("-3"))
+        self.assertEqual(a.commodity, "Chocolate Frogs")
+
+
+class TestQuotedCommodityDirective(unittest.TestCase):
+    """D1: quoted commodity symbol in commodity directive style sample."""
+
+    def test_quoted_suffix_in_commodity_directive(self):
+        j = parse_string(
+            'commodity 1,000. "Chocolate Frogs"\n'
+            "2024-01-01 Shop\n"
+            '    expenses:sweets  3 "Chocolate Frogs"\n'
+            "    assets:cash  $-3.00\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].amount.commodity, "Chocolate Frogs")
+
+
+class TestSpaceSeparator(unittest.TestCase):
+    """A5: space-separated digit groups (e.g. 1 000 000 JPY)."""
+
+    def test_space_digit_groups_three_groups(self):
+        j = parse_string(
+            "2024-01-01 T\n"
+            "    expenses  1 000 000 JPY\n"
+            "    assets  -1 000 000 JPY\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("1000000"))
+        self.assertEqual(a.commodity, "JPY")
+
+    def test_space_single_group(self):
+        j = parse_string(
+            "2024-01-01 T\n"
+            "    expenses  1 234 EUR\n"
+            "    assets  -1 234 EUR\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("1234"))
+        self.assertEqual(a.commodity, "EUR")
+
+    def test_space_before_alpha_commodity(self):
+        # "1 JPY": the space separates digit from commodity name; since "JPY" is
+        # not a 3-digit group, no digit-group collapsing occurs.
+        j = parse_string(
+            "2024-01-01 T\n"
+            "    expenses  1 JPY\n"
+            "    assets  -1 JPY\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("1"))
+        self.assertEqual(a.commodity, "JPY")
+
+
+class TestScientificNotation(unittest.TestCase):
+    """A6: scientific (E-notation) amounts, e.g. 1E3 EUR."""
+
+    def test_e_notation_suffix(self):
+        j = parse_string(
+            "2024-01-01 T\n"
+            "    expenses  1E3 EUR\n"
+            "    assets  -1E3 EUR\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("1000"))
+        self.assertEqual(a.commodity, "EUR")
+
+    def test_e_notation_small(self):
+        j = parse_string(
+            "2024-01-01 T\n"
+            "    expenses  1.5E-2 USD\n"
+            "    assets  -1.5E-2 USD\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("0.015"))
+        self.assertEqual(a.commodity, "USD")
+
+    def test_e_notation_negative(self):
+        j = parse_string(
+            "2024-01-01 T\n"
+            "    expenses  -2E3 EUR\n"
+            "    assets  2E3 EUR\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("-2000"))
+        self.assertEqual(a.commodity, "EUR")
+
+
+class TestSecondaryDate(unittest.TestCase):
+    """B1: secondary date in transaction header (2024-02-20=2024-02-22)."""
+
+    def test_secondary_date_stored_on_transaction(self):
+        j = parse_string(
+            "2024-02-20=2024-02-22 * Payroll\n"
+            "    assets:bank  £2000\n"
+            "    income:salary  -£2000\n"
+        )
+        txn = j.transactions[0]
+        self.assertEqual(txn.date, datetime.date(2024, 2, 20))
+        self.assertEqual(txn.date2, datetime.date(2024, 2, 22))
+
+    def test_no_secondary_date_is_none(self):
+        j = parse_string(
+            "2024-02-20 * Payroll\n"
+            "    assets:bank  £2000\n"
+            "    income:salary  -£2000\n"
+        )
+        self.assertIsNone(j.transactions[0].date2)
+
+
+class TestYDirective(unittest.TestCase):
+    """C1: Y directive overrides the default year for yearless dates."""
+
+    def test_y_overrides_default_year(self):
+        j = parse_string(
+            "Y 2023\n"
+            "1/15 Test\n"
+            "    expenses:food  £10.00\n"
+            "    assets:bank  -£10.00\n"
+        )
+        self.assertEqual(j.transactions[0].date, datetime.date(2023, 1, 15))
+
+
+class TestDDirective(unittest.TestCase):
+    """C2: D directive sets default commodity for symbol-less amounts."""
+
+    def test_d_applies_to_no_symbol_amount(self):
+        j = parse_string(
+            "D $1,000.00\n"
+            "2024-01-01 T\n"
+            "    expenses  300\n"
+            "    assets  -300\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("300"))
+        self.assertEqual(a.commodity, "$")
+
+    def test_d_with_comma_decimal(self):
+        j = parse_string(
+            "decimal-mark ,\n"
+            "D 1.000,00 EUR\n"
+            "2024-01-01 T\n"
+            "    expenses  300,00\n"
+            "    assets  -300,00\n"
+        )
+        a = j.transactions[0].postings[0].amount
+        self.assertEqual(a.quantity, Decimal("300.00"))
+        self.assertEqual(a.commodity, "EUR")
+
+
+class TestApplyAccount(unittest.TestCase):
+    """C3: apply account / end apply account prepend a prefix to account names."""
+
+    def test_apply_account_prepends_prefix(self):
+        j = parse_string(
+            "apply account company\n"
+            "2024-01-01 T\n"
+            "    expenses:food  £10\n"
+            "    assets:bank  -£10\n"
+            "end apply account\n"
+        )
+        postings = j.transactions[0].postings
+        self.assertEqual(postings[0].account, "company:expenses:food")
+        self.assertEqual(postings[1].account, "company:assets:bank")
+
+    def test_end_apply_account_clears_prefix(self):
+        j = parse_string(
+            "apply account company\n"
+            "2024-01-01 T\n"
+            "    expenses:food  £10\n"
+            "    assets:bank  -£10\n"
+            "end apply account\n"
+            "2024-01-02 T2\n"
+            "    expenses:other  £5\n"
+            "    assets:bank  -£5\n"
+        )
+        self.assertEqual(j.transactions[1].postings[0].account, "expenses:other")
+
+    def test_apply_account_with_aliases(self):
+        j = parse_string(
+            "alias expenses=costs\n"
+            "apply account prefix\n"
+            "2024-01-01 T\n"
+            "    expenses:food  £10\n"
+            "    assets:bank  -£10\n"
+            "end apply account\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].account, "prefix:costs:food")
+
+    def test_apply_account_nested_emits_warning(self):
+        j, errors = parse_string_lenient(
+            "apply account first\n"
+            "apply account second\n"
+            "2024-01-01 T\n"
+            "    expenses:food  £10\n"
+            "    assets:bank  -£10\n"
+            "end apply account\n"
+        )
+        warnings = [e for e in errors if isinstance(e, ParseWarning)]
+        self.assertTrue(any("nested" in str(w).lower() for w in warnings))
+        hard = [e for e in errors if not isinstance(e, ParseWarning)]
+        self.assertEqual(hard, [])
+
+
+class TestPeriodicRuleSkip(unittest.TestCase):
+    """C4: ~ periodic transaction rule blocks are skipped with a ParseWarning."""
+
+    _JOURNAL = (
+        "2024-01-01 Before\n"
+        "    expenses:food  £10\n"
+        "    assets:bank  -£10\n"
+        "\n"
+        "~ monthly\n"
+        "    expenses:budget  £500\n"
+        "    assets:bank  -£500\n"
+        "\n"
+        "2024-01-02 After\n"
+        "    expenses:food  £5\n"
+        "    assets:bank  -£5\n"
+    )
+
+    def test_tilde_rule_skipped_no_error(self):
+        j, errors = parse_string_lenient(self._JOURNAL)
+        hard = [e for e in errors if not isinstance(e, ParseWarning)]
+        self.assertEqual(hard, [])
+
+    def test_tilde_rule_postings_skipped(self):
+        j, errors = parse_string_lenient(self._JOURNAL)
+        self.assertEqual(len(j.transactions), 2)
+
+    def test_tilde_rule_emits_warning(self):
+        j, errors = parse_string_lenient(self._JOURNAL)
+        warnings = [e for e in errors if isinstance(e, ParseWarning)]
+        self.assertTrue(any("periodic" in str(w).lower() for w in warnings))
+
+
+class TestAutoPostingRuleSkip(unittest.TestCase):
+    """C5: = auto-posting rule blocks are skipped with a ParseWarning."""
+
+    _JOURNAL = (
+        "2024-01-01 Before\n"
+        "    expenses:food  £10\n"
+        "    assets:bank  -£10\n"
+        "\n"
+        "= expenses:food\n"
+        "    expenses:vat  £2\n"
+        "    assets:bank  -£2\n"
+        "\n"
+        "2024-01-02 After\n"
+        "    expenses:food  £5\n"
+        "    assets:bank  -£5\n"
+    )
+
+    def test_equals_rule_skipped_no_error(self):
+        j, errors = parse_string_lenient(self._JOURNAL)
+        hard = [e for e in errors if not isinstance(e, ParseWarning)]
+        self.assertEqual(hard, [])
+
+    def test_equals_rule_postings_skipped(self):
+        j, errors = parse_string_lenient(self._JOURNAL)
+        self.assertEqual(len(j.transactions), 2)
+
+    def test_equals_rule_emits_warning(self):
+        j, errors = parse_string_lenient(self._JOURNAL)
+        warnings = [e for e in errors if isinstance(e, ParseWarning)]
+        self.assertTrue(any("auto-posting" in str(w).lower() for w in warnings))
+
+
+class TestFixtureLoad(unittest.TestCase):
+    """Milestone 4 gate: comprehensive fixture must load with zero hard errors."""
+
+    def test_comprehensive_fixture_zero_errors(self):
+        fixture = Path(__file__).parent.parent / "fixtures" / "comprehensive-hledger-test.journal"
+        text = fixture.read_text(encoding="utf-8")
+        journal, errors = parse_string_lenient(text, source_file=str(fixture))
+        real_errors = [e for e in errors if not isinstance(e, ParseWarning)]
+        self.assertEqual(
+            real_errors, [],
+            msg="\n".join(str(e) for e in real_errors),
+        )
 
 
 if __name__ == "__main__":
