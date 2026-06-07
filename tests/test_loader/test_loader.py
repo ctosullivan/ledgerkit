@@ -1,5 +1,7 @@
 """Tests for ledgerkit.loader — load_journal, include directive, merge_journals."""
 
+from __future__ import annotations
+
 import os
 import pathlib
 import tempfile

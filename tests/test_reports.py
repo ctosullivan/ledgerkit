@@ -16,6 +16,8 @@ Primary fixture: tests/fixtures/filtered.journal
 Secondary fixture for stats tests: tests/fixtures/sample.journal (5 transactions).
 """
 
+from __future__ import annotations
+
 import dataclasses
 import datetime
 import os

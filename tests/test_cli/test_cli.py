@@ -1,5 +1,7 @@
 """Tests for ledgerkit.cli — -f/--file flag, _resolve_files, and multi-file loading."""
 
+from __future__ import annotations
+
 import os
 import pathlib
 import sys

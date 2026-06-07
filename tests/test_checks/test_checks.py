@@ -1,5 +1,7 @@
 """Tests for ledgerkit.checks — check functions and CLI integration."""
 
+from __future__ import annotations
+
 import datetime
 import os
 import pathlib

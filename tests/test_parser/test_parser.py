@@ -1,5 +1,7 @@
 """Tests for ledgerkit.parser — core transaction and amount parsing."""
 
+from __future__ import annotations
+
 import datetime
 import os
 import pathlib
