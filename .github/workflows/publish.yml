@@ -1,8 +1,4 @@
-- name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          skip_existing: true
+name: Publish to PyPI
 
 on:
   push:
@@ -55,8 +51,9 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          skip_existing: true
 
-publish-pypi:
+  publish-pypi:
     name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest
