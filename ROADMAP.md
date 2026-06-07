@@ -227,7 +227,6 @@ Items not scheduled for a milestone yet. Promote to a milestone when prioritised
 | CLI filter flags (`--account`, `--date`, `--payee`) | Wire `Query` to CLI argument parser; deferred from Milestone 3 |
 | Journal-comment `ReportSpec` parsing | `; report` / `; end report` block syntax; deferred from Milestone 3 |
 | Full `stats` query support | Account-level filters on `account_count` / `account_depth`; deferred from Milestone 3 |
-| `pip install` packaging & docs | `pip install -e .` smoke test; `README.md` and `docs/` real usage examples; deferred from Milestone 3 |
 | `EditorDocument` include-directive support | Currently include directives are silently ignored; needs multi-file span tracking |
 | Account type inference | Infer assets/liabilities/income/expenses from name prefix |
 | Periodic/auto postings | Out of scope for v1 |

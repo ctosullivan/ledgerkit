@@ -1,36 +1,34 @@
-# Context — 2026-06-06
+# CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Implement Milestone 4 — Comprehensive Format Compatibility: make `parse_string_lenient` return zero errors on the two comprehensive test fixtures.
+Publishing readiness for v0.2.0 — all tasks complete, ready to commit.
 
 ## Where We Are
-Phase 5 complete. All five phases of Milestone 4 are done. 575 tests pass; 0 hard errors on the comprehensive fixture. Awaiting user confirmation that Milestone 4 is done before marking `[DONE]` in ROADMAP.md.
+All 10 tasks done. Ready for: `git add . && git commit -m "chore: publishing readiness for v0.2.0"`
 
 ## Decisions In Flight
-- `_parse_amount` returns `tuple[Amount, str | None]` — second element is stripped cost annotation. All call sites updated.
-- `ParseWarning(ParseError)` is added to `errors_out` in lenient mode for `~` and `=` blocks but is NOT a hard error. Callers filter with `isinstance(e, ParseWarning)`.
-- Transaction-header quick-detection lookahead extended from `[\s*!(]` to `[\s*!(=]` to accept secondary-date lines.
-- Nested `apply account` emits a `ParseWarning` (added in Phase 4) and silently replaces the old prefix.
+- None outstanding.
 
 ## Files Currently Relevant
-- `ROADMAP.md` — mark Milestone 4 `[DONE]` when user confirms
-- `dev-docs/changelog/` — create MILESTONE-4.md archive when user confirms
+- `pyproject.toml` — updated metadata (readme, license, keywords, urls, description)
+- `README.md` — updated Installation section + CI badge
+- `.github/workflows/tests.yml` — new CI workflow
+- `.github/workflows/publish.yml` — new OIDC publish workflow
+- `dev-docs/pypi-trusted-publishing.md` — new setup guide
+- `ROADMAP.md` — removed completed pip-install backlog row
+- `CHANGELOG.md` — new [Unreleased] entry
 
 ## Blockers / Open Questions
-- User must explicitly confirm Milestone 4 is complete before `[DONE]` is set in ROADMAP.md.
+- `python -m build` fails in the project's `dist/` directory due to Dropbox file locking on Windows. Workaround: `python -m build --outdir C:/Temp/ledgerkit-dist`. Build and twine check both pass there.
+- After commit, one-time manual setup needed: PyPI Trusted Publishing (see `dev-docs/pypi-trusted-publishing.md`) and GitHub environment creation (`test-pypi`, `pypi`).
 
 ## What NOT To Revisit
-- `_ParseContext` is internal and does not need to be exported or documented in api-spec.md beyond its effects.
-- `Transaction.date2` and `Posting.cost_raw` already documented in api-spec.md since Phase 1.
-- `#` is intentionally not an inline comment delimiter (only `;` is). Matches hledger spec.
-- `ParseWarning` items in `errors_out` do NOT count as hard errors; verify with `isinstance` filter.
-- The `=` rule handler requires `^=\s+\S` (space + non-space after `=`) to avoid clashing with balance-assertion syntax.
+- Version is correctly `0.2.0` in both `pyproject.toml` and `ledgerkit/__init__.py`.
+- `license = {text = "MIT"}` format with setuptools 82 requires `packaging>=25` for twine check to pass — this is a local tooling concern, not a packaging defect.
 
 ## Recent Git State
-```
+f51904f chore: release v0.2.0 — Milestone 4 complete
 5442e73 feat: Milestone 4 Phase 1 — model fields and _ParseContext refactor
 11b3b57 docs: add Milestone 4 plan, fixtures, and ROADMAP entry
 67f8c7f chore: release v0.1.0 — rename to ledgerkit, add commodity styles and pandas export
 b2d10be fix: correct column-0 comment handling inside open transaction blocks
-8b5fc81 chore: release v0.5.0 and mark Milestone 3 done
-```

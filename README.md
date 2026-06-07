@@ -1,5 +1,7 @@
 # ledgerkit
 
+[![Tests](https://github.com/ctosullivan/ledgerkit/actions/workflows/tests.yml/badge.svg)](https://github.com/ctosullivan/ledgerkit/actions/workflows/tests.yml)
+
 A Python implementation of the [hledger](https://hledger.org) plain-text accounting tool.
 
 ## Features (planned for v1)
@@ -17,7 +19,21 @@ A Python implementation of the [hledger](https://hledger.org) plain-text account
 ## Installation
 
 ```bash
-pip install -e .
+pip install ledgerkit
+```
+
+With optional pandas support:
+
+```bash
+pip install ledgerkit[pandas]
+```
+
+### Development install
+
+```bash
+git clone https://github.com/ctosullivan/ledgerkit.git
+cd ledgerkit
+pip install -e ".[pandas]"
 ```
 
 ## Usage
