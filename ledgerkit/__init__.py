@@ -24,7 +24,7 @@ from ledgerkit.writer import journal_to_text, transaction_to_text
 from ledgerkit.editor_model import EditorDocument
 from ledgerkit.commodity_style import CommodityStyle
 
-__version__ = "0.2.0"
+__version__ = "1.0.0"
 __all__ = [
     "load",
     "AccountsResult",

@@ -66,6 +66,7 @@ All methods accept an optional `query=` parameter for filtering — see the
 
 ```python
 txn.date          # datetime.date
+txn.date2         # datetime.date | None  — secondary (effective) date
 txn.description   # str
 txn.postings      # list[Posting]
 txn.cleared       # bool  — True if marked with *
@@ -79,6 +80,7 @@ txn.comment       # str   — inline comment text
 ```python
 posting.account   # str          — e.g. "expenses:food"
 posting.amount    # Amount|None  — None means elided (inferred at report time)
+posting.cost_raw  # str | None   — raw cost/lot annotation text, e.g. "@ $180"
 ```
 
 ### `Amount`
@@ -213,9 +215,9 @@ class ReportSectionResult:
     subtotal: Decimal                # sum of all rows (after invert)
 ```
 
-> **Note:** Defining report specs inside journal files via comment directives
-> (`; report` / `; end report`) is planned for Milestone 3. In the current
-> release, specs are constructed programmatically only.
+> **Note:** Report specs are currently constructed programmatically. Journal-file
+> comment-directive syntax (`; report` / `; end report`) is on the roadmap but
+> not yet supported.
 
 ---
 
@@ -328,6 +330,19 @@ except FileNotFoundError:
     print("File not found")
 except ParseError as e:
     print(f"Parse error on line {e.line_number}: {e}")
+```
+
+### Parse warnings
+
+Non-fatal conditions (such as periodic or auto-posting rule blocks that
+ledgerkit skips) are surfaced as `ParseWarning` objects rather than exceptions:
+
+```python
+from ledgerkit.parser import parse_string_lenient
+
+journal, warnings = parse_string_lenient(text)
+for w in warnings:
+    print(f"Warning on line {w.line_number}: {w.message}")
 ```
 
 ---

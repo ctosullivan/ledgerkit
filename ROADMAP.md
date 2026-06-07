@@ -218,13 +218,30 @@ journal-syntax feature and serve as a living regression suite for parser breadth
 
 ---
 
+## Milestone 5 — CLI Filter Flags `[PLANNED]`
+
+Wire the `Query` dataclass to CLI argument flags so users can filter reports
+from the command line without writing Python.
+
+**Scope (draft):**
+
+- `--account PATTERN` / `-a PATTERN` — filter by account substring or regex
+- `--date-from DATE` / `--date-to DATE` — filter by date range
+- `--payee PATTERN` — filter by description substring or regex
+- `--depth N` — roll balance up to N levels
+- Apply consistently across `balance`, `register`, `accounts`, `stats`
+
+These flags map directly to the existing `Query` dataclass fields and require
+only CLI argument parsing changes, not report logic changes.
+
+---
+
 ## Future / Backlog `[BACKLOG]`
 
 Items not scheduled for a milestone yet. Promote to a milestone when prioritised.
 
 | Item | Notes |
 |---|---|
-| CLI filter flags (`--account`, `--date`, `--payee`) | Wire `Query` to CLI argument parser; deferred from Milestone 3 |
 | Journal-comment `ReportSpec` parsing | `; report` / `; end report` block syntax; deferred from Milestone 3 |
 | Full `stats` query support | Account-level filters on `account_count` / `account_depth`; deferred from Milestone 3 |
 | `EditorDocument` include-directive support | Currently include directives are silently ignored; needs multi-file span tracking |

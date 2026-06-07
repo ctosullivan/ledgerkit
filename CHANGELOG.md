@@ -1,12 +1,55 @@
 # Changelog
 
 All notable changes to ledgerkit are recorded here.
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versioning follows [Semantic Versioning](https://semver.org/).
+See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
-Each entry corresponds to one GitHub commit. The **Human** line summarises what
-the user directed or decided; the **Claude** line summarises what Claude
-researched, designed, or implemented.
+---
 
-Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [Unreleased]
+
+---
+
+## [1.0.0] — 2026-06-07
+
+First public release on PyPI.
+
+### Added
+- Parse `.journal` files compatible with hledger 1.52 format
+- Core CLI commands: `balance`, `register`, `print`, `accounts`, `stats`, `check`
+- Pure Python, no third-party runtime dependencies
+- Python 3.8–3.12 support
+- Comprehensive directive support: `include`, `account`, `commodity`, `payee`,
+  `alias`, `P` (market prices), `Y` (default year), `D` (default commodity),
+  `apply account` / `end apply account`
+- Amount parsing: prefix/suffix commodity symbols, digit-group separators,
+  decimal mark variants, quoted commodity names, E-notation, cost/lot
+  annotations (`@ PRICE`, `{COST}`), sign-after-prefix-symbol (`$-300`)
+- Secondary dates (`date2`) on transactions
+- Full balance assertions (`=`, `==`, `=*`, `==*`) with `-I`/`--ignore-assertions` flag
+- Strict mode (`-s`) checks that all accounts and commodities are declared
+- Multi-commodity `balance()` with `tree=True` hierarchical rollup
+- `parse_string_lenient` — never-raises parser for editor integrations
+- `EditorDocument` — in-memory load/add/update/delete/save/reload for journal files
+- `writer.py` — round-trip `transaction_to_text` and `journal_to_text`
+- `SourceSpan` — byte-level source location for every transaction
+- Commodity display style inference and `-c`/`--commodity-style` CLI flag
+- Optional pandas export: `pip install ledgerkit[pandas]`
+  - `Journal.to_dataframe()`, `BalanceResult.to_dataframe()`,
+    `RegisterResult.to_dataframe()`, `AccountsResult.to_dataframe()`,
+    `ReportSectionResult.to_dataframe()`
+- `ReportSpec` / `ReportSection` / `balance_from_spec` for structured custom reports
+- `ParseWarning` for non-fatal parser notices (periodic/auto-posting rule blocks)
+
+---
+
+## Pre-release development history
+
+The entries below document the AI-assisted development workflow used to build
+ledgerkit from the ground up across five milestones. They use a Human/Claude
+attribution format and are preserved here for traceability. Detailed per-commit
+records are in `dev-docs/changelog/`.
 
 ---
 
@@ -108,28 +151,27 @@ milestones build on.
 
 ---
 
-## How to add a changelog entry
+## How to add a changelog entry (v1.0.0+)
 
-When work is ready to commit, add a new entry at the top of the `[Unreleased]`
-section following this template:
-
-```markdown
-### [0.x.y-dev.N] — Short title
-
-**What changed:**
-- Bullet list of files/modules affected and what changed in each
-
-**Human:** One or two sentences on what the user directed, decided, or specified.
-
-**Claude:** One or two sentences on what Claude researched, designed, or implemented.
-```
-
-Once the GitHub commit is made, move the entry out of `[Unreleased]` and
-replace the dev tag with the actual commit hash or release version:
+Add a new entry under `## [Unreleased]` before cutting a release tag:
 
 ```markdown
-## [abc1234] — 2026-04-14 — Short title
+## [X.Y.Z] — YYYY-MM-DD
+
+### Added
+- New features or capabilities
+
+### Changed
+- Changes to existing behaviour
+
+### Fixed
+- Bug fixes
+
+### Removed
+- Removed features (MAJOR version bump required)
 ```
+
+Before tagging, move the entry out of `[Unreleased]` and set the release date.
 
 ---
 

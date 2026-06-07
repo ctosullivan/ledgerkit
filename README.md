@@ -4,13 +4,19 @@
 
 A Python implementation of the [hledger](https://hledger.org) plain-text accounting tool.
 
-## Features (planned for v1)
+## Features
 
-- Parse `.journal` files compatible with the hledger format
-- Core commands: `balance`, `register`, `print`, `accounts`, `stats`
+- Parse `.journal` files compatible with the hledger 1.52 format
+- Comprehensive directive support: `include`, `account`, `commodity`, `payee`,
+  `alias`, `P`, `Y`, `D`, `apply account`
+- Core CLI commands: `balance`, `register`, `print`, `accounts`, `stats`, `check`
+- Strict mode (`-s`) and balance assertions
+- Multi-commodity balances with tree rollup
+- Commodity display style inference and `-c` override flag
+- Optional pandas DataFrame export (`pip install ledgerkit[pandas]`)
+- Editor-integration layer: lenient parser, round-trip writer, `EditorDocument`
 - Pure Python — no third-party runtime dependencies
-- Modular, testable architecture
-- Use as a CLI tool or as a Python library
+- Python 3.8–3.12
 
 ## Requirements
 

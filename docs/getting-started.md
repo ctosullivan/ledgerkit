@@ -7,7 +7,7 @@ with the [hledger](https://hledger.org) journal format.
 
 ## Requirements
 
-- Python 3.10 or later
+- Python 3.8 or later
 
 Check your version:
 
@@ -19,12 +19,14 @@ python --version
 
 ## Installation
 
-Clone the repository and install in editable mode:
+```bash
+pip install ledgerkit
+```
+
+Or with pandas support:
 
 ```bash
-git clone https://github.com/ctosullivan/ledgerkit.git
-cd ledgerkit
-pip install -e .
+pip install ledgerkit[pandas]
 ```
 
 Verify the installation:
