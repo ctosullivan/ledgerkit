@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ledgerkit"
-version = "1.0.0"
+version = "1.0.0.dev1"
 description = "Python parser and library for hledger journal files — CLI tools, DataFrame export, and a clean data model for the Python ecosystem"
 readme = "README.md"
 license = {text = "MIT"}
