@@ -18,10 +18,24 @@ drafted `intentional_divergence`, 8 validation-check entries, 5
 `unsupported` entries), per the migration process in
 `dev-docs/planning/core-redefinition/09-compatibility-system.md` §9.5.
 **Every entry is `status: proposed`** — none has been executable-verified
-against a real `hledger` binary yet, because no pinned `hledger` binary or
-clone exists in this environment. Moving any entry to `status: verified`
+against a real `hledger` binary yet. Moving any entry to `status: verified`
 is `compat-differential-tester`'s job, from Stage C onward, and requires
 an actual comparison run, not a citation of the manual.
+
+**Correction (2026-09-13):** the note above about "no pinned hledger
+binary or clone exists" was only half right and is superseded — a full
+`hledger` **source** clone exists locally (used directly by
+`hledger-researcher` for the Stage C query-semantics entries below,
+pinned at tag `1.52.4`); there is still no pinned `hledger` **binary**, so
+`status: proposed` remains accurate until `compat-differential-tester`
+has one to run against.
+
+**Stage C Phase 1 addition (2026-09-13):** 7 entries added for the initial
+query-term set (`query.acct`, `query.desc`, `query.date` x2, `query.depth`,
+`query.status`, `query.combinators`), proposed by `hledger-researcher`'s
+semantics brief (`dev-docs/planning/core-redefinition/
+17-query-semantics-brief.md`) and implemented in `ledgerkit/query/`. All
+`status: proposed` — same caveat as above.
 
 Not yet migrated: the finer-grained amount/comment/transaction-field-level
 rows in the In Scope tables (dates, amount formats, comment forms, account

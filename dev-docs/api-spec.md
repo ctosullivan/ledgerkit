@@ -895,3 +895,124 @@ are run only if explicitly listed. Silent on success (exit 0); errors to stderr
 The positional `journal-file` argument (when not using `check`) is a
 backward-compatible shorthand for `-f FILE`. Specifying both `-f` and a
 positional argument is an error.
+
+---
+
+## `ledgerkit/query/` `[NEW — Stage C Phase 1]`
+
+**Not yet re-exported from `ledgerkit/__init__.py`, and not yet wired into
+`reports.py`, `cli.py`, or `Query`** — this is a standalone subpackage so
+far. Implements Stage C's initial term set only: `acct:`/bare pattern,
+`desc:`, `date:` (a single simple date, or two simple dates joined by
+`-`/`..`/` to `, open-ended forms allowed), `depth:`, `status:`, and
+`not:`/implicit-AND/same-prefix-OR combination. `tag:`, `cur:`, hledger's
+smart/period date expressions, and the `PythonRegex` extension syntax
+(`07-query-regex.md` §7.4) are **not implemented** — Stage C follow-on
+work. Full semantics grounding: `dev-docs/planning/core-redefinition/
+17-query-semantics-brief.md`.
+
+### `ledgerkit/query/ast.py`
+
+```python
+class TxnStatus(enum.Enum):
+    UNMARKED = "unmarked"
+    PENDING = "pending"
+    CLEARED = "cleared"
+
+@dataclass(frozen=True)
+class Acct:
+    pattern: str  # validated HledgerRegex-dialect pattern
+
+@dataclass(frozen=True)
+class Desc:
+    pattern: str
+
+@dataclass(frozen=True)
+class DateSpan:
+    start: datetime.date | None  # inclusive
+    end: datetime.date | None    # EXCLUSIVE — see below
+
+@dataclass(frozen=True)
+class Depth:
+    n: int  # >= 0
+
+@dataclass(frozen=True)
+class Status:
+    value: TxnStatus
+
+@dataclass(frozen=True)
+class And:
+    terms: tuple[QueryNode, ...]
+
+@dataclass(frozen=True)
+class Or:
+    terms: tuple[QueryNode, ...]
+
+@dataclass(frozen=True)
+class Not:
+    term: QueryNode
+
+QueryNode = Union[Acct, Desc, DateSpan, Depth, Status, And, Or, Not]
+```
+
+`DateSpan.end` is deliberately **exclusive**, matching hledger's real
+`date:` span semantics — this differs from the existing
+`ledgerkit.models.Query.date_to`, which is inclusive; the two are not
+interchangeable. `Status`/`TxnStatus` are always transaction-level:
+Ledgerkit's `Transaction`/`Posting` models have no per-posting status
+override (unlike hledger), so there is no posting-level status distinct
+from its transaction's.
+
+### `ledgerkit/query/regex.py`
+
+```python
+class UnsupportedRegexConstructError(ValueError): ...
+
+def validate_hledger_regex(pattern: str) -> None:
+    """Raise UnsupportedRegexConstructError if pattern uses a construct
+    outside the HledgerRegex-compatible subset (see module docstring for
+    the excluded-construct list: '(?...)' forms, backreferences, GNU
+    '\\<'/'\\>' boundaries, Perl shorthand classes, POSIX named classes,
+    lazy quantifiers). Does not raise for constructs within the subset
+    (literals, '.', '*', '+', '?', '{n,m}', '|', plain groups, anchors,
+    plain bracket expressions, '\\b'/'\\B')."""
+
+def compile_hledger_regex(pattern: str) -> re.Pattern[str]:
+    """validate_hledger_regex(pattern), then re.compile(pattern, re.IGNORECASE)."""
+```
+
+### `ledgerkit/query/parser.py`
+
+```python
+class QueryParseError(ValueError): ...
+
+def parse(query_text: str) -> QueryNode:
+    """Parse a query string into a QueryNode. An empty/whitespace-only
+    string parses to And(()) — matches everything, consistent with
+    Query()/query=None elsewhere in ledgerkit.
+
+    Combination rule (verified against hledger source, not invented):
+    unnegated acct:/desc:/status: terms of the same type OR-combine with
+    each other; every other term (date:, depth:, and any not:-wrapped
+    term of any prefix) AND-combines individually. A negated term never
+    joins an Or bucket even when its own prefix matches one of the three
+    OR-eligible types."""
+```
+
+### `ledgerkit/query/eval.py`
+
+```python
+def matches_transaction(node: QueryNode, txn: Transaction) -> bool:
+    """Transaction-oriented matching (used by print-like commands).
+    Acct/Depth match if ANY posting in the transaction matches."""
+
+def matches_posting(node: QueryNode, txn: Transaction, posting: Posting) -> bool:
+    """Posting-oriented matching (used by register/balance-like commands).
+    Desc/DateSpan/Status are transaction-level facts a posting inherits
+    unchanged; Acct/Depth are checked against the posting's own account."""
+```
+
+`Depth`'s predicate is purely `accountNameLevel(account) <= n` (colon-
+segment count) — hledger's separate depth-driven *display* truncation/
+aggregation for `balance`/`register` is intentionally not represented
+here; that is report-layer behaviour, not a query predicate.

@@ -1,0 +1,55 @@
+# Proposed by hledger-researcher's semantics brief (Stage C Phase 1),
+# dev-docs/planning/core-redefinition/17-query-semantics-brief.md §4.
+# status: proposed — not yet executable-verified against a real hledger
+# 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-QUERY-DEPTH-001
+area: query.depth
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's depth:N is a pure boolean predicate: an account matches when
+  its colon-segment count (accountNameLevel) is <= N; N >= 0 is the only
+  valid range (depth:0 is legal input, matching almost nothing). A
+  transaction matches if any posting matches. Ledgerkit's
+  ledgerkit.query.Depth implements exactly this predicate — the same
+  colon-count formula ledgerkit.reports._posting_matches already used for
+  Query.depth. Deliberately NOT represented here: hledger's separate
+  depth-driven display truncation/aggregation for balance/register (a
+  report-layer mechanism, not part of the Depth query type's own boolean
+  match semantics) — that stays where it already lives, in reports.py's
+  balance()/register() depth-truncation logic, untouched by this entry.
+
+implementation:
+  - ledgerkit/query/ast.py:Depth
+  - ledgerkit/query/eval.py:_account_depth
+  - ledgerkit/query/parser.py:_build_depth
+
+tests:
+  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes::test_depth_prefix
+  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes::test_depth_zero_is_valid
+  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes::test_depth_negative_rejected
+  - tests/test_query/test_eval.py::TestDepth
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (depth:, hledger.1:7325-7332)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Data/AccountName.hs:165-167 (accountNameLevel); Hledger/Query.hs:489-506,965 (parseDepthSpec, matchesTransaction)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+
+status: proposed
+verified_by: null
+verified_date: null

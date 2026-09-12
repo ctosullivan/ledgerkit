@@ -196,6 +196,41 @@ The assertion amount must be the same commodity as the posting amount (or the co
 
 ---
 
+## Query Language (Stage C)
+
+**Not yet wired into any CLI flag or `reports.py`/`Query` behaviour** —
+`ledgerkit.query` is a standalone subpackage so far (Stage C Phase 1).
+Query text is parsed into a `QueryNode` AST and evaluated directly against
+`Transaction`/`Posting` objects; see `dev-docs/api-spec.md`'s
+`ledgerkit/query/` section for the public API and
+`dev-docs/planning/core-redefinition/17-query-semantics-brief.md` for the
+hledger-source-verified semantics grounding each row below.
+
+| Term | Example | Notes |
+|---|---|---|
+| `acct:REGEX` / bare pattern | `acct:food`, `food` | **[IMPLEMENTED, standalone]** Case-insensitive infix match against a posting's account name; bare pattern defaults to `acct:`. A transaction matches if any of its postings match. |
+| `desc:REGEX` | `desc:amazon` | **[IMPLEMENTED, standalone]** Case-insensitive infix match against the transaction description; a posting inherits its transaction's match. |
+| `date:PERIODEXPR` | `date:2024-01-15`, `date:2024-01-01..2024-02-01` | **[IMPLEMENTED, standalone — simple dates only]** A single full date matches only that one day; a range's end date is **exclusive** (matching real hledger `date:` span semantics, confirmed against hledger source — this differs from the existing `Query.date_to`, which is inclusive). hledger's smart/relative/period dates (`today`, `last month`, `2024Q1`, etc.) are **not** implemented — see Undecided/Future. |
+| `depth:N` | `depth:2` | **[IMPLEMENTED, standalone]** Pure boolean predicate: colon-segment count `<= N`; `N >= 0` required. Depth-driven display truncation/aggregation (as `balance`/`register` already do via `Query.depth`) is separate report-layer behaviour, not part of this predicate. |
+| `status:` / `status:*` / `status:!` / `status:0` / `status:1` | `status:*` | **[IMPLEMENTED, standalone]** Cleared/pending/unmarked match; `0`/`1` are hledger's own synonyms for unmarked/cleared. Always transaction-level — Ledgerkit's model has no per-posting status override (unlike hledger). |
+| `not:` negation | `not:acct:food` | **[IMPLEMENTED, standalone]** Wraps and negates any other term; stacks (`not:not:x`). A negated term is always individually AND'd — it never joins a same-prefix OR group, even when the same prefix appears unnegated elsewhere in the query. |
+| Implicit AND / same-prefix OR | `acct:a acct:b date:2024` | **[IMPLEMENTED, standalone]** Unnegated `acct:`/`desc:`/`status:` terms of the same type OR-combine with each other; every other term (including any negated term, regardless of its prefix) AND-combines individually — replicated from hledger's actual `combineQueriesByType`, not an independent design choice. |
+| `tag:NAME[=REGEX]` | `tag:category=food` | Not implemented — Stage C follow-on work. |
+| `cur:REGEX` | `cur:USD` | Not implemented — Stage C follow-on work. |
+| `PythonRegex` extension syntax | (undecided) | Not implemented — the `HledgerRegex`-compatible subset (see below) is the only dialect available so far; no escape hatch to full Python `re` yet. |
+
+**Regex dialect (`HledgerRegex`):** `acct:`/`desc:`/bare-pattern arguments
+are validated against the hledger-compatible subset before use — literals,
+`.`, `*`, `+`, `?`, `{n,m}`, alternation `|`, plain groups, anchors, plain
+bracket expressions, and `\b`/`\B` word boundaries are accepted; `(?...)`
+constructs (inline flags, named/non-capturing groups, lookaround),
+in-pattern backreferences (`\1`), GNU `\<`/`\>` boundaries, Perl shorthand
+classes (`\d`/`\w`/`\s`), POSIX named classes (`[[:alpha:]]`), and lazy
+quantifiers (`*?`) all raise `UnsupportedRegexConstructError` rather than
+being silently reinterpreted with Python `re`'s (different) semantics.
+
+---
+
 ## Out of Scope (v1)
 
 These features will **not** be implemented in v1. Attempting to parse them

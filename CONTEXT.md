@@ -1,64 +1,77 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Added a standing "Commit & Push Cadence" rule to `CLAUDE.md`, per explicit
-user direction: commit at logical intervals, push automatically at the
-end of each successful phase, without asking each time. Meanwhile, Stage C
-Phase 1 (query-system semantics research) is running in the background —
-`hledger-researcher` is producing a semantics brief
-(`dev-docs/planning/core-redefinition/17-query-semantics-brief.md`) for
-the initial query-term set before any `ledgerkit/query/` code is written.
+Stage C Phase 1 (query semantics research + standalone query engine) is
+done. Operating under a standing "proceed with roadmap, recommended
+options, until a natural stopping point" directive from the user — this
+phase is a reasonable stopping point: a complete, tested, documented unit
+of work, with the next phase (wiring into reports.py/cli.py, or extending
+the term set) genuinely requiring a fresh scope decision rather than an
+obvious continuation.
 
 ## Where We Are
-`CLAUDE.md` now has a "Commit & Push Cadence" section (between Retro
-Reports and Commit Message Format). `dev-docs/retros/README.md`'s
-lifecycle diagram, `.claude/agents/roadmap-context-curator.md` (phase-end
-job), and `.claude/agents/release-phase-auditor.md` (new DoD check #9)
-all updated to reference it. `knowledge/DECISIONS.md` has the rationale
-entry. `CHANGELOG.md` entry added. This is a complete, self-contained
-process change — under the very rule just added, it should be committed
-and pushed now rather than held. Separately: the Stage C semantics-brief
-agent has not yet reported back; do not fabricate or assume its findings
-when it does — read the notification when it lands, then implement
-`ledgerkit/query/`'s AST/parser/evaluator from that brief.
+`ledgerkit/query/` now exists (`ast.py`, `regex.py`, `parser.py`,
+`eval.py`) — a standalone, fully-tested subpackage (81 new tests, 656
+total, all passing) implementing `acct:`/`desc:`/`date:`(simple)/
+`depth:`/`status:`/`not:`. Not yet re-exported from `ledgerkit/__init__.py`
+and not yet wired into `reports.py`, `cli.py`, or `Query`. Docs updated:
+`dev-docs/api-spec.md` (new section, user-approved), `hledger-
+compatibility.md` (new Query Language section), 7 new compat-register
+entries (all `status: proposed`), 2 new `knowledge/DOMAIN_RULES.md`
+entries. `ROADMAP.md` Stage C row updated. Retro written:
+`dev-docs/retros/STAGE-C-PHASE-1.md`. Per `CLAUDE.md`'s Commit & Push
+Cadence, this phase is ready to commit and push now (tests passing, docs
+synced, retro written) — about to do that next.
 
 ## Decisions In Flight
-- None new beyond what's now in `knowledge/DECISIONS.md` (the commit/push
-  cadence rationale, 2026-09-13).
+- The `date:` range-separator scope decision (accept `-`/`..`/`' to '`,
+  mandatory 4-digit year, no journal-context year inference at query-parse
+  time) was made this phase, not deferred — recorded in the retro, not yet
+  separately in `knowledge/DECISIONS.md` (it's implementation detail
+  rather than a judgment call with real alternatives seriously
+  considered, so folding it into the retro was judged sufficient；
+  revisit if a future phase finds it under-documented).
 
 ## Files Currently Relevant
-- `CLAUDE.md` — new Commit & Push Cadence section.
-- `dev-docs/retros/README.md`, `.claude/agents/roadmap-context-curator.md`,
-  `.claude/agents/release-phase-auditor.md` — cross-referenced.
-- `knowledge/DECISIONS.md`, `CHANGELOG.md` — both updated.
-- `dev-docs/planning/core-redefinition/17-query-semantics-brief.md` — will
-  exist once the background `hledger-researcher` agent finishes; not yet
-  written as of this response.
+- `ledgerkit/query/{__init__,ast,regex,parser,eval}.py` — new.
+- `tests/test_query/{test_regex,test_parser,test_eval}.py` — new.
+- `dev-docs/planning/core-redefinition/17-query-semantics-brief.md` — new
+  (the research brief this phase implemented from).
+- `dev-docs/api-spec.md`, `dev-docs/hledger-compatibility.md` — updated.
+- `dev-docs/compat-register/LK-{COMPAT,UNSUP}-QUERY-*.yaml` (7 files),
+  `dev-docs/compat-register/README.md` — new/updated.
+- `knowledge/DOMAIN_RULES.md` — 2 new entries.
+- `ROADMAP.md`, `CHANGELOG.md`, `dev-docs/retros/STAGE-C-PHASE-1.md`.
 
 ## Blockers / Open Questions
-- Stage C Phase 1 is blocked on the `hledger-researcher` semantics brief
-  landing — do not start writing `ledgerkit/query/` code before it does.
-- Stage B's `EditorDocument` include-directive backlog item is still open
-  and unscoped (lower priority now, per Stage B Phase 1's finding that
-  `EditorDocument` isn't actually used by `ledgerkit-editor` today).
+- Stage C's next phase is unscoped — candidates: wire `ledgerkit/query/`
+  into `reports.py`/a CLI `--query` flag; extend the term set (`tag:`,
+  `cur:`); design the `PythonRegex`/`pyre:` extension syntax
+  (`07-query-regex.md` §7.4, still an open design question). Needs
+  explicit scoping before starting, same as this phase did.
+- `EditorDocument`'s include-directive backlog item is still open and
+  unscoped (Stage B finding: lower priority than assumed).
 - Whether `/home/cormac/projects/hledger` is the intended pinned reference
-  for `compat-differential-tester` is still unconfirmed with the user.
-- The finer-grained `hledger-compatibility.md` rows are still unmigrated
-  into the compat-register — open follow-up from Stage A, not a blocker.
+  for `compat-differential-tester` going forward is still unconfirmed with
+  the user, though it's now been used directly for real research this
+  phase.
+- The finer-grained `hledger-compatibility.md` rows from Stage A are still
+  unmigrated into the compat-register — open follow-up, not a blocker.
 
 ## What NOT To Revisit
 - Stage A and Stage B are both closed and settled.
-- The per-phase retro process and the new commit/push cadence are both
-  adopted — don't re-ask about either; the latter is explicit,
-  user-directed standing authorisation, not something to re-confirm per
-  commit.
-- Don't re-litigate Stage B's guardrails or corrections — see prior
-  `CONTEXT.md` history / `knowledge/DECISIONS.md` if needed.
+- The per-phase retro process and the commit/push cadence rule are both
+  adopted and now demonstrated across three real phases (Stage B x2,
+  Stage C x1) — don't re-ask about either.
+- Don't re-litigate this phase's query semantics (exclusive-end dates,
+  negated-same-prefix-AND, the HledgerRegex construct exclusion list) —
+  all sourced from `hledger-researcher`'s brief, verified against the
+  pinned hledger 1.52.4 source, and cross-checked by real tests.
 - Milestones 0–4 do not get retroactive retros.
 
 ## Recent Git State (before this response's commit, if any)
+9c33e37 chore: add standing commit/push cadence; scope Stage C Phase 1
 f51a18b feat: close out Stage B — editor-compat inventory, model review
 a3cf2a7 feat: close out Stage A — agent roster and compatibility-register harness
 e702497 fix: revert pyproject.toml license to classic form for Python 3.8 CI
 67436ec chore: relicense to GPL-3.0-or-later, redefine Core goal and roadmap
-572e77b fix: correct YAML syntax in publish workflow

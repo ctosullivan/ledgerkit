@@ -1,0 +1,57 @@
+# Proposed by hledger-researcher's semantics brief (Stage C Phase 1),
+# dev-docs/planning/core-redefinition/17-query-semantics-brief.md §3.
+# status: proposed — not yet executable-verified against a real hledger
+# 1.52.4 binary; that is compat-differential-tester's job. See
+# LK-UNSUP-QUERY-DATE-002 for the deliberately out-of-scope remainder of
+# hledger's date: grammar.
+
+id: LK-COMPAT-QUERY-DATE-001
+area: query.date
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's date:PERIODEXPR always parses through its full smart-date/
+  period-expression grammar, which has no separate "simple date" mode —
+  Ledgerkit's "simple dates only" scope is Ledgerkit's own intentional
+  subset of that grammar, not a distinction hledger itself makes. For
+  exactly the subset Ledgerkit implements — a single full date (which
+  resolves to a one-day span), or two full dates joined by '-'/'..'/' to '
+  (open-ended forms allowed) — hledger's general grammar produces the
+  identical DateSpan Ledgerkit computes directly, including the
+  easy-to-miss rule that a written range's end date is EXCLUSIVE (e.g.
+  date:2024-01-01-2024-01-31 does NOT include Jan 31). This is
+  deliberately different from ledgerkit.models.Query.date_to, which is
+  inclusive — the two are not interchangeable, and this entry does not
+  claim Query.date_to is hledger-compatible.
+
+implementation:
+  - ledgerkit/query/ast.py:DateSpan
+  - ledgerkit/query/eval.py:_date_in_span
+  - ledgerkit/query/parser.py:_build_date
+
+tests:
+  - tests/test_query/test_parser.py::TestDateSpans
+  - tests/test_query/test_eval.py::TestDateSpan
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (date:, hledger.1:7295-7314)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Data/Dates.hs:429 (single-date span), 1132-1148 (doubledatespanp, exclusive end)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+
+status: proposed
+verified_by: null
+verified_date: null

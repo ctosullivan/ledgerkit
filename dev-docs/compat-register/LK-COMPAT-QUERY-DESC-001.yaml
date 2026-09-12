@@ -1,0 +1,51 @@
+# Proposed by hledger-researcher's semantics brief (Stage C Phase 1),
+# dev-docs/planning/core-redefinition/17-query-semantics-brief.md §2.
+# status: proposed — not yet executable-verified against a real hledger
+# 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-QUERY-DESC-001
+area: query.desc
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's desc:REGEX is a case-insensitive, infix regex match against a
+  transaction's description; a posting has no description of its own and
+  inherits its transaction's for query purposes. Ledgerkit's
+  ledgerkit.query implements this identically: Desc.pattern is always
+  compiled case-insensitively and matched via re.search, restricted to
+  the same HledgerRegex-compatible subset as acct: (LK-COMPAT-QUERY-ACCT-001),
+  and matches_posting reads the description from the posting's parent
+  transaction rather than treating it as a posting-level field.
+
+implementation:
+  - ledgerkit/query/ast.py:Desc
+  - ledgerkit/query/eval.py:matches_transaction
+  - ledgerkit/query/eval.py:matches_posting
+  - ledgerkit/query/parser.py:_build_desc
+
+tests:
+  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes::test_desc_prefix
+  - tests/test_query/test_eval.py::TestDesc
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (desc:, hledger.1:7232-7234)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Query.hs:301,911,958 (Desc construction/matching)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+
+status: proposed
+verified_by: null
+verified_date: null

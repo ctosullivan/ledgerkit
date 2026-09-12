@@ -1,0 +1,58 @@
+# Proposed by hledger-researcher's semantics brief (Stage C Phase 1),
+# dev-docs/planning/core-redefinition/17-query-semantics-brief.md §5.
+# status: proposed — not yet executable-verified against a real hledger
+# 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-QUERY-STATUS-001
+area: query.status
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's status:/status:*/status:! (matching unmarked/cleared/pending)
+  and their less-documented "1"/"0" synonyms for cleared/unmarked are
+  implemented identically in ledgerkit.query.Status, including the
+  same-prefix OR-combination behaviour hledger's own test suite states
+  explicitly ("multiple status: queries are OR'd"). One noted, honest
+  model-scope difference: hledger allows an individual posting's own
+  status to override its transaction's; Ledgerkit's Posting model has no
+  status field at all (only Transaction.cleared/pending exist), so
+  status: is necessarily always a transaction-level fact here — there is
+  no Ledgerkit posting-level status to diverge in behaviour from, this is
+  a narrower data model, not a query-matching bug.
+
+implementation:
+  - ledgerkit/query/ast.py:Status
+  - ledgerkit/query/ast.py:TxnStatus
+  - ledgerkit/query/eval.py:_txn_status
+  - ledgerkit/query/parser.py:_build_status
+
+tests:
+  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes (status_* tests)
+  - tests/test_query/test_parser.py::TestNotAndCombination::test_same_prefix_status_terms_are_ored
+  - tests/test_query/test_eval.py::TestStatus
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (status:, hledger.1:7353-7358)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Query.hs:553-557,962,1102-1106 (parseStatus incl. 1/0 synonyms, matchesTransaction); Hledger/Data/Posting.hs:428-431 (postingStatus inheritance)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: test
+    ref: "hledger/test/journal/status.test:65-101 (upstream fixture explicitly confirms all three forms and same-prefix OR)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+
+status: proposed
+verified_by: null
+verified_date: null

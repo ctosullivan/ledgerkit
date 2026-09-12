@@ -1,0 +1,47 @@
+# Proposed by hledger-researcher's semantics brief (Stage C Phase 1),
+# dev-docs/planning/core-redefinition/17-query-semantics-brief.md §3.
+# status: proposed. Companion to LK-COMPAT-QUERY-DATE-001 (the
+# implemented simple-date subset); this entry covers the deliberately
+# out-of-scope remainder.
+
+id: LK-UNSUP-QUERY-DATE-002
+area: query.date
+kind: unsupported
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: subset
+
+compatibility:
+  upstream_syntax_preserved: n/a
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's date: grammar also accepts smart/relative dates (today,
+  yesterday, last month, next year), bare years, partial dates (YYYY-MM),
+  quarters (2009Q2), and weekday/month names — none of which Ledgerkit's
+  query parser implements. This is the same "not currently planned for
+  v1" scope decision already recorded in dev-docs/hledger-compatibility.md
+  for smart dates generally, made formal as a register entry rather than
+  left as prose only.
+
+implementation:
+  []
+
+tests:
+  - tests/test_query/test_parser.py::TestDateSpans::test_malformed_date_rejected
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (date:, hledger.1:7295-7314)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Data/Dates.hs:396-420,1061-1195 (parsePeriodExpr, full smart-date grammar)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+
+status: proposed
+verified_by: null
+verified_date: null

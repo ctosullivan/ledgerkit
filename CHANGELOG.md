@@ -9,6 +9,42 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 1 — Query semantics research + standalone query engine] — 2026-09-13
+
+Full detail: [dev-docs/planning/core-redefinition/17-query-semantics-brief.md](dev-docs/planning/core-redefinition/17-query-semantics-brief.md), [16-model-review.md](dev-docs/planning/core-redefinition/16-model-review.md)
+
+**Human:** directed proceeding with the roadmap autonomously, choosing
+recommended options at each decision point, until a natural stopping
+point; supplied the `ledgerkit-editor` git URL earlier in this arc, and
+approved the `dev-docs/api-spec.md` addition for this phase specifically
+when asked.
+
+**Claude:** dispatched `hledger-researcher` for a semantics brief on
+Stage C's initial query-term set (`acct:`/`desc:`/`date:`(simple)/
+`depth:`/`status:`/`not:`), grounded in the pinned local `hledger` 1.52.4
+source clone. Implemented `ledgerkit/query/` (new subpackage): `ast.py`
+(AST node types), `regex.py` (`HledgerRegex`-compatible-subset validation,
+rejecting constructs like backreferences, `(?...)` forms, GNU `\<`/`\>`,
+Perl shorthand classes, POSIX named classes, and lazy quantifiers rather
+than silently reinterpreting them), `parser.py` (query text → AST,
+replicating hledger's exact `combineQueriesByType` partition-then-combine
+rule — critically, a negated term never joins a same-prefix OR group),
+and `eval.py` (AST → predicate over `Transaction`/`Posting`, both
+transaction- and posting-oriented). 81 new tests (656 total, all
+passing). Added `dev-docs/api-spec.md`'s `ledgerkit/query/` section (user
+sign-off obtained per the Unauthorised Change Rule) and
+`hledger-compatibility.md`'s new Query Language section. Added 7
+`status: proposed` compat-register entries. Recorded two new
+`knowledge/DOMAIN_RULES.md` entries: `ledgerkit.query`'s `date:` range end
+is exclusive (differs from the existing, inclusive `Query.date_to`), and
+`not:` never joins a same-prefix OR group. Corrected a stale claim in
+`dev-docs/compat-register/README.md` (a hledger source clone does exist
+locally; only a pinned binary is still absent). Not yet wired into
+`reports.py`/`cli.py`/`Query` — standalone by design this phase. Retro:
+`dev-docs/retros/STAGE-C-PHASE-1.md`.
+
+---
+
 ### Added: standing commit/push pre-authorisation — 2026-09-13
 
 **Human:** directed updating project instructions so commits happen at

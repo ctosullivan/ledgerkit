@@ -1,0 +1,64 @@
+# Proposed by hledger-researcher's semantics brief (Stage C Phase 1),
+# dev-docs/planning/core-redefinition/17-query-semantics-brief.md §6.
+# status: proposed — not yet executable-verified against a real hledger
+# 1.52.4 binary; that is compat-differential-tester's job. One
+# sub-behaviour (the negated-same-prefix case) rests on source evidence
+# only — flagged below as the top-priority differential-test fixture.
+
+id: LK-COMPAT-QUERY-BOOLCOMBINE-001
+area: query.combinators
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger combines space-separated query terms by partitioning unnegated
+  acct:/desc:/status: terms into per-type OR groups, then AND-combining
+  those groups with every other term (combineQueriesByType) — not:
+  wraps and negates any term and stacks (not:not:x). The critical, easily
+  -missed sub-rule: a negated term is NEVER pulled into a same-prefix OR
+  bucket even when its own prefix matches one of the three OR-eligible
+  types (queryIsAcct (Acct _) = True; queryIsAcct _ = False, so
+  Not (Acct _) is always plain-AND'd individually). Ledgerkit's
+  ledgerkit.query.parser.parse replicates this exact partition-then-
+  combine structure, verified directly against hledger source rather than
+  assumed from the (silent-on-this-point) manual. CAVEAT: no directly
+  executable upstream test was found in the pinned 1.52.4 test suite
+  covering two negated same-prefix terms together (e.g.
+  "not:acct:a not:acct:b") — this specific conclusion rests on reading
+  queryIsAcct/combineQueriesByType directly, not on a test fixture, and
+  should be compat-differential-tester's first constructed fixture for
+  this area before this entry moves past proposed.
+
+implementation:
+  - ledgerkit/query/ast.py:And
+  - ledgerkit/query/ast.py:Or
+  - ledgerkit/query/ast.py:Not
+  - ledgerkit/query/eval.py:matches_transaction
+  - ledgerkit/query/eval.py:matches_posting
+  - ledgerkit/query/parser.py:parse (the acct/desc/status partition-then-combine step)
+
+tests:
+  - tests/test_query/test_parser.py::TestNotAndCombination
+  - tests/test_query/test_eval.py::TestCombinators::test_negated_pair_excludes_both
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (\"Space-separated queries\", hledger.1:7412-7422 — silent on the not: interaction specifically)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Query.hs:217-223 (combineQueriesByType), 656-674 (queryIsAcct/queryIsDesc/queryIsStatus — unnegated-only), 296-299 (Not construction/recursion)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+
+status: proposed
+verified_by: null
+verified_date: null

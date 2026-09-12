@@ -1,0 +1,57 @@
+# Proposed by hledger-researcher's semantics brief (Stage C Phase 1),
+# dev-docs/planning/core-redefinition/17-query-semantics-brief.md §1.
+# status: proposed — not yet executable-verified against a real hledger
+# 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-QUERY-ACCT-001
+area: query.acct
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's acct:REGEX (and bare pattern, which defaults to acct:) is a
+  case-insensitive, infix regex match against a posting's account name; a
+  transaction matches if any of its postings match. Ledgerkit's
+  ledgerkit.query implements this identically: Acct.pattern is always
+  compiled case-insensitively and matched via re.search (never re.match),
+  restricted to the HledgerRegex-compatible construct subset
+  (ledgerkit/query/regex.py) so a pattern using a construct hledger's
+  regex-tdfa doesn't support (or interprets differently) is rejected
+  rather than silently reinterpreted. One known model gap, noted
+  honestly rather than glossed over: hledger also matches a posting's
+  pre-alias/pivot-transform account name (poriginal) in addition to its
+  current name; Ledgerkit's parser rewrites account names at parse time
+  and does not retain the pre-alias name, so this specific sub-behaviour
+  has no Ledgerkit equivalent to compare against yet.
+
+implementation:
+  - ledgerkit/query/ast.py:Acct
+  - ledgerkit/query/eval.py:matches_transaction
+  - ledgerkit/query/eval.py:matches_posting
+  - ledgerkit/query/parser.py:_build_acct
+
+tests:
+  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes
+  - tests/test_query/test_eval.py::TestAcct
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (acct:, hledger.1:7224-7226)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Query.hs:304,875,912,959 (Acct construction/matching)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+
+status: proposed
+verified_by: null
+verified_date: null
