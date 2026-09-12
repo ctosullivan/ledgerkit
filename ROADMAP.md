@@ -3,7 +3,19 @@
 Milestones track the planned development path. Each milestone corresponds to one
 or more GitHub commits and should leave the codebase in a releasable, tested state.
 
-**Status key:** `[DONE]` · `[IN PROGRESS]` · `[PLANNED]` · `[BACKLOG]`
+**Status key:** `[DONE]` · `[IN PROGRESS]` · `[PLANNED]` · `[BACKLOG]` · `[SUPERSEDED]`
+
+> **2026-09-12 — Core redefinition.** Ledgerkit's product goal was redefined
+> from "a Python implementation of the hledger journal format" to a
+> deterministic, Python-native accounting and query engine with a
+> documented hledger-compatible foundation — see
+> `dev-docs/planning/core-redefinition/01-product-goal.md`. Milestones 0–4
+> below are retained unchanged as completed history and map directly into
+> the new structure (`dev-docs/planning/core-redefinition/12-roadmap-migration.md`).
+> Milestone 5 is superseded (see below). Forward-looking work now proceeds
+> as **Stages A–I**, summarised at the bottom of this file; full detail is
+> in `dev-docs/planning/core-redefinition/`. Human-decision-gate status for
+> this redefinition: `dev-docs/planning/core-redefinition/14-human-decision-gates.md`.
 
 ---
 
@@ -218,46 +230,79 @@ journal-syntax feature and serve as a living regression suite for parser breadth
 
 ---
 
-## Milestone 5 — CLI Filter Flags `[PLANNED]`
+## Milestone 5 — CLI Filter Flags `[SUPERSEDED]`
 
-Wire the `Query` dataclass to CLI argument flags so users can filter reports
-from the command line without writing Python.
+**Superseded 2026-09-12 by Stage C (Query System) — not implemented as
+originally scoped.** Wiring CLI flags directly to today's `Query`
+dataclass, as drafted below, would build exactly the narrow ad-hoc
+filtering the Core redefinition replaces with a proper query AST shared
+across reports, the CLI, and future adapters. The underlying user need
+(filter reports from the CLI) is fully preserved — it becomes part of
+Stage C's `--query`-flag work instead, routed through the new query engine.
+See `dev-docs/planning/core-redefinition/07-query-regex.md` and
+`12-roadmap-migration.md` §12.3.
 
-**Scope (draft):**
-
+Original scope (kept for reference, not built):
 - `--account PATTERN` / `-a PATTERN` — filter by account substring or regex
 - `--date-from DATE` / `--date-to DATE` — filter by date range
 - `--payee PATTERN` — filter by description substring or regex
 - `--depth N` — roll balance up to N levels
 - Apply consistently across `balance`, `register`, `accounts`, `stats`
 
-These flags map directly to the existing `Query` dataclass fields and require
-only CLI argument parsing changes, not report logic changes.
+---
+
+## Future / Backlog — reclassified into Stages, 2026-09-12
+
+Every item below was reclassified, not dropped, as part of the Core
+redefinition (`dev-docs/planning/core-redefinition/12-roadmap-migration.md`
+§12.3). None were implemented by that reclassification — each is now
+sequenced within a specific forward Stage instead of sitting unscheduled.
+
+| Item | Old status | New disposition |
+|---|---|---|
+| Journal-comment `ReportSpec` parsing | `[BACKLOG]` | Stage D (Reporting) |
+| Full `stats` query support | `[BACKLOG]` | Stage C (Query System), immediately after the query engine lands |
+| `EditorDocument` include-directive support | `[BACKLOG]` | Stage B (Core model) |
+| Account type inference | `[BACKLOG]` | Stage E (Accounting semantics) |
+| Periodic/auto postings | `[BACKLOG]` ("out of scope for v1") | Stage G (Generated/transformative behaviour) |
+| `stats`: peak live memory (`psutil`) | `[BACKLOG]` | Deferred indefinitely — still blocked on third-party-dependency approval, unchanged by the licence migration |
+| `stats`: peak allocated memory (`tracemalloc`) | `[BACKLOG]` | Low-priority Core-adjacent backlog — stdlib-only, not blocking any Stage |
+| `stats`: per-reporting-interval output | `[BACKLOG]` | Stage D (Reporting), alongside report-engine consolidation |
 
 ---
 
-## Future / Backlog `[BACKLOG]`
+## Stages A–I (Core redefinition — forward roadmap)
 
-Items not scheduled for a milestone yet. Promote to a milestone when prioritised.
+Full detail: `dev-docs/planning/core-redefinition/`. One-line summary per
+stage; each becomes a `dev-docs/planning/<stage>.md` plan file (per the
+"Deciding What Goes Into a Stage" process below) before implementation
+begins, exactly as milestones have always worked here.
 
-| Item | Notes |
-|---|---|
-| Journal-comment `ReportSpec` parsing | `; report` / `; end report` block syntax; deferred from Milestone 3 |
-| Full `stats` query support | Account-level filters on `account_count` / `account_depth`; deferred from Milestone 3 |
-| `EditorDocument` include-directive support | Currently include directives are silently ignored; needs multi-file span tracking |
-| Account type inference | Infer assets/liabilities/income/expenses from name prefix |
-| Periodic/auto postings | Out of scope for v1 |
-| `stats`: peak live memory (`X MB live`) | Requires `psutil` (third-party) or platform-specific syscall; not in scope without user approval of the dependency |
-| `stats`: peak allocated memory (`X MB alloc`) | Implementable via stdlib `tracemalloc`; deferred to keep scope small |
-| `stats`: per-reporting-interval output | Show stats broken down by week/month/year; needs date-interval logic |
+| Stage | Focus | Status | Plan |
+|---|---|---|---|
+| A | Development foundation — agent roster, CodeCompass integration, compatibility harness, learning/doc lifecycle | `[IN PROGRESS]` (licence migration, positioning, and this roadmap migration done; agent-role files and compatibility harness not yet built) | `core-redefinition/03,04,05,09,11` |
+| B | Core model — journal/accounting model review, Editor-compatibility confirmation | `[PLANNED]` | `core-redefinition/06` |
+| C | Query system — parser/AST, hledger query semantics, Python `re` extension, CLI/report routing | `[PLANNED]` | `core-redefinition/07` |
+| D | Reporting — shared primitives, structured output, render/semantics separation | `[PLANNED]` | `core-redefinition/06` §6.1 |
+| E | Accounting semantics — prices, costs, valuation, conversion, account types, virtual postings, assertions | `[PLANNED]` | `core-redefinition/08` |
+| F | Investment semantics — lots, cost basis, acquisition/disposal, gains/losses | `[PLANNED]` | `core-redefinition/08` |
+| G | Generated/transformative behaviour — periodic transactions, auto postings, forecasting, rewrite/close | `[PLANNED]` | `core-redefinition/08` |
+| H | Compatibility and identity — complete register, documented divergences/extensions, drive unexplained mismatches to zero | `[PLANNED]` | `core-redefinition/09` |
+| I | Core 1.0 — stable API, performance/reliability, blank-slate docs, independent release audit | `[PLANNED]` | `core-redefinition/12` §12.5 |
 
 ---
 
-## Deciding What Goes Into a Milestone
+## Deciding What Goes Into a Milestone or Stage
 
-Before starting a new milestone, the user specifies the scope. Claude then:
-1. Confirms the scope against `dev-docs/hledger-compatibility.md` (supported features only)
-2. Updates this file to move the milestone from `[PLANNED]` to `[IN PROGRESS]`
-3. Implements, tests, and updates docs in the same response
-4. Updates this file to `[DONE]` **only when the user explicitly confirms the
-   milestone is complete**, and adds a `CHANGELOG.md` entry at that point
+Before starting a new milestone or Stage, the user specifies the scope
+(or confirms a Stage's plan). Claude then:
+1. Confirms the scope against `dev-docs/hledger-compatibility.md` and,
+   from Stage A onward, the compatibility register (`dev-docs/compat-register/`)
+2. For a Stage: confirms any relevant human-decision gate in
+   `dev-docs/planning/core-redefinition/14-human-decision-gates.md` is
+   resolved before implementation starts
+3. Updates this file to move the item from `[PLANNED]` to `[IN PROGRESS]`
+4. Implements, tests, and updates docs in the same response
+5. Updates this file to `[DONE]` **only when the user explicitly confirms the
+   milestone/Stage phase is complete**, and adds a `CHANGELOG.md` entry at
+   that point

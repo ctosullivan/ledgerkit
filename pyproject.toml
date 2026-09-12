@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=69.5"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ledgerkit"
 version = "1.0.0.dev1"
-description = "Python parser and library for hledger journal files — CLI tools, DataFrame export, and a clean data model for the Python ecosystem"
+description = "A deterministic, Python-native accounting and query engine with a documented hledger-compatible foundation"
 readme = "README.md"
-license = {text = "MIT"}
+license = "GPL-3.0-or-later"
 requires-python = ">=3.8"
 dependencies = []
 keywords = [
@@ -25,7 +25,6 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "License :: OSI Approved :: MIT License",
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",

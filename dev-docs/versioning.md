@@ -48,3 +48,16 @@ Development from v0.0.0 to v0.2.0 (Milestones 0–4) is archived in
 `dev-docs/changelog/`. These entries use a Human/Claude attribution format
 that documents the AI-assisted development workflow; they are not the ongoing
 changelog format.
+
+## Licence
+
+Every release through `1.0.0` (and the `1.0.0.dev1` pre-release) was
+published under the MIT License and remains so — relicensing is not
+retroactive to bytes already shipped. Starting with the first release after
+2026-09-12, ledgerkit is licensed under GPL-3.0-or-later. See
+`dev-docs/planning/core-redefinition/02-licence-migration.md` for the full
+rationale. A licence change is not itself classified as a breaking change
+under this document's MAJOR/MINOR/PATCH rules (those cover the API/CLI
+surface only), but it should be called out prominently in `CHANGELOG.md`
+regardless, since it materially affects how downstream consumers may use
+the package.

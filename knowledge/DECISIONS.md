@@ -4,6 +4,53 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 ---
 
+## 2026-09-12 — Relicensed MIT → GPL-3.0-or-later
+
+**Decision:** ledgerkit moves from the MIT License to GPL-3.0-or-later,
+effective from the first release after this date. Already-published
+releases (through `1.0.0`/`1.0.0.dev1`) remain MIT.
+
+**Why:** hledger itself is GPL-3.0-or-later (confirmed from `license:`
+fields in `hledger.cabal`/`hledger-lib.cabal`, not inferred from the
+`LICENSE` file text alone). Matching it allows Ledgerkit development to use
+hledger's documentation, source, and test suite directly as compatibility
+evidence, with recorded provenance, instead of maintaining a self-imposed
+clean-room separation. See
+`dev-docs/planning/core-redefinition/02-licence-migration.md` and
+`10-source-assisted-development.md` for the full reasoning, including the
+important nuance that *reading* GPL source was never restricted by
+licence mismatch — what actually changes is that Ledgerkit can now
+lawfully host directly-translated hledger expression, should that ever
+occur, which it could not under MIT.
+
+**Known consequence, accepted deliberately:** `ledgerkit-editor` imports
+`ledgerkit` in-process (not via subprocess) — confirmed by inspecting its
+actual source (`ledgerkit.Query`, `ledgerkit.EditorDocument`,
+`ledgerkit.parse_string_lenient`, `ledgerkit.{models,reports,checks,parser,
+commodity_style}`, `ledgerkit.{load,journal_to_text,transaction_to_text}`
+are all used directly, most substantially in `filter_popup.py` and
+`query_match.py`) — so a GPL library embedded in-process inside an MIT
+application is not a stable long-term combination. **`ledgerkit-editor`'s
+own relicensing is an explicit separate decision, made in that
+repository, on its own timeline — not bundled into this change.** Any
+*other* third party embedding `ledgerkit` in-process faces the same
+constraint going forward; this was weighed explicitly (see the licence
+migration doc's options table) and accepted in favour of exactly matching
+hledger's licence family, rather than choosing LGPL for library-friendliness.
+
+**Rejected alternatives:** LGPL-3.0-or-later (library-friendly, but doesn't
+literally match hledger's licence); restructuring `ledgerkit-editor` to a
+subprocess boundary instead of relicensing it (disproportionate rewrite of
+its editor-integration layer, which exists specifically for in-process
+access); dual-licensing (ongoing administrative overhead not justified for
+a single-maintainer project).
+
+**Applies to:** `LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES.md`,
+`pyproject.toml`, `README.md`, `CONTRIBUTING.md`, `dev-docs/versioning.md`,
+`ledgerkit/__init__.py`, and (separately) the `ledgerkit-editor` repository.
+
+---
+
 ## 2026-04-15 — Parser silently accepts unbalanced transactions
 
 **Decision:** `parse_string` does not validate that postings sum to zero. Unbalanced transactions are stored as-is and only rejected later by `checks.py`.

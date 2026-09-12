@@ -1,8 +1,20 @@
 # ledgerkit
 
 [![Tests](https://github.com/ctosullivan/ledgerkit/actions/workflows/tests.yml/badge.svg)](https://github.com/ctosullivan/ledgerkit/actions/workflows/tests.yml)
+[![License: GPL v3 or later](https://img.shields.io/badge/License-GPLv3%2B-blue.svg)](LICENSE)
 
-A Python implementation of the [hledger](https://hledger.org) plain-text accounting tool.
+A deterministic, Python-native accounting and query engine with a
+documented [hledger](https://hledger.org)-compatible foundation.
+ledgerkit uses hledger as its primary accounting and compatibility
+reference — it implements most important hledger functionality and
+preserves compatibility where it's useful, but it does not aim to be a
+line-for-line Python clone. Where Python or modern tooling offers a
+materially better design, ledgerkit says so explicitly rather than
+copying a limitation for its own sake. See
+[dev-docs/compat-register/](dev-docs/compat-register/) for the
+machine-readable record of exactly which behaviours match hledger, which
+are deliberate extensions, and which are documented, intentional
+divergences.
 
 ## Features
 
@@ -163,8 +175,13 @@ ecosystem is built upon.
 
 **Simon Michael** created hledger, a Haskell implementation of Ledger's concepts,
 which has since evolved its own rich feature set and extensive documentation.
-ledgerkit's journal format support is modelled primarily on the hledger 1.52
-specification.
+ledgerkit's journal format and query-language support is modelled primarily
+on the hledger 1.52 specification, and ledgerkit is licensed under the same
+licence family as hledger (GPL-3.0-or-later) specifically so that hledger's
+own documentation, source, and test suite can be used directly — with
+provenance recorded — to understand and verify intended behaviour. See
+[dev-docs/planning/core-redefinition/10-source-assisted-development.md](dev-docs/planning/core-redefinition/10-source-assisted-development.md)
+for exactly what that does and doesn't mean in practice.
 
   https://github.com/simonmichael/hledger
 
@@ -174,3 +191,14 @@ A full list of hledger contributors can be found at:
 
 Their work — and the broader plain-text accounting community — makes ledgerkit
 possible.
+
+## Licence
+
+ledgerkit is licensed under the **GNU General Public License v3.0 or later**
+(GPL-3.0-or-later) — see [LICENSE](LICENSE) and [NOTICE](NOTICE). This
+matches hledger's own licence exactly (also GPL-3.0-or-later), which is
+deliberate: see
+[dev-docs/planning/core-redefinition/02-licence-migration.md](dev-docs/planning/core-redefinition/02-licence-migration.md)
+for why. Released versions **before** this change (0.1.0 through 1.0.0,
+and the 1.0.0.dev1 pre-release) remain available under the MIT License they
+were originally published under — this is not retroactive.

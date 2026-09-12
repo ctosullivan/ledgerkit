@@ -9,6 +9,37 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### Changed — BREAKING: relicensed to GPL-3.0-or-later
+
+**This is a licence change, not an API change — read it even if you don't
+read the rest of this file.** Starting with the next release, ledgerkit is
+licensed under the GNU General Public License v3.0 or later
+(GPL-3.0-or-later) instead of the MIT License, to match hledger's own
+licence exactly and to allow Ledgerkit development to use hledger's
+documentation, source, and test suite directly (with recorded provenance)
+as compatibility evidence. All releases through `1.0.0` (and the
+`1.0.0.dev1` pre-release) remain available under the MIT License they were
+originally published under; this is not retroactive.
+
+If you embed `ledgerkit` in-process inside a non-GPL-compatible
+application, review your own licensing position before upgrading past the
+last MIT-licensed release. See
+[`dev-docs/planning/core-redefinition/02-licence-migration.md`](dev-docs/planning/core-redefinition/02-licence-migration.md)
+for the full rationale, including why this specifically matters for
+in-process (as opposed to subprocess) consumers.
+
+Also as part of this change: `pyproject.toml`'s `license` field moved from
+the legacy `{text = "MIT"}` form to the PEP 639 SPDX expression
+`"GPL-3.0-or-later"`, and `requires = ["setuptools>=69.5"]` was added to
+`[build-system]` to guarantee `License-Expression` metadata support
+(verified: `setuptools 82.0.1` locally builds and passes `twine check`
+with the new field, and rejects a redundant `License ::` classifier
+alongside it — the classifier was removed rather than kept, reversing this
+package's own planning-stage assumption that both should coexist during
+the transition).
+
+New files: `NOTICE`, `THIRD-PARTY-NOTICES.md`.
+
 ---
 
 ## [1.0.0] — 2026-06-07

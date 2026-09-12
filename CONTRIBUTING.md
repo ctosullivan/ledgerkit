@@ -7,6 +7,12 @@ Please note that this project is released with a
 [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating you agree to
 abide by its terms.
 
+## Licence
+
+ledgerkit is licensed under the GNU General Public License v3.0 or later
+(GPL-3.0-or-later) — see [LICENSE](LICENSE) and [NOTICE](NOTICE). By
+submitting a contribution, you agree it is licensed under the same terms.
+
 ## Issues
 
 Issues are the best way to report bugs or suggest new features. Before opening a

@@ -1,0 +1,58 @@
+# ILLUSTRATIVE — backfilled from an already-known, already-documented
+# Ledgerkit deviation (dev-docs/hledger-compatibility.md "alias directive"
+# row; knowledge/DECISIONS.md "alias directive is file-scoped at parse
+# time", 2026-04-xx). This is the kind of entry the compatibility-system
+# migration (09-compatibility-system.md §9.5) should produce for every
+# already-known deviation, not a new finding from this planning session.
+
+id: LK-DIV-INCLUDE-001
+area: parser.alias_scoping
+kind: intentional_divergence
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: incomparable
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger propagates `alias` rules defined in a file into files it
+  `include`s. Ledgerkit's loader expands `include` by running a separate
+  parse_string() call per included file (parser.py is intentionally
+  file-I/O-free and stateless across files — see
+  knowledge/ANTIPATTERNS.md "parse_file() in parser.py" and
+  knowledge/DECISIONS.md "File I/O extracted to loader.py"), so alias
+  rules do not currently cross an include boundary. This was an accepted
+  architectural consequence, not a deliberate compatibility design choice,
+  when originally made — this register entry is where it becomes a
+  documented, intentional divergence rather than an implicit one. If a
+  future phase changes the loader's include-expansion strategy for other
+  reasons, this entry should be revisited rather than assumed to still
+  hold.
+
+implementation:
+  - ledgerkit/parser.py (alias rules scoped to the current parse_string() call)
+  - ledgerkit/loader.py (include expansion calls parse_string() per file)
+
+tests:
+  - tests/test_directives/test_directives.py (alias tests, file-scoped cases)
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#alias-directive"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "knowledge/DECISIONS.md — 'alias directive is file-scoped at parse time'"
+    pinned_at: "ledgerkit @ 2026-04-xx commit (see knowledge/DECISIONS.md)"
+
+status: proposed
+verified_by: null
+verified_date: null
+# Promote to `verified` once compat-differential-tester runs a concrete
+# multi-file include+alias fixture through the real hledger 1.52.4 binary
+# and confirms the exact divergent behaviour described above.

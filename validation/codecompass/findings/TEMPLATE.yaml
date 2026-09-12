@@ -1,0 +1,70 @@
+id: CC-LK-NNN
+ledgerkit_revision:               # git short SHA at time of finding
+codecompass_revision:             # git short SHA or version string
+task_or_session:                  # what Ledgerkit task/phase this arose from
+date:                              # YYYY-MM-DD, absolute — not "today"
+
+problem_statement: >
+  Exactly what the Ledgerkit agent needed from CodeCompass. Be specific:
+  "which hledger manual/source material constrains X", not "more context".
+
+context_supplied:
+  what_codecompass_returned: >
+    Verbatim or faithfully summarised output — a query result, a generated
+    Skill's content, a routing-table entry.
+  edges_or_relations_involved: []   # list, or [] if none
+  suggested_edges_involved: false   # true if an unverified agent-suggested
+                                     # relationship was part of what was used
+
+independent_evaluation:
+  # Rate each: strong | adequate | weak | n/a
+  accuracy:
+  relevance:
+  completeness:
+  freshness:
+  grounding:
+  noise:
+  misleading: false                 # true if any claim was presented as
+                                     # authoritative but was wrong
+  outcome:                          # PASS | "PASS WITH GAPS" | FAIL
+
+context_advantage:                  # LOW | MODERATE | HIGH
+context_advantage_rationale: >
+  Could a competent fresh Claude session have gotten equivalent context
+  cheaply through ordinary direct inspection (a few greps, one obvious
+  file, one --help)? yes / partly / no — and why.
+
+missing_or_manually_rediscovered: []
+  # what the agent had to find by hand after using CodeCompass
+
+impact: []
+  # one or more of: incorrect_context | missing_context | stale_context
+  # | retrieval_ux_friction | missing_relationship
+  # | missing_technical_dependency_type | noisy_relationship
+  # | product_hypothesis
+
+proposed_generalised_improvement: >
+  Framed as a general CodeCompass capability, not a Ledgerkit special
+  case. Prefer "support authoritative documentation-to-implementation
+  relationships" over "add special support for the hledger manual".
+  If nothing generalises, say so explicitly rather than forcing a
+  generalisation that doesn't hold.
+
+evidence:
+  session_evidence:                 # pointer to the session/transcript
+  ledgerkit_files: []
+  hledger_evidence: []              # manual section / source file:line /
+                                     # executable run that grounds the claim
+  codecompass_output:                # pointer or excerpt
+  related_findings: []              # other CC-LK-NNN ids
+
+recommendation:
+  # one of: fix_bug | add_regression_test | investigate | prototype
+  # | collect_more_evidence | promote_to_roadmap_candidate | no_action
+
+priority_proposed:                  # low | medium | high
+priority_note: >
+  Proposed based on impact; final prioritisation is CodeCompass's own
+  review, not Ledgerkit's call.
+
+status: open                        # open | reviewed | promoted | rejected | superseded

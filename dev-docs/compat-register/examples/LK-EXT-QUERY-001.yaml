@@ -1,0 +1,48 @@
+# ILLUSTRATIVE — drafted during Core-redefinition planning (2026-09-12) to
+# prove the schema against the exact worked example the planning task
+# specified. Not yet implemented: ledgerkit/query/ does not exist yet
+# (07-query-regex.md). status: proposed reflects that honestly.
+
+id: LK-EXT-QUERY-001
+area: query.regex
+kind: extension
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: superset
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: true
+
+reason: >
+  hledger's query regex is restricted to the subset its regex-tdfa engine
+  and manual document (POSIX-derived, infix, case-insensitive). Python's
+  `re` module offers materially more capable pattern matching
+  (lookarounds, named groups, backreferences, structured capture
+  extraction) that is genuinely useful for Ledgerkit's Python-native query
+  API, without needing to give up hledger-compatible query syntax for
+  users/tools that want portability. The extension is additive and opt-in:
+  every portable hledger query keeps working unchanged.
+
+implementation:
+  - ledgerkit/query/regex.py:PythonRegex          # planned, not yet built
+  - ledgerkit/query/ast.py:Term                   # planned, not yet built
+
+tests:
+  - tests/test_query/test_regex_dialects.py       # planned, not yet built
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#regular-expressions"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Query.hs (regex construction/matching)"
+    pinned_at: "<hledger commit at 1.52.4 tag — confirm at implementation time>"
+
+status: proposed
+verified_by: null
+verified_date: null

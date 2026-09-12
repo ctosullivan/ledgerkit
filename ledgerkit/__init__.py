@@ -1,4 +1,15 @@
-"""ledgerkit: a Python implementation of the hledger plain-text accounting tool."""
+"""ledgerkit: a deterministic, Python-native accounting and query engine
+with a documented hledger-compatible foundation.
+
+Copyright (C) 2026 Cormac O'Sullivan
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version. See the LICENSE and NOTICE files at the
+repository root, and dev-docs/planning/core-redefinition/02-licence-migration.md
+for the migration this took effect under.
+"""
 
 from ledgerkit.loader import load_journal as load
 from ledgerkit.models import (
