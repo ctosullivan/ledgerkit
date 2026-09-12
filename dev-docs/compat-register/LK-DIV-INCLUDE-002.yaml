@@ -1,0 +1,49 @@
+# Migrated from an already-known, already-documented Ledgerkit deviation
+# (dev-docs/hledger-compatibility.md's "include directive" row;
+# 09-compatibility-system.md §9.5 names this as the second of two known
+# deviations this migration wave should produce — the first is
+# LK-DIV-INCLUDE-001, alias scoping).
+
+id: LK-DIV-INCLUDE-002
+area: parser.directives.include.dotfile_glob
+kind: intentional_divergence
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: incomparable
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger excludes dot files from `*`/`**` glob expansion in `include`
+  directives. Ledgerkit's loader uses Python's stdlib `glob.glob(recursive=True)`
+  with its own defaults, which do not exclude dot files the way hledger's
+  glob implementation does. This was an accepted consequence of reusing
+  the stdlib glob module rather than reimplementing hledger's exact glob
+  semantics (CLAUDE.md's "prefer built-in libraries" policy), not a
+  deliberate compatibility design choice when originally made — this entry
+  is where it becomes documented and intentional rather than implicit.
+  Revisit if a future phase needs exact glob parity for another reason.
+
+implementation:
+  - ledgerkit/loader.py (glob.glob(recursive=True) used for include glob patterns)
+
+tests:
+  - tests/test_loader/test_loader.py (glob fixture tests, glob_1.journal / glob_2.journal / root_with_glob.journal)
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#include-directive"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null
+# Promote to `verified` once compat-differential-tester constructs a
+# dot-file + glob-include fixture and confirms the real hledger 1.52.4
+# binary actually excludes it while Ledgerkit includes it.

@@ -280,7 +280,7 @@ begins, exactly as milestones have always worked here.
 
 | Stage | Focus | Status | Plan |
 |---|---|---|---|
-| A | Development foundation — agent roster, CodeCompass integration, compatibility harness, learning/doc lifecycle | `[IN PROGRESS]` (licence migration, positioning, and this roadmap migration done; agent-role files and compatibility harness not yet built) | `core-redefinition/03,04,05,09,11` |
+| A | Development foundation — agent roster, CodeCompass integration, compatibility harness, learning/doc lifecycle | `[DONE]` (2026-09-12, user-confirmed) — licence migration, positioning, roadmap migration, agent-role files (`.claude/agents/*.md`, 7 roles), and the compatibility harness (schema, structure, `UNEXPLAINED.md`, first wave of 25 `status: proposed` register entries) all shipped; full changelog archived to `dev-docs/changelog/STAGE-A.md`. Deliberately not done in Stage A (not blockers, tracked as open follow-up): the finer-grained amount/comment/transaction-field-level register migration, and first real CodeCompass usage under `context-curator` (expected to happen naturally once Stage B/C generate real tasks) | `core-redefinition/03,04,05,09,11` |
 | B | Core model — journal/accounting model review, Editor-compatibility confirmation | `[PLANNED]` | `core-redefinition/06` |
 | C | Query system — parser/AST, hledger query semantics, Python `re` extension, CLI/report routing | `[PLANNED]` | `core-redefinition/07` |
 | D | Reporting — shared primitives, structured output, render/semantics separation | `[PLANNED]` | `core-redefinition/06` §6.1 |

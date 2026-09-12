@@ -9,42 +9,21 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
-### Changed — BREAKING: relicensed to GPL-3.0-or-later
+### [Stage A — Development Foundation] — 2026-09-12
 
-**This is a licence change, not an API change — read it even if you don't
-read the rest of this file.** Starting with the next release, ledgerkit is
-licensed under the GNU General Public License v3.0 or later
-(GPL-3.0-or-later) instead of the MIT License, to match hledger's own
-licence exactly and to allow Ledgerkit development to use hledger's
-documentation, source, and test suite directly (with recorded provenance)
-as compatibility evidence. All releases through `1.0.0` (and the
-`1.0.0.dev1` pre-release) remain available under the MIT License they were
-originally published under; this is not retroactive.
+Full detail: [dev-docs/changelog/STAGE-A.md](dev-docs/changelog/STAGE-A.md)
 
-If you embed `ledgerkit` in-process inside a non-GPL-compatible
-application, review your own licensing position before upgrading past the
-last MIT-licensed release. See
-[`dev-docs/planning/core-redefinition/02-licence-migration.md`](dev-docs/planning/core-redefinition/02-licence-migration.md)
-for the full rationale, including why this specifically matters for
-in-process (as opposed to subprocess) consumers.
-
-Also as part of this change: `pyproject.toml`'s `license` field changed
-from `{text = "MIT"}` to `{text = "GPL-3.0-or-later"}`, keeping the
-classic (non-PEP-639) form. **A PEP 639 SPDX license-expression string
-(`license = "GPL-3.0-or-later"`) was tried first and reverted** — it
-passed locally under `setuptools 82.0.1`, but broke CI's Python 3.8 job:
-no `setuptools` release supports both Python 3.8 and the PEP 639 string
-form, so `pip`'s build isolation on that job installs an older
-`setuptools` that rejects the string as an invalid `project.license`
-value. Since dropping Python 3.8 support is a separate, unapproved policy
-decision, the classic dict form was kept instead — proven compatible
-across the full 3.8–3.12 matrix by the fact that it's exactly the pattern
-the prior MIT declaration already used successfully. The `License ::`
-classifier is kept alongside it (the dict form and a classifier coexist
-without conflict; only the newer string-expression form conflicts with a
-classifier under recent setuptools).
-
-New files: `NOTICE`, `THIRD-PARTY-NOTICES.md`.
+**Summary:** Relicensed ledgerkit from MIT to GPL-3.0-or-later to match
+hledger's own licence (enabling directly-recorded use of hledger's
+documentation, source, and test suite as compatibility evidence); redefined
+the product goal from "a Python hledger clone" to "a deterministic,
+Python-native accounting and query engine with a documented
+hledger-compatible foundation"; migrated `ROADMAP.md` to the new Stage A–I
+structure; built the seven-role agent roster (`.claude/agents/`); and built
+the compatibility-register harness (`dev-docs/compat-register/`), including
+25 first-wave entries covering directives, validation checks, and
+genuinely-unsupported features, all `status: proposed` pending executable
+verification. Stage A is `[DONE]`; Stage B (Core model) is next.
 
 ---
 

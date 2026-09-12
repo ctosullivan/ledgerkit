@@ -1,9 +1,9 @@
 # Compatibility register — YAML schema
 
-One file per entry: `dev-docs/compat-register/examples/LK-<KIND>-<AREA>-<NNN>.yaml`
-during this planning package (illustrative); real entries land at
-`dev-docs/compat-register/LK-<KIND>-<AREA>-<NNN>.yaml` once Stage A's
-compatibility harness is implemented.
+One file per entry, at `dev-docs/compat-register/LK-<KIND>-<AREA>-<NNN>.yaml`.
+`dev-docs/compat-register/examples/` holds the two illustrative entries
+drafted during Core-redefinition planning, kept as worked examples of the
+schema — they are not part of the live register.
 
 `KIND` ∈ `COMPAT` / `EXT` / `DIV` / `UNSUP` / `MISMATCH`.
 `AREA` is a short slug matching the module/feature area, e.g. `QUERY`,
@@ -60,6 +60,15 @@ status: proposed | verified | final
 
 verified_by: <agent or person>        # required once status != proposed
 verified_date: <YYYY-MM-DD>           # required once status != proposed
+
+directly_translated: true | false     # optional, default false — set true only
+                                        # for a near-line-for-line port of hledger's
+                                        # own expression (not just its algorithm).
+                                        # See 10-source-assisted-development.md §10.3:
+                                        # requires a code comment citing the exact
+                                        # hledger file/version/lines translated, and
+                                        # a THIRD-PARTY-NOTICES.md entry, in addition
+                                        # to setting this field.
 ```
 
 ## Field notes
@@ -74,3 +83,7 @@ verified_date: <YYYY-MM-DD>           # required once status != proposed
   explains intent, not observed compatibility.
 - `implementation` and `tests` may be empty only for `kind: unsupported`
   entries describing something not yet built.
+- `directly_translated: true` is rare and should be rare — most Ledgerkit
+  code is an independent Python-native reimplementation informed by
+  reading hledger (`10-source-assisted-development.md`'s "adapted
+  implementation" category), which does not set this field.

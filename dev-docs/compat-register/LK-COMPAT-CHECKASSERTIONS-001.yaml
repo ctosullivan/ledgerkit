@@ -1,0 +1,44 @@
+# Migrated from dev-docs/hledger-compatibility.md's "In Scope (v1)" table
+# (09-compatibility-system.md §9.5 — transcription-with-verification, not new
+# analysis). status: proposed — not yet executable-verified against a real
+# hledger 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-CHECKASSERTIONS-001
+area: checks.assertions
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's balance assertions (`=`, `==`, `=*`, `==*`) verify a running
+  balance at a point in the journal, checked in date order (then parse
+  order within a date). Ledgerkit's `check_assertions` implements all
+  four variants with the same subaccount-inclusive/exclusive and
+  sole-commodity/single-commodity distinctions. Balance assignments
+  (implied-amount inference from a bare assertion) remain deferred — not
+  claimed compatible by this entry.
+
+implementation:
+  - ledgerkit/checks.py:check_assertions
+  - ledgerkit/models.py:BalanceAssertion
+
+tests:
+  - tests/test_checks/test_checks.py::TestCheckAssertions
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#assertions"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

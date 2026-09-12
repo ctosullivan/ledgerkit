@@ -1,0 +1,42 @@
+# Migrated from dev-docs/hledger-compatibility.md's "Out of Scope (v1)" table
+# (09-compatibility-system.md §9.5). status: proposed — scoping is a lead
+# decision already made; compat-differential-tester still confirms the actual
+# real-hledger behaviour being deliberately not implemented.
+
+id: LK-UNSUP-PERIODIC-001
+area: parser.periodic_transactions
+kind: unsupported
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: subset
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `~ monthly` periodic transaction rules generate forecast
+  transactions (`--forecast`). Ledgerkit v1 deliberately does not
+  implement forecast generation — the rule header is recognised and its
+  block is skipped with a `ParseWarning` in lenient mode, the same
+  treatment as auto-posting rules (LK-UNSUP-AUTOPOSTING-001).
+  Reclassified into Stage G, not permanently out of scope.
+
+implementation:
+  - ledgerkit/parser.py (`~` periodic-transaction rule header recognised and skipped)
+
+tests:
+  - tests/test_parser/test_parser.py::TestPeriodicRuleSkip
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#periodic-transactions"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

@@ -1,0 +1,45 @@
+# Migrated from dev-docs/hledger-compatibility.md's "In Scope (v1)" table
+# (09-compatibility-system.md §9.5 — transcription-with-verification, not new
+# analysis). status: proposed — not yet executable-verified against a real
+# hledger 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-ALIAS-001
+area: parser.directives.alias
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `alias OLD=NEW` / `alias /REGEX/=REPLACEMENT` / `end aliases`
+  directives rewrite account names at parse time. Ledgerkit implements the
+  same basic-prefix-match and regex-substitution semantics, the same
+  most-recently-defined-first (LIFO) application order, and the same
+  case-insensitive regex matching with backreference support. This entry
+  covers the within-file substitution mechanics only — the separate,
+  already-known cross-include scoping divergence is tracked in
+  LK-DIV-INCLUDE-001, not here.
+
+implementation:
+  - ledgerkit/parser.py:_parse_alias_body
+  - ledgerkit/parser.py:_apply_aliases
+
+tests:
+  - tests/test_directives/test_directives.py::TestAliasDirective
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#alias-directive"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

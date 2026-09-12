@@ -1,0 +1,42 @@
+# Migrated from dev-docs/hledger-compatibility.md's "In Scope (v1)" table
+# (09-compatibility-system.md §9.5 — transcription-with-verification, not new
+# analysis). status: proposed — not yet executable-verified against a real
+# hledger 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-ACCOUNTDIR-001
+area: parser.directives.account
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `account ACCOUNT` directive declares an account name for use
+  by strict-mode/declaration checks. Ledgerkit stores declared accounts in
+  `Journal.declared_accounts`, applies active aliases to the declared name
+  the same way hledger does, and strips inline comments and Ledger-style
+  indented subdirectives. Account types (`type:` tag), display ordering,
+  and tag propagation are deferred (Stage E), not claimed compatible here.
+
+implementation:
+  - ledgerkit/parser.py (`# --- account directive ---`)
+
+tests:
+  - tests/test_directives/test_directives.py::TestAccountDirective
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#account-directive"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

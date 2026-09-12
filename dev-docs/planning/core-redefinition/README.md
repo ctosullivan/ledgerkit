@@ -1,11 +1,16 @@
 # Ledgerkit Core Redefinition — Planning Package
 
-**Status:** `[STAGE A — IN PROGRESS]` — gates G1–G8 resolved 2026-09-12
-(see `14-human-decision-gates.md`); licence migration, product-goal
-positioning, and roadmap migration executed. Stage B onward (Core model,
-query engine, accounting semantics) **not yet started** — G5's "in
-principle" approval unblocks that work when it begins; it is not itself
-an implementation authorisation.
+**Status:** `[STAGE A — DONE]` (2026-09-12, user-confirmed) — gates G1–G8
+resolved 2026-09-12 (see `14-human-decision-gates.md`); licence migration,
+product-goal positioning, roadmap migration, the seven-role agent roster
+(`.claude/agents/`), and the compatibility-register harness (`dev-docs/
+compat-register/`, 25 first-wave `status: proposed` entries) all shipped —
+see `dev-docs/changelog/STAGE-A.md`. Stage B onward (Core model, query
+engine, accounting semantics) **not yet started** — G5's "in principle"
+approval unblocks that work when it begins; it is not itself an
+implementation authorisation, and Stage B's own scope still needs
+confirming before implementation starts (`ROADMAP.md`'s own
+"Deciding What Goes Into a Milestone or Stage" process).
 **Date:** 2026-09-12
 **Author:** Claude (planning session), reviewed against the live `ledgerkit`
 and `ledgerkit-editor` repositories, the `hledger` upstream repository, and

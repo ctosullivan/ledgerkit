@@ -1,0 +1,42 @@
+# Migrated from dev-docs/hledger-compatibility.md's "In Scope (v1)" table
+# (09-compatibility-system.md §9.5 — transcription-with-verification, not new
+# analysis). status: proposed — not yet executable-verified against a real
+# hledger 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-APPLYACCOUNT-001
+area: parser.directives.apply_account
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `apply account PREFIX` / `end apply account` directives
+  prepend PREFIX to every account name inside the block. Ledgerkit
+  implements the same prefixing, applies aliases to the base name before
+  the prefix (matching hledger's documented order), and emits a
+  `ParseWarning` (lenient mode) rather than silently accepting a nested
+  `apply account` without an intervening `end apply account`.
+
+implementation:
+  - ledgerkit/parser.py (`# --- apply account / end apply account directives ---`)
+
+tests:
+  - tests/test_parser/test_parser.py::TestApplyAccount
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#apply-account-directive"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

@@ -5,6 +5,16 @@ Reference: https://hledger.org/1.52/hledger.html
 This document tracks which hledger format features are in scope for **v1** of
 ledgerkit, which are explicitly out of scope, and which are undecided.
 
+A subset of the tables below (directives, validation checks, and the
+genuinely-unsupported features) also has a machine-readable, individually-
+citable counterpart in [`dev-docs/compat-register/`](compat-register/) —
+each entry there is `status: proposed` pending executable verification
+against a real `hledger` binary (`compat-differential-tester`'s job, Stage
+C onward). This narrative document remains the primary reference until
+every relevant row has a `status: final` register entry to link instead
+(`dev-docs/planning/core-redefinition/10-source-assisted-development.md`
+§10.6).
+
 ---
 
 ## Supported File Formats

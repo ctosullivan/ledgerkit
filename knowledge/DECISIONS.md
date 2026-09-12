@@ -4,6 +4,39 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 ---
 
+## 2026-09-12 — Stage A compat-register migration scoped to a representative first wave, not full transcription
+
+**Decision:** when closing out the rest of Stage A (agent-role files +
+compatibility harness), the register migration described in
+`dev-docs/planning/core-redefinition/09-compatibility-system.md` §9.5
+("every In-Scope/Out-of-Scope row becomes an entry") was scoped down, on
+the user's explicit choice among three offered options, to: directive
+entries (11 + 1 newly identified divergence), validation-check entries
+(8), and the genuinely-unsupported-feature entries (5) — 25 entries total.
+The finer-grained rows (date formats, amount formats, comment forms,
+account-name rules) were **not** migrated in this pass.
+
+**Why:** a full mechanical migration would have been ~57 individual YAML
+entries, each needing a real `implementation:`/`tests:` citation grepped
+from the code — a large batch with real per-entry effort, not pure
+transcription. Rather than either quietly doing a fraction of the literal
+instruction or unilaterally expanding scope to all 57, the choice was put
+to the user directly (three options: full migration, representative first
+wave, harness-only). This is not a re-scoping of the underlying plan —
+§9.5 already anticipated migration happening incrementally ("verified as
+Stage A's compatibility-harness work runs through them"), so remaining
+rows are still fully in scope, just not yet done.
+
+**What was rejected:** doing all ~57 entries in this session (rejected by
+the user for cost/thoroughness tradeoff reasons) and doing harness-
+scaffolding-only with zero new entries (rejected in favour of getting real,
+citable content into the register now).
+
+**Follow-up:** the remaining In-Scope-table rows (Transactions, Account
+Names, Amounts, Comments sections of `dev-docs/hledger-compatibility.md`)
+are still unmigrated — this is tracked in `ROADMAP.md`'s Stage A row and
+`CONTEXT.md`, not silently dropped.
+
 ## 2026-09-12 — Relicensed MIT → GPL-3.0-or-later
 
 **Decision:** ledgerkit moves from the MIT License to GPL-3.0-or-later,

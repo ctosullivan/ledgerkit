@@ -4,18 +4,31 @@ Machine-readable record of every classified behaviour distinguishing
 Ledgerkit from hledger (or confirming they match). Full design rationale:
 [`dev-docs/planning/core-redefinition/09-compatibility-system.md`](../planning/core-redefinition/09-compatibility-system.md).
 
-See [`schema.md`](schema.md) for the field-by-field schema and
-[`examples/`](examples/) for two entries backfilled from already-known
-Ledgerkit behaviour, proving the schema against real cases before Stage C
-implementation begins.
+See [`schema.md`](schema.md) for the field-by-field schema,
+[`examples/`](examples/) for two illustrative entries drafted during
+Core-redefinition planning (kept as worked examples, not part of the live
+register), and [`UNEXPLAINED.md`](UNEXPLAINED.md) for the running
+punch-list of open `unexplained_mismatch` entries.
 
-**Status of this directory as of this planning session:** scaffolding only.
-No entry here has been executable-verified against a real `hledger` binary
-yet — that is Stage A/C implementation work, not something this planning
-session performed. The two example entries are marked `status: proposed`
-for exactly this reason, even though the underlying behaviour they describe
-is already real and already documented informally in
-`dev-docs/hledger-compatibility.md` and `knowledge/DECISIONS.md`.
+**Status as of Stage A closeout (2026-09-12):** the harness itself —
+schema, directory structure, and a first wave of real entries — is built.
+25 entries have been migrated from `dev-docs/hledger-compatibility.md`'s
+In Scope / Out of Scope tables (12 directive entries incl. one newly
+drafted `intentional_divergence`, 8 validation-check entries, 5
+`unsupported` entries), per the migration process in
+`dev-docs/planning/core-redefinition/09-compatibility-system.md` §9.5.
+**Every entry is `status: proposed`** — none has been executable-verified
+against a real `hledger` binary yet, because no pinned `hledger` binary or
+clone exists in this environment. Moving any entry to `status: verified`
+is `compat-differential-tester`'s job, from Stage C onward, and requires
+an actual comparison run, not a citation of the manual.
+
+Not yet migrated: the finer-grained amount/comment/transaction-field-level
+rows in the In Scope tables (dates, amount formats, comment forms, account
+name rules) — a deliberate scope decision at Stage A closeout, recorded in
+`knowledge/DECISIONS.md`, to prioritise the directive/check/unsupported
+categories first. Migrating the remainder is follow-up work, not
+abandoned scope.
 
 ## The five classification states
 

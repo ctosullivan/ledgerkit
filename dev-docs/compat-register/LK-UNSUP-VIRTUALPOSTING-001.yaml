@@ -1,0 +1,46 @@
+# Migrated from dev-docs/hledger-compatibility.md's "Out of Scope (v1)" table
+# (09-compatibility-system.md §9.5). status: proposed — scoping is a lead
+# decision already made; compat-differential-tester still confirms the actual
+# real-hledger behaviour being deliberately not implemented.
+
+id: LK-UNSUP-VIRTUALPOSTING-001
+area: parser.virtual_postings
+kind: unsupported
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: subset
+
+compatibility:
+  upstream_syntax_preserved: false
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger supports virtual postings — unbalanced `(account)` and balanced
+  `[account]` — which relax or partially relax the double-entry balance
+  requirement. Ledgerkit v1 has no special-casing for parenthesised or
+  bracketed account names; such a line is parsed as an ordinary posting
+  (the parentheses/brackets become part of the literal account name) and
+  will generally fail `autobalanced`/produce an account name a user did
+  not intend, rather than being recognised and rejected with a purpose-
+  built error. No implementation or dedicated test exists yet — recorded
+  here as a real gap (Stage E, `08-accounting-semantics-roadmap.md`), not
+  glossed over as a deliberately clean rejection.
+
+implementation:
+  []
+
+tests:
+  []
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#virtual-postings"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

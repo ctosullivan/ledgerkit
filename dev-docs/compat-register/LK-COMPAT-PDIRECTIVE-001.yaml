@@ -1,0 +1,44 @@
+# Migrated from dev-docs/hledger-compatibility.md's "In Scope (v1)" table
+# (09-compatibility-system.md §9.5 — transcription-with-verification, not new
+# analysis). status: proposed — not yet executable-verified against a real
+# hledger 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-PDIRECTIVE-001
+area: parser.directives.price
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's P directive (`P DATE COMMODITY PRICE`) declares a market price
+  for a commodity at a point in time. Ledgerkit parses the same three
+  space-delimited components (date, commodity being priced, price as an
+  amount) and stores them as PriceDirective objects, propagating through
+  `include` naturally via Ledgerkit's text-expansion include strategy.
+  Commodity valuation using stored prices is separate, later Core work
+  (Stage E) — this entry covers directive parsing/storage only.
+
+implementation:
+  - ledgerkit/parser.py (P directive handling, `# --- P directive ---`)
+  - ledgerkit/models.py:PriceDirective
+
+tests:
+  - tests/test_directives/test_directives.py::TestPDirective
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#p-directive"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

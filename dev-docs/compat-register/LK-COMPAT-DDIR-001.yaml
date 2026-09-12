@@ -1,0 +1,41 @@
+# Migrated from dev-docs/hledger-compatibility.md's "In Scope (v1)" table
+# (09-compatibility-system.md §9.5 — transcription-with-verification, not new
+# analysis). status: proposed — not yet executable-verified against a real
+# hledger 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-DDIR-001
+area: parser.directives.default_commodity
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `D AMOUNT` directive declares the default commodity symbol
+  and display style applied to amounts with no explicit symbol.
+  Ledgerkit extracts the symbol from the sample amount the same way it
+  does for `commodity` directives and applies it to no-symbol amounts
+  (e.g. bare `2.00`), including EU-style comma-decimal samples.
+
+implementation:
+  - ledgerkit/parser.py (`# --- D directive ---` handling)
+
+tests:
+  - tests/test_parser/test_parser.py::TestDDirective
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#d-directive"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

@@ -1,0 +1,41 @@
+# Migrated from dev-docs/hledger-compatibility.md's "Out of Scope (v1)" table
+# (09-compatibility-system.md §9.5). status: proposed — scoping is a lead
+# decision already made; compat-differential-tester still confirms the actual
+# real-hledger behaviour being deliberately not implemented.
+
+id: LK-UNSUP-TIMECLOCK-001
+area: loader.timeclock
+kind: unsupported
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: subset
+
+compatibility:
+  upstream_syntax_preserved: false
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's timeclock format (`.timeclock` files; `i`/`o`/`b`/`h` clock
+  records) is a distinct format family from the journal format Ledgerkit
+  targets. Ledgerkit deliberately supports only `.journal`/`.ledger`
+  (CLAUDE.md's "Supported file formats" scope) and raises a clear error
+  for `.timeclock` rather than silently ignoring or misparsing it.
+
+implementation:
+  - ledgerkit/loader.py (extension allowlist excludes .timeclock)
+
+tests:
+  - tests/test_loader/test_loader.py::TestLoadJournalBasic::test_timeclock_extension_raises
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#timeclock-format"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

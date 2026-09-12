@@ -1,0 +1,45 @@
+# Migrated from dev-docs/hledger-compatibility.md's "Out of Scope (v1)" table
+# (09-compatibility-system.md §9.5). status: proposed — scoping is a lead
+# decision already made; compat-differential-tester still confirms the actual
+# real-hledger behaviour being deliberately not implemented.
+
+id: LK-UNSUP-AUTOPOSTING-001
+area: parser.auto_postings
+kind: unsupported
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: subset
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `= expenses:food` auto-posting rules generate additional
+  postings on transactions matching a query, at report time. Ledgerkit
+  v1 deliberately does not implement rule expansion — the rule header is
+  recognised and its block is skipped without a hard `ParseError` (a
+  `ParseWarning` is emitted in lenient mode instead), rather than either
+  silently misparsing the block as a transaction or rejecting the whole
+  file. Reclassified from ROADMAP.md's prior "out of scope for v1" note
+  into Stage G (`08-accounting-semantics-roadmap.md`) — not permanently
+  out of scope, just not yet built.
+
+implementation:
+  - ledgerkit/parser.py (`=` auto-posting rule header recognised and skipped)
+
+tests:
+  - tests/test_parser/test_parser.py::TestAutoPostingRuleSkip
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#auto-postings"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

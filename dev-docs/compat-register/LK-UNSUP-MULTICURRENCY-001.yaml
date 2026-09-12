@@ -1,0 +1,43 @@
+# Migrated from dev-docs/hledger-compatibility.md's "Out of Scope (v1)" table
+# (09-compatibility-system.md §9.5). status: proposed — scoping is a lead
+# decision already made; compat-differential-tester still confirms the actual
+# real-hledger behaviour being deliberately not implemented.
+
+id: LK-UNSUP-MULTICURRENCY-001
+area: accounting.multicurrency_conversion
+kind: unsupported
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: subset
+
+compatibility:
+  upstream_syntax_preserved: n/a
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger can auto-convert between commodities using declared market
+  prices (`P` directives) for certain report/valuation operations.
+  Ledgerkit v1 parses and stores `P` directives (LK-COMPAT-PDIRECTIVE-001)
+  but does not yet implement any commodity-conversion or valuation logic
+  using them — multi-commodity balances are reported per-commodity, never
+  converted/summed across commodities. Commodity valuation is scoped
+  into Stage E (`08-accounting-semantics-roadmap.md`), not built yet.
+
+implementation:
+  []
+
+tests:
+  []
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#valuation"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

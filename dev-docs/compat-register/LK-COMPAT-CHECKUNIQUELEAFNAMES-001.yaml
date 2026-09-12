@@ -1,0 +1,39 @@
+# Migrated from dev-docs/hledger-compatibility.md's "In Scope (v1)" table
+# (09-compatibility-system.md §9.5 — transcription-with-verification, not new
+# analysis). status: proposed — not yet executable-verified against a real
+# hledger 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-CHECKUNIQUELEAFNAMES-001
+area: checks.uniqueleafnames
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `uniqueleafnames` check confirms no two accounts share the
+  same final colon-segment. Ledgerkit's `check_uniqueleafnames`
+  implements the identical rule.
+
+implementation:
+  - ledgerkit/checks.py:check_uniqueleafnames
+
+tests:
+  - tests/test_checks/test_checks.py::TestCheckUniqueLeafnames
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#check"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null

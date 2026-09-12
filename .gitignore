@@ -76,7 +76,8 @@ test-results/
 *~
 .DS_Store
 Thumbs.db
-.claude/
+.claude/*
+!.claude/agents/
 *.tmp.*
 
 # ----------------------------------------------------------------------------

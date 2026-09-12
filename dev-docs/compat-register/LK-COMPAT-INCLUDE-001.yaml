@@ -1,0 +1,43 @@
+# Migrated from dev-docs/hledger-compatibility.md's "In Scope (v1)" table
+# (09-compatibility-system.md §9.5 — transcription-with-verification, not new
+# analysis). status: proposed — not yet executable-verified against a real
+# hledger 1.52.4 binary; that is compat-differential-tester's job.
+
+id: LK-COMPAT-INCLUDE-001
+area: parser.directives.include
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `include` directive embeds another file's entries/directives
+  inline. Ledgerkit resolves relative/absolute/tilde paths and glob
+  patterns, detects circular includes, and rejects unsupported format
+  prefixes and extensions the same way. This entry covers path resolution
+  and inline embedding — the two known behavioural divergences (alias
+  scoping in LK-DIV-INCLUDE-001, dot-file glob matching in
+  LK-DIV-INCLUDE-002) are tracked separately, not folded in here.
+
+implementation:
+  - ledgerkit/loader.py:load_journal (include expansion, path resolution, circular-include detection)
+
+tests:
+  - tests/test_loader/test_loader.py
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#include-directive"
+    pinned_at: "1.52.4"
+
+status: proposed
+verified_by: null
+verified_date: null
