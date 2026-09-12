@@ -135,6 +135,21 @@ rather than Ledgerkit Core's session making it on Editor's behalf.
 
 **No longer blocks anything in Ledgerkit Core.**
 
+**Refined by Stage B Phase 1 (2026-09-13):** this gate's inventory of
+`ledgerkit-editor`'s usage was a useful first pass but not fully accurate.
+An independent read of the actual source
+(`15-editor-compat-inventory.md`) found: `EditorDocument` is **not**
+actually used anywhere in `ledgerkit-editor`'s shipped code (only
+mentioned in a stale docstring); `models.{Journal,Transaction,Posting}`
+are `TYPE_CHECKING`-only in shipped code, not a runtime dependency there;
+and `ledgerkit-editor` deliberately does **not** import `reports`'s
+matching helpers — it duplicates that logic locally specifically to avoid
+depending on private, unexported members. `Query`, `parse_string_lenient`,
+`checks.run_basic_checks`, `commodity_style.CommodityStyle`,
+`parser.{ParseError,ParseWarning}`, `load`, `journal_to_text`, and
+`transaction_to_text` were all confirmed accurate. `06-core-architecture.md`
+§6.5's frozen-API-surface list has been updated accordingly.
+
 ## Summary table
 
 | Gate | Status | Executed this session? |
@@ -146,4 +161,4 @@ rather than Ledgerkit Core's session making it on Editor's behalf.
 | G5 | **RESOLVED in principle** | No — Stage B/C implementation not started |
 | G6 | **RESOLVED** — process defined | No — nothing to execute until Stage C's first divergence |
 | G7 | **RESOLVED** — criteria confirmed | No — Stage I is not imminent |
-| G8 | **RESOLVED** — handled separately, not by this session | No — explicitly deferred to `ledgerkit-editor`'s own repository/timeline |
+| G8 | **RESOLVED** — handled separately, not by this session; usage inventory refined 2026-09-13 (Stage B Phase 1) | No — explicitly deferred to `ledgerkit-editor`'s own repository/timeline |

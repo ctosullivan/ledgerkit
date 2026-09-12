@@ -153,3 +153,14 @@ Reports do **not** print to stdout — they return data that `cli.py` formats.
   `reports` → `models`)
 - No circular imports
 - No global mutable state
+- Every new dataclass field on `Posting`/`Transaction` (and similar model
+  types) must make a deliberate `compare=` choice, not accept the
+  dataclass default silently. A field that changes a posting/transaction's
+  *accounting meaning* (an amount, a cost, a lot, a posting-type flag)
+  should compare `True`; a field that's parse-context/provenance metadata
+  only (`source_line`, `source_span`, `raw_text`, `inline_comment`,
+  `Amount.raw`) should be `compare=False`, matching the existing
+  precedent. Getting this backwards either breaks equality-based tests on
+  metadata that shouldn't affect equality, or lets two accounting-distinct
+  postings compare equal. See `dev-docs/planning/core-redefinition/
+  16-model-review.md` §16.4.

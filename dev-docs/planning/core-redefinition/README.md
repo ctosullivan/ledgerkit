@@ -1,17 +1,24 @@
 # Ledgerkit Core Redefinition — Planning Package
 
-**Status:** `[STAGE A — DONE]` (2026-09-12, user-confirmed) — gates G1–G8
-resolved 2026-09-12 (see `14-human-decision-gates.md`); licence migration,
-product-goal positioning, roadmap migration, the seven-role agent roster
-(`.claude/agents/`), and the compatibility-register harness (`dev-docs/
-compat-register/`, 25 first-wave `status: proposed` entries) all shipped —
-see `dev-docs/changelog/STAGE-A.md`. Stage B onward (Core model, query
-engine, accounting semantics) **not yet started** — G5's "in principle"
-approval unblocks that work when it begins; it is not itself an
-implementation authorisation, and Stage B's own scope still needs
-confirming before implementation starts (`ROADMAP.md`'s own
+**Status:** `[STAGE B — DONE]` (2026-09-13, user-confirmed) — Stage A
+(2026-09-12): licence migration, product-goal positioning, roadmap
+migration, the seven-role agent roster (`.claude/agents/`), and the
+compatibility-register harness (`dev-docs/compat-register/`, 25 first-wave
+`status: proposed` entries) — see `dev-docs/changelog/STAGE-A.md`. Stage B
+(2026-09-13): independently verified `ledgerkit-editor`'s actual
+`ledgerkit` usage (correcting three inaccuracies in gate G8's original
+inventory) and confirmed `models.py` needs no structural change for Stage
+E/F, conditioned on two recorded guardrails (account-type data must be
+additive, never a `declared_accounts` retype; new `Posting`/`Transaction`
+fields need a deliberate `compare=` choice) — see `dev-docs/changelog/
+STAGE-B.md`, `06-core-architecture.md` §§6.3/6.5. Both Stage B phases were
+read-only; no `ledgerkit/`/`tests/` code has changed since Stage A closed.
+Stage C onward (query engine, accounting semantics) **not yet started** —
+G5's "in principle" approval unblocks that work when it begins; it is not
+itself an implementation authorisation, and Stage C's own scope still
+needs confirming before implementation starts (`ROADMAP.md`'s own
 "Deciding What Goes Into a Milestone or Stage" process).
-**Date:** 2026-09-12
+**Date:** 2026-09-13 (last updated)
 **Author:** Claude (planning session), reviewed against the live `ledgerkit`
 and `ledgerkit-editor` repositories, the `hledger` upstream repository, and
 CodeCompass's `planning/v1-redefinition/` material.

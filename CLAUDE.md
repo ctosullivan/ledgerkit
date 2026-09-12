@@ -206,6 +206,29 @@ response**:
 See the "Archiving at milestone completion" section in `CHANGELOG.md` for the
 exact file format and templates.
 
+---
+
+## Retro Reports
+
+At the end of every **phase** — a discrete unit of implementation work
+with its own `ROADMAP.md`-relevant scope, whether that's an entire small
+Milestone/Stage or one of several phases within a larger one (see the
+`Milestone 4 Phase 1`…`Phase 5` precedent in `dev-docs/changelog/
+MILESTONE-4.md`) — Claude must author a retro **in the same response**:
+`dev-docs/retros/<STAGE-OR-MILESTONE>[-PHASE-K].md`, using `dev-docs/
+retros/TEMPLATE.md`. This is not tied only to the moment a Milestone/Stage
+itself becomes `[DONE]` in `ROADMAP.md` — it fires every phase, the same
+cadence `release-phase-auditor` and `docs-reconstructor` already use. See
+`dev-docs/retros/README.md` for what a retro is/isn't, naming, and its
+lifecycle (it feeds `knowledge/*.md` via `roadmap-context-curator`'s
+learning-triage job, and is checked for existence by
+`release-phase-auditor`).
+
+A retro is not optional busywork for a large phase and padding for a
+trivial one — a trivial phase gets a genuinely short retro (a few lines
+per section), not a skipped one. Retros are dated records: never rewrite a
+past one, only add new ones.
+
 ### Commit Message Format
 
 When producing a commit message, follow [Conventional Commits](https://www.conventionalcommits.org/):
@@ -247,7 +270,10 @@ ledgerkit/
 │   ├── architecture.md
 │   ├── hledger-compatibility.md
 │   ├── SYNC.md
-│   └── changelog/                   ← milestone archive files live here
+│   ├── changelog/                   ← milestone archive files live here
+│   └── retros/                      ← per-phase retro reports
+│       ├── README.md
+│       └── TEMPLATE.md
 ├── docs/                            ← human-facing user documentation
 │   ├── getting-started.md
 │   ├── usage.md

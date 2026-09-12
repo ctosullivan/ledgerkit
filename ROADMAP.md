@@ -281,7 +281,7 @@ begins, exactly as milestones have always worked here.
 | Stage | Focus | Status | Plan |
 |---|---|---|---|
 | A | Development foundation — agent roster, CodeCompass integration, compatibility harness, learning/doc lifecycle | `[DONE]` (2026-09-12, user-confirmed) — licence migration, positioning, roadmap migration, agent-role files (`.claude/agents/*.md`, 7 roles), and the compatibility harness (schema, structure, `UNEXPLAINED.md`, first wave of 25 `status: proposed` register entries) all shipped; full changelog archived to `dev-docs/changelog/STAGE-A.md`. Deliberately not done in Stage A (not blockers, tracked as open follow-up): the finer-grained amount/comment/transaction-field-level register migration, and first real CodeCompass usage under `context-curator` (expected to happen naturally once Stage B/C generate real tasks) | `core-redefinition/03,04,05,09,11` |
-| B | Core model — journal/accounting model review, Editor-compatibility confirmation | `[PLANNED]` | `core-redefinition/06` |
+| B | Core model — journal/accounting model review, Editor-compatibility confirmation | `[DONE]` (2026-09-13, user-confirmed) — Phase 1: independent `ledgerkit-editor` import inventory, correcting three inaccuracies in G8's earlier inventory. Phase 2: `models.py` structural review confirms "no structural change needed now" for Stage E/F, conditioned on two recorded guardrails. Both read-only; no `ledgerkit/`/`tests/` code touched. Full changelog archived to `dev-docs/changelog/STAGE-B.md`. | `core-redefinition/06`, `15`, `16` |
 | C | Query system — parser/AST, hledger query semantics, Python `re` extension, CLI/report routing | `[PLANNED]` | `core-redefinition/07` |
 | D | Reporting — shared primitives, structured output, render/semantics separation | `[PLANNED]` | `core-redefinition/06` §6.1 |
 | E | Accounting semantics — prices, costs, valuation, conversion, account types, virtual postings, assertions | `[PLANNED]` | `core-redefinition/08` |
@@ -306,3 +306,9 @@ Before starting a new milestone or Stage, the user specifies the scope
 5. Updates this file to `[DONE]` **only when the user explicitly confirms the
    milestone/Stage phase is complete**, and adds a `CHANGELOG.md` entry at
    that point
+6. Authors a retro report (`dev-docs/retros/<STAGE-OR-MILESTONE>[-PHASE-K].md`,
+   per `CLAUDE.md`'s Retro Reports section and `dev-docs/retros/README.md`)
+   **at the end of every phase**, not only when the whole milestone/Stage
+   reaches `[DONE]` — a milestone/Stage delivered across several phases
+   gets several retros, one per phase, matching `release-phase-auditor`'s
+   own per-phase cadence

@@ -5,7 +5,8 @@ description: >-
   Re-runs the test suite, checks every exit criterion in ROADMAP.md,
   confirms docs are reconciled and drift-audited, confirms compat-
   register entries exist for classified behaviour, confirms no
-  unauthorised change to a CLAUDE.md-protected file. Verdict: PASS /
+  unauthorised change to a CLAUDE.md-protected file, confirms a
+  substantive retro exists in dev-docs/retros/. Verdict: PASS /
   PASS WITH NON-BLOCKING OBSERVATIONS / FAIL. Never repairs what it
   audits. Use on every non-trivial phase; mandatory at Core 1.0.
 tools: Read, Grep, Glob, Bash, Write
@@ -50,6 +51,11 @@ own stated Definition of Done.
 7. **Learning triage happened** — new observations this phase were
    promoted/retained/discarded per `11-documentation-lifecycle.md` §3,
    not left floating.
+8. **A retro exists and is substantive for this phase** — `dev-docs/retros/
+   <STAGE-OR-MILESTONE>[-PHASE-K].md` was authored per `CLAUDE.md`'s Retro
+   Reports section (fires every phase, not only at Milestone/Stage `[DONE]`),
+   follows `dev-docs/retros/TEMPLATE.md`'s sections, and isn't a copy-paste
+   "went fine" for a phase that clearly had friction or deviation.
 
 ## Hard rules
 

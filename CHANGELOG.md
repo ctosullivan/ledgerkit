@@ -9,6 +9,47 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage B — Core Model] — 2026-09-13
+
+Full detail: [dev-docs/changelog/STAGE-B.md](dev-docs/changelog/STAGE-B.md)
+
+**Summary:** Independently verified `ledgerkit-editor`'s actual `ledgerkit`
+usage against its real source (Phase 1), correcting three inaccuracies in
+an earlier README-inferred inventory — most notably, `EditorDocument` is
+not actually used anywhere in its shipped code. Independently reviewed
+whether `models.py` needs structural change to accommodate Stage E/F's
+planned `Cost`/`Lot`/`PriceGraph`/valuation types (Phase 2): confirmed it
+doesn't, except that account-type semantics must be added as a new field
+rather than by retyping `Journal.declared_accounts`, which `ledgerkit-editor`
+depends on. Both phases were read-only; no `ledgerkit/`/`tests/` code
+changed. Stage B is `[DONE]`; Stage C (query system) is next.
+
+---
+
+### Added: per-phase retro report process — 2026-09-12
+
+**Human:** asked whether ledgerkit had a retro convention similar to the
+sibling `codecompass` project's, directed adopting one, then corrected the
+initial scoping to fire per phase (matching the rest of the agent roster's
+cadence) rather than only at Milestone/Stage completion.
+
+**Claude:** added `dev-docs/retros/` (`README.md`, `TEMPLATE.md`), a new
+"Retro Reports" section in `CLAUDE.md` (and the folder in its Folder
+Structure block), and a step in `ROADMAP.md`'s "Deciding What Goes Into a
+Milestone or Stage" process: a retro (`dev-docs/retros/<STAGE-OR-
+MILESTONE>[-PHASE-K].md`) is authored at the end of every phase, the same
+cadence `release-phase-auditor` and `docs-reconstructor` already use — not
+only when a Milestone/Stage itself reaches `[DONE]`. Updated
+`release-phase-auditor.md` to check a substantive per-phase retro exists as
+part of its Definition-of-Done audit, and `roadmap-context-curator.md` to
+author retros at phase-end and read them during its existing
+learning-triage job. Recorded the decision and rationale in `knowledge/
+DECISIONS.md`. Wrote `dev-docs/retros/STAGE-A.md` retroactively for the
+already-`[DONE]` Stage A, since no retro existed for it yet. No
+`ledgerkit/`/`tests/` code touched.
+
+---
+
 ### [Stage A — Development Foundation] — 2026-09-12
 
 Full detail: [dev-docs/changelog/STAGE-A.md](dev-docs/changelog/STAGE-A.md)

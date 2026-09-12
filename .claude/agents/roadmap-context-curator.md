@@ -6,7 +6,8 @@ description: >-
   establishes current state and the next approved phase at session
   start, reconciles at session end. Never marks a milestone/Stage [DONE]
   because code was written — only on explicit user confirmation. Owns
-  the learning-triage queue. Use at the start and end of every phase.
+  the learning-triage queue and authors dev-docs/retros/ reports at
+  phase completion. Use at the start and end of every phase.
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 
@@ -54,6 +55,14 @@ if they disagree, that is a bug to fix now, not to silently pick one.
   `knowledge/EDGE_CASES.md` / a `ROADMAP.md` row / a `CONTEXT.md` item —
   or discard with a one-line recorded reason. Never leave an observation
   untriaged.
+- At the end of **every phase** — not only when a Milestone/Stage itself
+  reaches `[DONE]` — author its retro (`dev-docs/retros/<STAGE-OR-
+  MILESTONE>[-PHASE-K].md`, per `CLAUDE.md`'s Retro Reports section and
+  `dev-docs/retros/TEMPLATE.md`) in the same response, and triage any
+  *prior* untriaged retros the same way as other observations — a retro's
+  "Process-improvement feedback" and "Lessons learnt" sections are a
+  first-class input to this triage, not just new code-derived
+  observations.
 
 ## Hard rules
 
@@ -61,7 +70,7 @@ if they disagree, that is a bug to fix now, not to silently pick one.
   Only explicit user confirmation does that — say so plainly if asked to
   infer completion.
 - Write only `ROADMAP.md`, `CONTEXT.md`, `CHANGELOG.md`, `knowledge/*.md`,
-  and `dev-docs/planning/**`. Not `ledgerkit/`, not `CLAUDE.md`, not
+  `dev-docs/retros/**`, and `dev-docs/planning/**`. Not `ledgerkit/`, not `CLAUDE.md`, not
   `dev-docs/compat-register/**` (that's `compat-differential-tester`'s),
   not `dev-docs/{api-spec,architecture,hledger-compatibility}.md` or
   `docs/` (that's `docs-maintainer`'s).

@@ -4,6 +4,103 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 ---
 
+## 2026-09-13 — Account-type semantics (Stage E) must extend the model additively, never retype `declared_accounts`
+
+**Decision:** when Stage E implements account-type semantics (parsing the
+`account` directive's `type:` tag, currently stripped/ignored in
+`parser.py`), the parsed type must be stored in a **new** field —
+e.g. `Journal.account_types: dict[str, AccountType]` or a richer
+`Journal.account_declarations: list[AccountDeclaration]` — kept alongside
+the existing `Journal.declared_accounts: list[str]`, never by changing
+that field's element type to something richer than a plain string.
+
+**Why:** `Journal.declared_accounts` is documented in `dev-docs/api-spec.md`
+as `list[str]`, and is a **confirmed real runtime dependency** of
+`ledgerkit-editor`'s `utils/journal_index.py` (verified by reading its
+actual source — `dev-docs/planning/core-redefinition/
+15-editor-compat-inventory.md`, extended by the Stage B Phase 2 model
+review, `16-model-review.md` §16.3). Retyping it would silently break that
+consumer and violate the frozen-v1-API-surface commitment
+`06-core-architecture.md` §6.5 already makes. Every other Stage E/F
+model extension reviewed in the same phase (costs, lots, virtual postings,
+valuation) is achievable as a pure new-field addition with no existing
+field needing to change shape — `declared_accounts` was the one place a
+naive implementation might reach for changing an existing field instead,
+so it's recorded explicitly rather than left to be discovered the hard way
+when Stage E actually starts.
+
+**What was rejected:** changing `declared_accounts` to carry richer
+per-account data directly (e.g. `list[AccountDeclaration]` in place of
+`list[str]`) — rejected because it's an avoidable breaking change to a
+verified-live consumer, when an additive alternative exists at no real
+cost.
+
+---
+
+## 2026-09-12 — Adopted a per-phase retro report process, modelled on the sibling codecompass project
+
+**Decision:** added `dev-docs/retros/` (README + TEMPLATE) and a "Retro
+Reports" section in `CLAUDE.md`: at the end of every **phase** (a discrete
+unit of implementation work with its own `ROADMAP.md`-relevant scope —
+sometimes a whole small Milestone/Stage, sometimes one of several phases
+within a larger one, per the existing `Milestone 4 Phase 1`…`Phase 5`
+precedent in `dev-docs/changelog/MILESTONE-4.md`), Claude authors
+`dev-docs/retros/<STAGE-OR-MILESTONE>[-PHASE-K].md` in that same response,
+using the template's fixed sections (where we are, goal, scope delivered
+vs planned, what worked/didn't, lessons learnt, process-improvement
+feedback, learnings filed, where we're going, time/cost). This is **not**
+tied only to a Milestone/Stage reaching `[DONE]` — it fires at the same
+per-phase cadence `release-phase-auditor` and `docs-reconstructor` already
+use (`dev-docs/planning/core-redefinition/03-agent-led-development.md`
+§3.4's fresh-session workflow). `release-phase-auditor` now checks the
+retro exists and is substantive for that phase as part of its
+Definition-of-Done audit; `roadmap-context-curator` authors retros at
+phase-end and reads them during its existing learning-triage job.
+
+**Why:** the sibling `codecompass` project (`/home/cormac/projects/
+codecompass`) runs this exact convention per-phase
+(`decisions/0050-phase-retros-and-per-phase-docs-drift-audit.md`,
+`planning/retros/`), for two reasons that apply equally here: process
+friction (unclear agent boundaries, a step that added nothing, a dropped
+handoff) previously had nowhere to go except ad hoc mention in
+conversation, and nothing accumulates evidence for later questions like
+"is this agent roster still earning its keep" without dated records to
+review in bulk. Ledgerkit already had the other half of codecompass's
+ADR 0050 independently (a dual-mode `docs-reconstructor` doing per-phase
+drift audits, and a `roadmap-context-curator`/`release-phase-auditor` pair
+already operating per-phase) — the retro report itself was the one piece
+missing, and it belongs at the same per-phase granularity those roles
+already use, not a coarser one. (A first draft of this decision scoped
+retros to Milestone/Stage completion only — corrected within the same
+session, before anything was committed, once it was noticed that this
+undershot the cadence the rest of the roster already runs at.)
+
+**What was rejected:**
+- **Folding retro content into `CONTEXT.md`** — rejected because
+  `CONTEXT.md` is overwritten each session (`CLAUDE.md`'s Context File
+  rule); retros need to accumulate as a running, reviewable narrative.
+- **Scoping retros to Milestone/Stage completion only** — rejected (see
+  above); it would fire far less often than `release-phase-auditor`'s own
+  per-phase Definition-of-Done audits, leaving most phases' process
+  friction uncaptured.
+- **Retroactively writing retros for Milestones 0–4** — rejected as
+  unnecessary busywork; their full detail, including their own internal
+  phase breakdown, already lives in `dev-docs/changelog/MILESTONE-{0..4}.md`.
+  The convention starts with the phase(s) that made up Stage A, the most
+  recently completed work at adoption time (mirroring codecompass's own
+  "not retroactive before the phase it was adopted in" precedent).
+- **A new dedicated agent for this** — rejected; `roadmap-context-curator`
+  already owns learning triage and `ROADMAP.md`/`CONTEXT.md` reconciliation
+  at phase boundaries, so authoring the retro is the same concern at the
+  same trigger point, not a new role.
+
+**Follow-up:** Stage A's retro (`dev-docs/retros/STAGE-A.md`) was written
+in this same response as a single file covering the whole stage — Stage A
+had already completed by the time this process was adopted, so it wasn't
+practical to reconstruct separate per-sub-phase retros after the fact.
+
+---
+
 ## 2026-09-12 — Stage A compat-register migration scoped to a representative first wave, not full transcription
 
 **Decision:** when closing out the rest of Stage A (agent-role files +

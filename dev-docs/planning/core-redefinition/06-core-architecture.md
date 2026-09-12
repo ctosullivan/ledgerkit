@@ -68,7 +68,7 @@ split:
 
 | Task's Core area | Current state | Plan |
 |---|---|---|
-| Journal/accounting model | `models.py`, solid | Extend with `Cost`, `Lot`, `PriceGraph`/valuation types as Stage E/F land (`08-...md`). No structural change needed now. |
+| Journal/accounting model | `models.py`, solid | Extend with `Cost`, `Lot`, `PriceGraph`/valuation types as Stage E/F land (`08-...md`). No structural change needed now — **confirmed** by Stage B Phase 2's review (`16-model-review.md`), with two guardrails recorded there: account-type data must be added as a new field alongside `declared_accounts`, never by changing its `list[str]` shape (`ledgerkit-editor` depends on that shape); new `Posting`/`Transaction` fields must make a deliberate `compare=` choice, matching the existing `source_line`/`raw_text`/`inline_comment` precedent. |
 | Parser and writer | `parser.py`, `writer.py`, solid | Parser must **stop discarding** lot annotation data (`{cost}`, `[date]`, `(label)`) — currently parsed and thrown away (`dev-docs/hledger-compatibility.md`, "Lot annotations... discarded (not stored v1)"). This is a concrete, already-identified prerequisite for Stage F, not new scope. |
 | Source locations/diagnostics | `SourceSpan`, `source_line`, already present | No structural change; extend to query/report layers for error messages that cite source position. |
 | Query AST and semantics | Does not exist — `Query` dataclass with substring/regex matching only | New `ledgerkit/query/` subpackage: `ast.py` (typed nodes), `parser.py` (query text → AST), `eval.py` (AST → predicate over `Transaction`/`Posting`). See `07-query-regex.md`. |
@@ -102,23 +102,34 @@ Unauthorised Change Rule already protects it from silent changes. Stage I
 
 ## 6.5 Ledgerkit Editor impact
 
-`ledgerkit-editor` imports `EditorDocument`, `parse_string_lenient`,
-`writer.{transaction_to_text,journal_to_text}`,
-`check_transaction_autobalanced` directly (confirmed from its published
-README's "Built with... ledgerkit" framing and dependency pin; **the exact
-set of symbols it imports was not verified against its actual source in
-this planning session** — flagged as a concrete Stage B action item:
-before changing anything `Query`-adjacent, inventory `ledgerkit-editor`'s
-actual `import ledgerkit` usage by reading its source directly, not by
-inference from its README).
+**Verified** (Stage B Phase 1, `15-editor-compat-inventory.md` — supersedes
+this section's earlier README-inference claim and refines
+`14-human-decision-gates.md` G8): `ledgerkit-editor` actually imports and
+uses at runtime `Query` (constructed with only `account`/`payee`/
+`date_from`/`date_to`), `parse_string_lenient`, `checks.run_basic_checks`,
+`commodity_style.CommodityStyle`, `parser.{ParseError,ParseWarning}`,
+`load`, `writer.{transaction_to_text,journal_to_text}`. `models.
+{Journal,Transaction,Posting}` are `TYPE_CHECKING`-only in its shipped
+code (runtime only in its own test suite). **`EditorDocument` is not
+actually used anywhere in `ledgerkit-editor`'s shipped code** — the
+earlier assumption that it was is not supported by the source; see
+`15-editor-compat-inventory.md` §15.3. `ledgerkit-editor` also
+deliberately avoids importing `reports`'s private matching helpers,
+duplicating that logic locally instead (§15.2) — full detail, including
+exactly which call sites use which symbol, in `15-editor-compat-inventory.md`.
 
 Concrete compatibility commitments for Stage B/C:
 
-- `EditorDocument`, `parse_string_lenient`, `writer.*`,
-  `check_transaction_autobalanced`, `SourceSpan`, `Transaction`/`Posting`/
-  `Amount` field shapes are treated as the frozen v1 API surface until
-  Core 1.0 explicitly revises them with a documented breaking change and a
-  major version bump.
+- `parse_string_lenient`, `writer.*`, `checks.run_basic_checks`,
+  `commodity_style.CommodityStyle`, `parser.{ParseError,ParseWarning}`,
+  `load`, `Query`'s `account`/`payee`/`date_from`/`date_to` constructor
+  shape, and `Transaction`/`Posting`/`Amount` field shapes are treated as
+  the frozen v1 API surface until Core 1.0 explicitly revises them with a
+  documented breaking change and a major version bump. `EditorDocument` is
+  not included in this list on `ledgerkit-editor`'s account specifically —
+  no verified dependency on it exists today (it may still warrant frozen
+  status for other reasons, e.g. its own `api-spec.md` stability
+  commitment, just not this one).
 - If/when the `Query` dataclass is superseded by the query AST
   (`07-query-regex.md`), the old `Query(account=..., date_from=..., ...)`
   constructor keeps working as a compatibility shim compiling down to the
