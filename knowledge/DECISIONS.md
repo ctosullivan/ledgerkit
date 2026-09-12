@@ -49,6 +49,15 @@ a single-maintainer project).
 `pyproject.toml`, `README.md`, `CONTRIBUTING.md`, `dev-docs/versioning.md`,
 `ledgerkit/__init__.py`, and (separately) the `ledgerkit-editor` repository.
 
+**Addendum, 2026-09-12 (same day, CI-driven correction):** the initial
+commit used a PEP 639 `license = "GPL-3.0-or-later"` SPDX string, verified
+only locally, which broke CI's Python 3.8 job. Reverted to the classic
+`license = {text = "GPL-3.0-or-later"}` form (kept alongside the `License ::`
+classifier), which is exactly the pattern the prior MIT declaration used
+successfully across the full 3.8–3.12 matrix. See
+`knowledge/ANTIPATTERNS.md` — "PEP 639 `license` string-expression while
+still supporting Python 3.8".
+
 ---
 
 ## 2026-04-15 — Parser silently accepts unbalanced transactions

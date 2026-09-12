@@ -42,6 +42,39 @@ Approaches that were tried and abandoned — do not revisit without addressing t
 
 ---
 
+## PEP 639 `license` string-expression while still supporting Python 3.8
+
+**Tried:** Setting `pyproject.toml`'s `[project] license` to a bare PEP 639
+SPDX string (`license = "GPL-3.0-or-later"`), during the 2026-09-12
+MIT→GPL relicensing, in place of the classic `{text = "..."}` dict form.
+
+**Problem:** Verified locally against a single environment
+(`setuptools 82.0.1`) — build and `twine check` passed. Pushed to CI, and
+the Python 3.8 job failed: `setuptools` dropped Python 3.8 support before
+it accepted `license` as a plain string, so no single `setuptools` release
+satisfies both constraints. `pip`'s build isolation on that job resolved
+an older `setuptools` that still validates `project.license` against the
+pre-PEP-639 schema (`{file: ...}` or `{text: ...}` only) and rejected the
+string outright.
+
+**Lesson:** Verifying packaging metadata against one local Python/setuptools
+combination does not verify it against a project's whole supported-version
+matrix. For a project that still declares `requires-python = ">=3.8"`, any
+packaging-metadata syntax change needs checking against the *oldest*
+supported Python's dependency-resolution behaviour, not just the
+newest/local one — CI's actual matrix run is the real oracle here, exactly
+as `dev-docs/planning/core-redefinition/10-source-assisted-development.md`
+already establishes for behavioural compatibility claims generally.
+
+**Do not revisit unless:** Python 3.8 support is explicitly dropped first
+(a separate, `pyproject.toml`-metadata decision requiring its own
+approval per `CLAUDE.md`'s Unauthorised Change Rule), or a `setuptools`
+release ships that supports both Python 3.8 and the PEP 639 string form.
+
+**See also:** `knowledge/DECISIONS.md` — "Relicensed MIT → GPL-3.0-or-later".
+
+---
+
 ## Accumulating aliases across included files
 
 **Tried:** (Design consideration during alias implementation) — applying aliases globally across all files loaded via `include`.

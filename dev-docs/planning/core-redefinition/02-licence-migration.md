@@ -108,19 +108,20 @@ performed or scheduled.
      once-per-package pattern rather than inventing a heavier convention
      hledger itself doesn't use.
 3. `pyproject.toml`:
-   - `license = "GPL-3.0-or-later"` (PEP 639 SPDX license-expression string,
-     not the old `license = {text = "MIT"}` dict form). Note the existing
-     `CONTEXT.md` blocker about `packaging>=25` for `license = {text=...}`
-     with setuptools — moving to the PEP 639 string form is the modern,
-     forward-compatible fix, not an added complication; confirm the
-     `setuptools` version pinned in `[build-system]` actually supports
-     `License-Expression` core metadata before relying on it, and pin a
-     floor if not (verify at implementation time, not assumed here).
-   - Update/replace the `License :: OSI Approved :: MIT License` classifier
-     with `License :: OSI Approved :: GNU General Public License v3 or
-     later (GPLv3+)`. PEP 639 discourages new licence classifiers in
-     favour of the expression, but PyPI and older tooling still read
-     classifiers — keep both during the transition.
+   - **Executed as `license = {text = "GPL-3.0-or-later"}`** — the classic
+     dict form, not a PEP 639 SPDX expression string. A string-expression
+     form was tried first and reverted: it passed under a locally-installed
+     recent `setuptools`, but broke CI's Python 3.8 job, because no
+     `setuptools` release supports both Python 3.8 and the PEP 639 string
+     schema, and `ledgerkit` still declares `requires-python = ">=3.8"`.
+     Revisit the PEP 639 form only alongside an explicit, separately
+     approved decision to drop Python 3.8 support — see
+     `knowledge/ANTIPATTERNS.md`.
+   - `License :: OSI Approved :: GNU General Public License v3 or later
+     (GPLv3+)` classifier added alongside the dict-form field — the two
+     coexist without conflict (only the newer string-expression form
+     conflicts with a classifier under recent setuptools, confirmed by
+     this same incident).
    - `description` and `keywords` are unaffected.
 4. `README.md`: update the "Acknowledgements" section (already credits
    Ledger/hledger authors — extend it to state the licence relationship

@@ -28,15 +28,21 @@ last MIT-licensed release. See
 for the full rationale, including why this specifically matters for
 in-process (as opposed to subprocess) consumers.
 
-Also as part of this change: `pyproject.toml`'s `license` field moved from
-the legacy `{text = "MIT"}` form to the PEP 639 SPDX expression
-`"GPL-3.0-or-later"`, and `requires = ["setuptools>=69.5"]` was added to
-`[build-system]` to guarantee `License-Expression` metadata support
-(verified: `setuptools 82.0.1` locally builds and passes `twine check`
-with the new field, and rejects a redundant `License ::` classifier
-alongside it — the classifier was removed rather than kept, reversing this
-package's own planning-stage assumption that both should coexist during
-the transition).
+Also as part of this change: `pyproject.toml`'s `license` field changed
+from `{text = "MIT"}` to `{text = "GPL-3.0-or-later"}`, keeping the
+classic (non-PEP-639) form. **A PEP 639 SPDX license-expression string
+(`license = "GPL-3.0-or-later"`) was tried first and reverted** — it
+passed locally under `setuptools 82.0.1`, but broke CI's Python 3.8 job:
+no `setuptools` release supports both Python 3.8 and the PEP 639 string
+form, so `pip`'s build isolation on that job installs an older
+`setuptools` that rejects the string as an invalid `project.license`
+value. Since dropping Python 3.8 support is a separate, unapproved policy
+decision, the classic dict form was kept instead — proven compatible
+across the full 3.8–3.12 matrix by the fact that it's exactly the pattern
+the prior MIT declaration already used successfully. The `License ::`
+classifier is kept alongside it (the dict form and a classifier coexist
+without conflict; only the newer string-expression form conflicts with a
+classifier under recent setuptools).
 
 New files: `NOTICE`, `THIRD-PARTY-NOTICES.md`.
 

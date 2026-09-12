@@ -9,13 +9,21 @@ resolving G1 doesn't require resolving G3 first, etc.
 
 **Resolved 2026-09-12: Option A** — GPL-3.0-or-later for `ledgerkit`
 Core. Executed this session: `LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES.md`,
-`pyproject.toml` (`license = "GPL-3.0-or-later"`, PEP 639 expression;
-`requires = ["setuptools>=69.5"]`; the old `License ::` classifier removed,
-not kept alongside — modern setuptools rejects both together, which this
-package's own build/`twine check` verification caught), `README.md`,
-`CONTRIBUTING.md`, `dev-docs/versioning.md`, `ledgerkit/__init__.py`, and
+`pyproject.toml` (`license = {text = "GPL-3.0-or-later"}`, classic form,
+plus a matching `License ::` classifier), `README.md`, `CONTRIBUTING.md`,
+`dev-docs/versioning.md`, `ledgerkit/__init__.py`, and
 `knowledge/DECISIONS.md` (2026-09-12 entry). Build and full test suite
 (575 tests) verified passing after the change.
+
+**Correction (same day):** a PEP 639 SPDX license-expression string was
+tried first, verified only against one local environment, and broke CI's
+Python 3.8 job (`setuptools` has no release supporting both Python 3.8 and
+that syntax). Reverted to the classic dict form, which is what's described
+above and is what's actually deployed — see
+`knowledge/ANTIPATTERNS.md`. This is exactly the "verify locally ≠ verify
+across the matrix" mistake `10-source-assisted-development.md` §10.4
+warns against for compatibility claims generally, now demonstrated on
+packaging metadata rather than accounting behaviour.
 
 **`ledgerkit-editor`'s own relicensing is explicitly out of scope for this
 resolution — see G8.** Option A originally assumed both repos move
