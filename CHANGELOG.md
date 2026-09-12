@@ -9,6 +9,24 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### Added: standing commit/push pre-authorisation — 2026-09-13
+
+**Human:** directed updating project instructions so commits happen at
+logical intervals and pushes happen automatically at the end of each
+successful phase, rather than asking each time.
+
+**Claude:** added a "Commit & Push Cadence" section to `CLAUDE.md`:
+commit at any coherent, self-contained, internally-consistent unit of
+change; push once a phase is "successful" (exit criteria met, tests
+passing, retro written) — same granularity `dev-docs/retros/` already
+uses. Force-push, history rewrites, and branch deletion explicitly remain
+outside this pre-authorisation. Updated `dev-docs/retros/README.md`'s
+lifecycle diagram, `roadmap-context-curator.md` (commits/pushes as part of
+its phase-end job), and `release-phase-auditor.md` (new DoD check #9:
+committed and pushed). Recorded rationale in `knowledge/DECISIONS.md`.
+
+---
+
 ### [Stage B — Core Model] — 2026-09-13
 
 Full detail: [dev-docs/changelog/STAGE-B.md](dev-docs/changelog/STAGE-B.md)

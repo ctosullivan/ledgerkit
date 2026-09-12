@@ -63,6 +63,10 @@ if they disagree, that is a bug to fix now, not to silently pick one.
   "Process-improvement feedback" and "Lessons learnt" sections are a
   first-class input to this triage, not just new code-derived
   observations.
+- Once the retro is written and the phase counts as successful per
+  `CLAUDE.md`'s Commit & Push Cadence section (exit criteria met, tests
+  passing if code changed), commit and push — this is pre-authorised, not
+  a per-instance ask.
 
 ## Hard rules
 

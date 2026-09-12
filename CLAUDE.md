@@ -229,6 +229,44 @@ trivial one — a trivial phase gets a genuinely short retro (a few lines
 per section), not a skipped one. Retros are dated records: never rewrite a
 past one, only add new ones.
 
+---
+
+## Commit & Push Cadence
+
+This section is the standing, pre-authorised exception to Claude Code's
+default "only commit/push when explicitly asked" behaviour, for this
+project specifically — Claude commits and pushes per the rules below
+**without asking each time**.
+
+- **Commit at logical intervals** — whenever a coherent, self-contained
+  unit of change is complete and internally consistent, not necessarily
+  the whole phase. A unit is commit-ready when: any touched tests pass,
+  this file's Documentation Sync Rules' same-response doc updates are
+  done, and the working tree isn't left half-finished. A phase that
+  naturally decomposes into more than one such unit gets more than one
+  commit, each following the existing Commit Message Format rules below —
+  prefer several small, well-scoped commits over one large one.
+- **Push automatically at the end of each successful phase** (the same
+  "phase" granularity the Retro Reports section above uses). "Successful"
+  means: the phase's own `ROADMAP.md`-stated exit criteria (if any) are
+  met, the full test suite passes if any `ledgerkit/`/`tests/` code
+  changed, and the phase's retro has been written. Push whatever has been
+  committed for that phase at that point — don't hold commits back waiting
+  for a Stage/Milestone-level `[DONE]` confirmation; that's a separate,
+  coarser event still gated by explicit user confirmation (Changelog &
+  Roadmap Rules), unaffected by this rule.
+- **A failed or incomplete phase does not get auto-committed/pushed** —
+  if the test suite fails, exit criteria aren't met, or the phase is left
+  genuinely unfinished, stop and surface that instead of pushing broken or
+  partial work.
+- **Not covered by this rule — still require asking first, every time:**
+  force-pushes, any history rewrite (`rebase`, amending a commit already
+  pushed), and branch deletion. These remain governed by the top-level
+  "Executing actions with care" guidance, not loosened by anything above.
+- This rule changes **when** to commit/push, not **what** — the
+  Unauthorised Change Rule, Documentation Sync Rules, and Testing Rules
+  all still apply in full before anything is committed.
+
 ### Commit Message Format
 
 When producing a commit message, follow [Conventional Commits](https://www.conventionalcommits.org/):

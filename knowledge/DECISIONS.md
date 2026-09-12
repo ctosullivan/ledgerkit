@@ -4,6 +4,51 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 ---
 
+## 2026-09-13 — Standing pre-authorisation for commit/push at logical intervals and phase end
+
+**Decision:** added a "Commit & Push Cadence" section to `CLAUDE.md`
+(between Retro Reports and Commit Message Format) that pre-authorises
+Claude to commit and push **without asking each time**, on this project
+specifically. Two distinct triggers, deliberately not conflated: (1)
+**commit** at a *logical interval* — any coherent, self-contained,
+internally-consistent unit of change (tests passing, docs synced per the
+same-response Documentation Sync Rules) — which may be more granular than
+a whole phase; (2) **push** at the end of each *successful phase* (the
+same granularity `dev-docs/retros/` already uses) — exit criteria met,
+tests passing, retro written. A failed or incomplete phase gets neither.
+Force-pushes, history rewrites, and branch deletion are explicitly carved
+out as still requiring a per-instance ask.
+
+**Why:** the user directed it explicitly, updating the durable project
+instructions rather than asking case-by-case — this is precisely the
+"authorised in advance in durable instructions like CLAUDE.md files"
+exception the top-level tool guidance names for skipping a normally-required
+confirmation on a hard-to-reverse, others-visible action (a push). Tying
+the push trigger to the existing phase/retro granularity (rather than
+inventing a separate cadence) means no new concept for future sessions to
+learn, and keeps "was this phase pushed" checkable by the same
+`release-phase-auditor` DoD pass that already checks the retro exists —
+both are now audit items 8 and 9 on that checklist.
+
+**What was rejected:**
+- **A single "commit and push together" trigger** — rejected; commits are
+  useful at a finer grain than pushes (several small commits within one
+  phase are better version-control hygiene than one giant commit), while
+  pushing every commit individually would spam the remote with
+  intermediate, possibly-inconsistent states mid-phase.
+- **Push at Stage/Milestone `[DONE]` instead of per-phase** — rejected;
+  that event is coarser and still explicitly user-confirmed
+  (`CLAUDE.md`'s existing Changelog & Roadmap Rules), and holding pushes
+  back that long would mean long-lived unpushed local work, the opposite
+  of what "logical intervals" was asked for.
+- **Extending the standing pre-authorisation to force-push/rebase/branch
+  deletion too** — explicitly rejected; those remain governed by the
+  existing "Executing actions with care" guidance regardless of this
+  change, since they're a different risk class (rewriting shared history
+  vs. adding to it).
+
+---
+
 ## 2026-09-13 — Account-type semantics (Stage E) must extend the model additively, never retype `declared_accounts`
 
 **Decision:** when Stage E implements account-type semantics (parsing the

@@ -71,6 +71,10 @@ promotable into knowledge/*.md, ROADMAP.md, or a CLAUDE.md proposal
 release-phase-auditor confirms it exists and is substantive, as part of
 its Definition-of-Done audit for that same phase
    ↓
+Claude commits (if not already, per CLAUDE.md's Commit & Push Cadence)
+and pushes — the retro's existence is one of the "successful phase"
+conditions that cadence checks for
+   ↓
 Reviewed in bulk when the enclosing Milestone/Stage completes, and at
 Core 1.0, for actual process changes (roster pruning, workflow edits,
 CLAUDE.md proposals)

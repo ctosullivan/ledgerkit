@@ -6,7 +6,8 @@ description: >-
   confirms docs are reconciled and drift-audited, confirms compat-
   register entries exist for classified behaviour, confirms no
   unauthorised change to a CLAUDE.md-protected file, confirms a
-  substantive retro exists in dev-docs/retros/. Verdict: PASS /
+  substantive retro exists in dev-docs/retros/, confirms the phase was
+  committed and pushed. Verdict: PASS /
   PASS WITH NON-BLOCKING OBSERVATIONS / FAIL. Never repairs what it
   audits. Use on every non-trivial phase; mandatory at Core 1.0.
 tools: Read, Grep, Glob, Bash, Write
@@ -56,6 +57,10 @@ own stated Definition of Done.
    Reports section (fires every phase, not only at Milestone/Stage `[DONE]`),
    follows `dev-docs/retros/TEMPLATE.md`'s sections, and isn't a copy-paste
    "went fine" for a phase that clearly had friction or deviation.
+9. **Committed and pushed** per `CLAUDE.md`'s Commit & Push Cadence
+   section — `git log`/`git status` show the phase's work is committed and
+   `git status` shows the local branch is not ahead of its upstream. If it
+   isn't, that's a finding, not something to fix yourself.
 
 ## Hard rules
 
