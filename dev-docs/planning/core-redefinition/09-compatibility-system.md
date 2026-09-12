@@ -16,6 +16,18 @@ says "Reference: https://hledger.org/1.52/hledger.html" throughout. This
 plan formalises what was already the implicit target and gives it a
 machine-readable form.
 
+**Pinned binary confirmed (2026-09-13):** a real `hledger` executable
+exists in this environment at `/home/cormac/.local/bin/hledger`,
+reporting `hledger 1.52.4-g33fa849e7-20260910, linux-aarch64` —
+confirmed to build from the exact same commit
+(`33fa849e7ae841968bd21c427094c4fb4a4ec38d`, tag `1.52.4`) as the local
+source clone at `/home/cormac/projects/hledger` that `hledger-researcher`
+already used for the Stage C Phase 1 semantics brief. This is the pinned
+reference `compat-differential-tester` runs against; its actual
+executable-verification work (moving register entries from `proposed` to
+`verified`) can now start — that work itself has not started yet, only
+the binary's availability has been confirmed and recorded here.
+
 ## 9.2 The five states
 
 | State | Meaning | Who can assign it |

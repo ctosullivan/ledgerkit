@@ -22,13 +22,18 @@ against a real `hledger` binary yet. Moving any entry to `status: verified`
 is `compat-differential-tester`'s job, from Stage C onward, and requires
 an actual comparison run, not a citation of the manual.
 
-**Correction (2026-09-13):** the note above about "no pinned hledger
-binary or clone exists" was only half right and is superseded — a full
-`hledger` **source** clone exists locally (used directly by
+**Correction (2026-09-13, superseded same day):** the original note above
+about "no pinned hledger binary or clone exists" was only half right — a
+full `hledger` **source** clone exists locally (used directly by
 `hledger-researcher` for the Stage C query-semantics entries below,
-pinned at tag `1.52.4`); there is still no pinned `hledger` **binary**, so
-`status: proposed` remains accurate until `compat-differential-tester`
-has one to run against.
+pinned at tag `1.52.4`). It was then confirmed that a pinned `hledger`
+**binary** also exists (`/home/cormac/.local/bin/hledger`, `hledger
+1.52.4-g33fa849e7-20260910`), built from the exact same commit as the
+source clone — see `09-compatibility-system.md` §9.1. `status: proposed`
+remains accurate for every entry below regardless — the binary's
+existence unblocks `compat-differential-tester`'s executable verification
+work, it doesn't itself perform any verification. No entry has been
+re-run against the binary yet.
 
 **Stage C Phase 1 addition (2026-09-13):** 7 entries added for the initial
 query-term set (`query.acct`, `query.desc`, `query.date` x2, `query.depth`,

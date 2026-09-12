@@ -4,6 +4,44 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 ---
 
+## 2026-09-13 — Pinned hledger reference binary confirmed and formally recorded as the compat-differential-tester target
+
+**Decision:** `/home/cormac/.local/bin/hledger` (`hledger
+1.52.4-g33fa849e7-20260910, linux-aarch64`, sha256
+`c212db5f25daddf82f5767011ae73d3b7329c244db617e010fafe481cd07d747`) is
+the pinned `hledger` executable `compat-differential-tester` runs
+against, matching `09-compatibility-system.md` §9.1's `1.52.4` baseline
+exactly. Confirmed to build from the same commit
+(`33fa849e7ae841968bd21c427094c4fb4a4ec38d`, tag `1.52.4`) as the local
+source clone at `/home/cormac/projects/hledger` that `hledger-researcher`
+already used for the Stage C Phase 1 semantics brief — binary and source
+are the same pinned build, not two independently-tracked versions.
+
+**Why:** prior sessions repeatedly recorded "no pinned hledger binary
+exists in this environment" as an open blocker (Stage A closeout,
+`CONTEXT.md` across Stage B and Stage C Phase 1) — that was checked
+directly with `which hledger`/`hledger --version` and found to be no
+longer true (or possibly never re-checked after the binary was installed
+separately from this project's own sessions). Recording the exact
+version/commit/hash here, rather than just noting "a binary exists,"
+matches `10-source-assisted-development.md` §10.5's requirement that the
+executable used for differential testing be recorded specifically, never
+"whatever `hledger` resolves to on PATH" without pinning which version
+that was.
+
+**What this unblocks, and what it doesn't:** `compat-differential-tester`
+can now actually perform executable verification — moving register
+entries from `status: proposed` to `status: verified` by running real
+comparisons, which was previously impossible in this environment. **This
+decision does not itself run any differential test or change any register
+entry's status** — it only confirms and pins the reference binary; the
+verification work is a separate, not-yet-started task.
+
+**What was rejected:** none — this is a confirmation of existing
+environment state, not a choice among alternatives.
+
+---
+
 ## 2026-09-13 — Standing pre-authorisation for commit/push at logical intervals and phase end
 
 **Decision:** added a "Commit & Push Cadence" section to `CLAUDE.md`

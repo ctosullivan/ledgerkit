@@ -2,76 +2,67 @@
 
 ## Current Task
 Stage C Phase 1 (query semantics research + standalone query engine) is
-done. Operating under a standing "proceed with roadmap, recommended
-options, until a natural stopping point" directive from the user — this
-phase is a reasonable stopping point: a complete, tested, documented unit
-of work, with the next phase (wiring into reports.py/cli.py, or extending
-the term set) genuinely requiring a fresh scope decision rather than an
-obvious continuation.
+done, committed, and pushed (`f86dd28`). Since then: confirmed and
+formally pinned a real `hledger` executable
+(`/home/cormac/.local/bin/hledger`, `1.52.4-g33fa849e7-20260910`, sha256
+`c212db5f...d07d747`) as `compat-differential-tester`'s reference binary
+— resolving a blocker noted repeatedly since Stage A. Confirmed it builds
+from the exact same commit (`33fa849e7...`, tag `1.52.4`) as the local
+source clone `hledger-researcher` already used. This does not itself run
+any differential verification; that's still separate, not-yet-started
+work.
 
 ## Where We Are
-`ledgerkit/query/` now exists (`ast.py`, `regex.py`, `parser.py`,
-`eval.py`) — a standalone, fully-tested subpackage (81 new tests, 656
-total, all passing) implementing `acct:`/`desc:`/`date:`(simple)/
-`depth:`/`status:`/`not:`. Not yet re-exported from `ledgerkit/__init__.py`
-and not yet wired into `reports.py`, `cli.py`, or `Query`. Docs updated:
-`dev-docs/api-spec.md` (new section, user-approved), `hledger-
-compatibility.md` (new Query Language section), 7 new compat-register
-entries (all `status: proposed`), 2 new `knowledge/DOMAIN_RULES.md`
-entries. `ROADMAP.md` Stage C row updated. Retro written:
-`dev-docs/retros/STAGE-C-PHASE-1.md`. Per `CLAUDE.md`'s Commit & Push
-Cadence, this phase is ready to commit and push now (tests passing, docs
-synced, retro written) — about to do that next.
+`dev-docs/planning/core-redefinition/09-compatibility-system.md` §9.1 and
+`dev-docs/compat-register/README.md` both updated with the pinned
+binary's exact version/commit/hash. `knowledge/DECISIONS.md` has the
+recording entry. This is a small, complete, self-contained addition —
+ready to commit and push under `CLAUDE.md`'s Commit & Push Cadence rule
+once `CONTEXT.md`/`CHANGELOG.md` are current (this response).
 
 ## Decisions In Flight
-- The `date:` range-separator scope decision (accept `-`/`..`/`' to '`,
-  mandatory 4-digit year, no journal-context year inference at query-parse
-  time) was made this phase, not deferred — recorded in the retro, not yet
-  separately in `knowledge/DECISIONS.md` (it's implementation detail
-  rather than a judgment call with real alternatives seriously
-  considered, so folding it into the retro was judged sufficient；
-  revisit if a future phase finds it under-documented).
+- None beyond what's now in `knowledge/DECISIONS.md` (the pinned-binary
+  recording entry, 2026-09-13).
 
 ## Files Currently Relevant
-- `ledgerkit/query/{__init__,ast,regex,parser,eval}.py` — new.
-- `tests/test_query/{test_regex,test_parser,test_eval}.py` — new.
-- `dev-docs/planning/core-redefinition/17-query-semantics-brief.md` — new
-  (the research brief this phase implemented from).
-- `dev-docs/api-spec.md`, `dev-docs/hledger-compatibility.md` — updated.
-- `dev-docs/compat-register/LK-{COMPAT,UNSUP}-QUERY-*.yaml` (7 files),
-  `dev-docs/compat-register/README.md` — new/updated.
-- `knowledge/DOMAIN_RULES.md` — 2 new entries.
-- `ROADMAP.md`, `CHANGELOG.md`, `dev-docs/retros/STAGE-C-PHASE-1.md`.
+- `dev-docs/planning/core-redefinition/09-compatibility-system.md` §9.1 —
+  pinned-binary confirmation added.
+- `dev-docs/compat-register/README.md` — corrected again (binary now
+  confirmed, superseding the same-day "still no binary" note).
+- `knowledge/DECISIONS.md` — new entry.
 
 ## Blockers / Open Questions
-- Stage C's next phase is unscoped — candidates: wire `ledgerkit/query/`
-  into `reports.py`/a CLI `--query` flag; extend the term set (`tag:`,
-  `cur:`); design the `PythonRegex`/`pyre:` extension syntax
-  (`07-query-regex.md` §7.4, still an open design question). Needs
-  explicit scoping before starting, same as this phase did.
+- Stage C's next phase (after Phase 1) is still unscoped — candidates:
+  wire `ledgerkit/query/` into `reports.py`/a CLI `--query` flag; extend
+  the term set (`tag:`, `cur:`); design the `PythonRegex`/`pyre:`
+  extension syntax (`07-query-regex.md` §7.4). Needs explicit scoping
+  before starting.
+- **Newly unblocked, not yet acted on:** `compat-differential-tester` can
+  now actually run executable verification against the pinned binary —
+  no entry has been moved from `proposed` to `verified` yet; that's a
+  separate task from today's pin-and-confirm.
 - `EditorDocument`'s include-directive backlog item is still open and
   unscoped (Stage B finding: lower priority than assumed).
-- Whether `/home/cormac/projects/hledger` is the intended pinned reference
-  for `compat-differential-tester` going forward is still unconfirmed with
-  the user, though it's now been used directly for real research this
-  phase.
 - The finer-grained `hledger-compatibility.md` rows from Stage A are still
   unmigrated into the compat-register — open follow-up, not a blocker.
 
 ## What NOT To Revisit
-- Stage A and Stage B are both closed and settled.
+- Stage A, Stage B, and Stage C Phase 1 are all closed/committed and
+  settled.
 - The per-phase retro process and the commit/push cadence rule are both
-  adopted and now demonstrated across three real phases (Stage B x2,
-  Stage C x1) — don't re-ask about either.
-- Don't re-litigate this phase's query semantics (exclusive-end dates,
-  negated-same-prefix-AND, the HledgerRegex construct exclusion list) —
-  all sourced from `hledger-researcher`'s brief, verified against the
-  pinned hledger 1.52.4 source, and cross-checked by real tests.
+  adopted and demonstrated across multiple real phases — don't re-ask.
+- Don't re-litigate Stage C Phase 1's query semantics (exclusive-end
+  dates, negated-same-prefix-AND, the HledgerRegex construct exclusion
+  list) — sourced from `hledger-researcher`'s brief, cross-checked by
+  real tests.
+- Don't re-ask whether a pinned hledger binary exists — confirmed
+  directly via `which`/`--version` this response; it does, at the path
+  and version recorded above.
 - Milestones 0–4 do not get retroactive retros.
 
 ## Recent Git State (before this response's commit, if any)
+f86dd28 feat: Stage C Phase 1 — query semantics research + standalone query engine
 9c33e37 chore: add standing commit/push cadence; scope Stage C Phase 1
 f51a18b feat: close out Stage B — editor-compat inventory, model review
 a3cf2a7 feat: close out Stage A — agent roster and compatibility-register harness
 e702497 fix: revert pyproject.toml license to classic form for Python 3.8 CI
-67436ec chore: relicense to GPL-3.0-or-later, redefine Core goal and roadmap

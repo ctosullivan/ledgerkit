@@ -9,6 +9,26 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### Confirmed and pinned the hledger reference binary — 2026-09-13
+
+**Human:** directed running a command to verify hledger availability and
+pin it as the target version.
+
+**Claude:** confirmed a real `hledger` executable exists at
+`/home/cormac/.local/bin/hledger` (`1.52.4-g33fa849e7-20260910,
+linux-aarch64`, sha256 `c212db5f25daddf82f5767011ae73d3b7329c244db617e010fafe481cd07d747`),
+building from the exact same commit (`33fa849e7ae841968bd21c427094c4fb4a4ec38d`,
+tag `1.52.4`) as the local hledger source clone `hledger-researcher`
+already used for the Stage C Phase 1 semantics brief. Recorded the pin in
+`dev-docs/planning/core-redefinition/09-compatibility-system.md` §9.1 and
+corrected `dev-docs/compat-register/README.md`'s now-superseded "no
+pinned binary" note. Recorded the decision in `knowledge/DECISIONS.md`.
+This resolves a blocker noted repeatedly since Stage A closeout — it does
+not itself run any differential verification, which remains separate,
+not-yet-started work for `compat-differential-tester`.
+
+---
+
 ### [Stage C Phase 1 — Query semantics research + standalone query engine] — 2026-09-13
 
 Full detail: [dev-docs/planning/core-redefinition/17-query-semantics-brief.md](dev-docs/planning/core-redefinition/17-query-semantics-brief.md), [16-model-review.md](dev-docs/planning/core-redefinition/16-model-review.md)
