@@ -7,6 +7,22 @@ target report/CLI architecture) into one concrete, scoped phase. Written
 in response to an explicit planning request; awaits approval before
 Stage C's `ROADMAP.md` row moves to reflect this phase starting.
 
+**Amendment (2026-09-16, same day, pre-implementation):** revised per
+review findings, four targeted changes — §6.2 no longer presupposes a new
+public `query_ast=` parameter (an explicit decision gate precedes any
+`api-spec.md` change, §6.1); the filtering design now specifies delegation
+to the canonical `matches_posting`/`matches_transaction` evaluators by
+report orientation, not a new shared wrapper (§6.3); `reports.py`'s
+current size relative to `CLAUDE.md`'s refactor-signal threshold is now
+recorded explicitly, with refactor pressure routed to follow-on work, not
+this phase (§1.4, §11, §13); and the phase's commit structure is now
+specified as three separate logical commits (§2, §3). **The phase's
+objective is unchanged**: use current CodeCompass unchanged on genuine
+Ledgerkit development work, independently evaluate the context it
+provides, and feed evidence-backed findings back to CodeCompass without
+modifying CodeCompass during the experiment. Sections not listed above
+are unchanged from the original plan.
+
 ---
 
 ## 0. Pinned revisions (record before anything else)
@@ -91,6 +107,21 @@ don't accept a query at all, at any level.
 display** rather than excluding postings (hledger `--depth` behaviour) —
 this is report-layer logic sitting *above* the shared filter, not
 something the new integration should re-implement or move.
+
+**`reports.py` is already above `CLAUDE.md`'s Module Size & Refactoring
+threshold**: 573 lines against the stated 300–500-line refactor-signal
+range, confirmed by `wc -l` this session, before this phase adds
+anything. Per that rule, Claude "must never initiate a major refactor
+unilaterally" — this fact is recorded here as a flag, not a mandate to
+act on it now. **This phase's own change must stay additive and narrowly
+scoped** (new `matches_posting`/`matches_transaction` delegation calls in
+the four target functions, per §6.3 — not a module split, not a
+reorganisation). If implementing the integration reveals that
+`reports.py` genuinely can't absorb it cleanly at its current size, that
+pressure is itself a finding to record under follow-on work (§13), per
+the Module Size & Refactoring rule's own required process (flag → propose
+a split → wait for explicit approval) — never resolved by unilaterally
+splitting the file mid-phase.
 
 ### 1.5 hledger compatibility/evidence infrastructure — current shape
 
@@ -271,33 +302,77 @@ integration task specifically (`ledgerkit/reports.py`, `ledgerkit/cli.py`,
 verbatim. **Do not fix any gap found here** — that's explicitly
 prohibited by the task and by CodeCompass's own precedent (§1.9).
 
-### Phase step 3 — Query integration
+**Commit boundary 1** (per §10's commit-separation requirement): whatever
+of this step's output is worth persisting in the repo (captured baseline
+transcripts, any reviewed-and-accepted `CLAUDE.md`/Skill artifacts — see
+§4's explicit review-before-apply caution) is committed on its own,
+separately from any product code. If nothing from this step is worth
+persisting beyond the eventual `CC-LK-NNN` finding's `evidence:` pointers,
+this commit boundary may be empty and folded into commit boundary 3
+(§9's finding) — do not invent a placeholder commit.
 
-Per §6's design. Implementation agent uses CodeCompass-first for
-discovery/context on this subtask specifically (§5), falls back to direct
-source reading freely, implements, adds tests.
+### Phase step 3 — API-boundary decision gate
 
-### Phase step 4 — Compatibility verification
+**Before any `reports.py`/`cli.py` code is written.** Per §6.1: decide,
+explicitly and on the record, whether the query/report integration
+genuinely needs a new public parameter on the four report functions, or
+whether it can be achieved without adding a second public query interface
+alongside the existing `Query`-based one. §6.1 lays out the real options
+(new public `query_ast=` param; overload the existing `query` parameter's
+type; an internal/non-exported integration path deferring the public-API
+question entirely). **`dev-docs/api-spec.md` is not touched until this
+gate resolves** — if the resolved option changes `reports.py`'s public
+signatures at all, the existing protected-file ask-first process (§10)
+applies *after*, not instead of, this gate. Record the decision and its
+reasoning in `knowledge/DECISIONS.md` regardless of which option is
+chosen — this is exactly the kind of non-obvious judgment call that
+belongs there.
+
+### Phase step 4 — Query integration
+
+Per §6.2/§6.3's design, using whichever API shape step 3 resolved on.
+Implementation agent uses CodeCompass-first for discovery/context on this
+subtask specifically (§5), falls back to direct source reading freely,
+implements, adds tests. Stays within §1.4a's narrow-scope constraint —
+no `reports.py` reorganisation.
+
+**Commit boundary 2**: the `reports.py`/`cli.py` implementation, its
+tests, and the feature docs that describe it (`api-spec.md` once step 3
+resolves, `docs/usage.md`, any `hledger-compatibility.md`/compat-register
+updates from step 5) — together, on their own, separate from commit
+boundary 1 and from anything in step 6/7 below. This is the commit(s)
+`compat-differential-tester` verifies against in step 5.
+
+### Phase step 5 — Compatibility verification
 
 Full Ledgerkit regression suite must stay green. Representative hledger
 differential checks per §7 — resolve any real Ledgerkit defect found;
-this is genuine Ledgerkit debugging, not CodeCompass evaluation.
+this is genuine Ledgerkit debugging, not CodeCompass evaluation. Any fix
+required here lands as an amendment to commit boundary 2 (or a small
+follow-up commit still within that boundary's scope), not mixed into
+boundary 1 or 3.
 
-### Phase step 5 — Context evaluation
+### Phase step 6 — Context evaluation
 
 `context-curator`'s independent pass per §8, using the baseline captured
-in step 2 and the real friction/success encountered during step 3.
+in step 2 and the real friction/success encountered during steps 3-4.
 Distinguishes CodeCompass limitations from Ledgerkit implementation
 issues explicitly (a CodeCompass gap and a Ledgerkit bug found in the
 same subtask must not be conflated in the writeup).
 
-### Phase step 6 — Feedback and closeout
+### Phase step 7 — Feedback and closeout
 
 Produce ≥1 `CC-LK-NNN` finding (§9). Complete phase retro
 (`dev-docs/retros/STAGE-C-PHASE-2.md`). Update `ROADMAP.md`/`CONTEXT.md`/
 `CHANGELOG.md` (§10). Recommend whether CodeCompass becomes part of the
 default Ledgerkit dev workflow — evidence-based, not assumed either way.
 Propose next Ledgerkit phase (§13) — do not start it.
+
+**Commit boundary 3**: the `CC-LK-NNN` finding(s), retro, and
+`ROADMAP.md`/`CONTEXT.md`/`CHANGELOG.md` closeout updates, together, as
+the phase's final commit(s) — separate from boundaries 1 and 2, so a
+reviewer can inspect "did the feature work" (boundary 2) independently of
+"was CodeCompass evaluated honestly" (boundaries 1 and 3).
 
 ---
 
@@ -307,31 +382,45 @@ Propose next Ledgerkit phase (§13) — do not start it.
    can target an arbitrary working directory (Ledgerkit's real repo)
    without modifying Ledgerkit's own `pyproject.toml`/`requirements`.
 2. **CodeCompass baseline capture** (step 2, detailed in §4) — no
-   Ledgerkit code touched.
-3. **Design confirmation** — lead finalises the exact signature/precedence
-   decisions §6 leaves open (parameter name, `query`+`query_ast`
-   precedence rule) before writing code, recording the choice in
-   `knowledge/DECISIONS.md` if it's non-obvious (per existing convention).
-4. **`reports.py` change** — add `query_ast` support to `accounts`,
-   `balance`, `register`, `stats` via one shared internal check.
+   Ledgerkit code touched. → **commit boundary 1**.
+3. **API-boundary decision gate** (phase step 3, §6.1) — resolve whether a
+   new public `query_ast=` parameter is genuinely needed, or whether the
+   integration can flow through the existing `query` parameter's type or
+   an internal-only path. Record the decision (and reasoning) in
+   `knowledge/DECISIONS.md`. `dev-docs/api-spec.md` is not touched by
+   this task — only by task 8, and only once this gate has resolved.
+4. **`reports.py` change** — wire the resolved API shape from task 3 into
+   `accounts`/`balance`/`register`/`stats`, each delegating to
+   `ledgerkit.query.eval.matches_posting` (posting-oriented reports) or
+   `ledgerkit.query.eval.matches_transaction` (`stats`, transaction-
+   oriented, where appropriate) directly — per §6.3, not a new shared
+   wrapper that blends the two. No reorganisation of `reports.py` beyond
+   these additions (§1.4a).
 5. **`cli.py` change** — add `-q`/`--query` flag; parse once in `main()`;
    thread into the four report calls; handle `QueryParseError` per
    existing error-handling conventions.
-6. **Tests** — unit tests for the new `reports.py` parameter (one per
-   function × a few representative query shapes); CLI integration tests
+6. **Tests** — unit tests for the new integration (one per function × a
+   few representative query shapes, confirming the correct evaluator was
+   used for each report's orientation); CLI integration tests
    (`tests/test_cli/test_cli.py`) covering the flag end-to-end, malformed-
-   query exit behaviour, and no-match behaviour.
-7. **Differential spot-checks** (§7) against the pinned `hledger` binary.
-8. **Docs** — `dev-docs/api-spec.md` (protected — ask first, per §10),
-   `dev-docs/hledger-compatibility.md` if CLI-level query behaviour needs
-   a compatibility note, `docs/usage.md` (new `-q` flag is user-facing
-   CLI behaviour).
-9. **Compat-register** — any newly-verified-vs-hledger behaviour from §7
-   gets its own entry or an update to an existing Stage C Phase 1 entry's
-   `status`.
-10. **Context evaluation + report** (§8, §9).
-11. **Retro, roadmap/context/changelog reconciliation, commit/push**
-    per the now-standing per-phase process.
+   query exit behaviour, and no-match behaviour. → tasks 4-6 are
+   **commit boundary 2**.
+7. **Differential spot-checks** (§7) against the pinned `hledger` binary
+   — any fix required stays within commit boundary 2.
+8. **Feature docs** — `dev-docs/api-spec.md` (protected — ask first,
+   gated on task 3's resolution, per §10), `dev-docs/hledger-
+   compatibility.md` if CLI-level query behaviour needs a compatibility
+   note, `docs/usage.md` (new `-q` flag is user-facing CLI behaviour), and
+   the compat-register updates from task 7's differential results — all
+   of these describe the shipped feature itself, so per `CLAUDE.md`'s
+   same-response Documentation Sync Rule they belong in **commit boundary
+   2**, alongside tasks 4-6, not deferred to closeout.
+9. **Context evaluation + report** (§8, §9).
+10. **Retro, roadmap/context/changelog reconciliation, commit/push** per
+    the now-standing per-phase process. → tasks 9-10 are **commit
+    boundary 3**: the CodeCompass evaluation and the phase's own
+    closeout bookkeeping, kept separate from "did the feature ship"
+    (boundary 2).
 
 ---
 
@@ -442,55 +531,109 @@ as low-advantage honestly).
 
 ## 6. Query/report integration design
 
-### 6.1 Target shape (confirmed against real code, not assumed)
+### 6.1 API-boundary decision gate (resolve before writing `reports.py` code)
+
+The original draft of this section presupposed adding a new public
+`query_ast=` parameter to all four report functions. **That is now a
+question to resolve deliberately, not a default** — doing so without
+justification would leave `reports.py` with two simultaneous public query
+interfaces (`query: Query` and `query_ast: QueryNode`) for exactly the
+duration of however long it takes to eventually retire one of them, which
+is the kind of "temporary" public-API surface `CLAUDE.md`'s Unauthorised
+Change Rule exists to make deliberate rather than incidental.
+
+**Real options, for the lead to choose among at implementation time**
+(phase step 3, §2):
+
+| Option | Shape | `api-spec.md` impact | Tradeoff |
+|---|---|---|---|
+| A — new public parameter | `query_ast: QueryNode \| None = None` added to each function's signature | New documented parameter, new public type surface | Simplest to implement; explicitly creates the two-interface situation above |
+| B — overload existing parameter | `query: Query \| QueryNode \| None`, dispatch by `isinstance` | Existing parameter's documented type widens; no new parameter name | One interface, not two; still a public signature change; call sites passing a bare `Query` are unaffected |
+| C — internal-only integration | CLI converts parsed AST to a predicate and applies it without changing any report function's public signature (e.g. a private, non-exported helper `reports._filter_with_ast`, or filtering the CLI's own output before/after calling the unchanged public function) | **None this phase** | No `api-spec.md` change at all; defers the public-API question until real usage (this phase, plus any follow-on) shows what's actually needed; risks CLI-internal code depending on a private report-layer detail |
+
+**Decision criteria**: prefer the option that ships the real, working
+CLI `-q` flag (the phase's actual deliverable) with the smallest
+committed public-API surface. Option C is the conservative default absent
+a concrete reason one of the four report functions needs `query_ast` as
+part of its own *public, library-level* contract (i.e., a caller other
+than `cli.py` itself has a real, current need to pass a `QueryNode`
+directly into `reports.balance()` etc.) — no such caller is known to
+exist yet (`ledgerkit-editor`'s confirmed usage, per Stage B Phase 1, is
+`Query`-only). If no such caller surfaces during implementation, Option C
+resolves the gate without touching `api-spec.md` at all; Option A or B
+should only be chosen with a stated reason beyond "it seemed like the
+natural place." **Whatever is chosen, record it and why in
+`knowledge/DECISIONS.md`** — this is exactly the class of non-obvious,
+easy-to-default-into decision that file exists for.
+
+### 6.2 Target shape (confirmed against real code, not assumed)
 
 ```
 CLI  -q/--query "TERMS"
         │
    ledgerkit.query.parser.parse(text)  →  QueryNode  (raises QueryParseError)
         │
-   reports.{balance,register,accounts,stats}(journal, query_ast=node)
+   reports.{balance,register,accounts,stats}(journal, ...)   [exact param per §6.1's resolved option]
         │
-   ledgerkit.query.eval.{matches_transaction,matches_posting}
+   ledgerkit.query.eval.matches_posting   OR   ledgerkit.query.eval.matches_transaction
+   (per report orientation — §6.3, never blended into one wrapper)
         │
    existing per-report aggregation/formatting (UNCHANGED)
 ```
 
-### 6.2 `reports.py` change
+### 6.3 `reports.py` change — canonical evaluator delegation, not a new shared wrapper
 
-Add one new optional parameter to all four target functions:
+**Correction to the original draft**: "one shared internal filtering
+check" was the wrong frame — it invited writing a new `reports.py`-local
+function that re-derives AST match semantics, risking a second,
+subtly-divergent implementation of what `ledgerkit/query/eval.py` already
+does correctly and is already tested (§1.2, 81 tests). The actual
+requirement is **delegation**, not a new shared abstraction:
 
-```python
-def balance(journal, query=None, tree=False, query_ast: QueryNode | None = None): ...
-def register(journal, query=None, query_ast: QueryNode | None = None): ...
-def accounts(journal, query=None, query_ast: QueryNode | None = None): ...
-def stats(journal, query=None, query_ast: QueryNode | None = None): ...
-```
-
-One shared internal check (extend `_posting_matches`, or add a thin
-`_matches(posting, txn, query, query_ast)` that both existing call sites
-route through) — satisfies "shared mechanism, not duplicated across
-reports" **structurally**, matching the pattern these four functions
-already use for `Query` today (§1.4). Recommended default when both
-`query` and `query_ast` are supplied: **AND them** (both must pass) — the
-safest, most intuitive behaviour, consistent with `models.py`'s existing
-precedent for combining a deprecated parameter with a new one
-(`Journal.balance()`'s `accounts=`/`query=` handling). **This is a
-decision for the lead to confirm at implementation time, not lock in
-here** — record it in `knowledge/DECISIONS.md` if any alternative was
-seriously considered.
+- **Posting-oriented reports** (`accounts`, `balance`, `register` — all
+  iterate postings and build per-posting/per-account output) call
+  `ledgerkit.query.eval.matches_posting(query_ast, txn, posting)`
+  directly, for each posting, exactly where they already call
+  `_posting_matches(posting, txn, query)` for the existing `Query` path.
+- **`stats`** is transaction-oriented where its own existing partial
+  query support already treats it that way (date/payee filtering
+  operates per-transaction) — it calls
+  `ledgerkit.query.eval.matches_transaction(query_ast, txn)` where its
+  own logic naturally operates at transaction granularity, not per-
+  posting. If a specific `stats` computation genuinely needs posting-
+  level filtering instead, that's a signal to look at `matches_posting`
+  for that specific path, not a reason to invent a third, more general
+  function — inspect `stats`'s actual existing loop structure at
+  implementation time and delegate to whichever of the two matches what
+  that loop already iterates over.
+- **The existing `Query`-based `_posting_matches` check is untouched** —
+  the new AST-based check is a separate, additional condition, combined
+  per §6.1's resolved option (AND, if both are ever supplied — same
+  default reasoning as the original draft, still the recommendation, not
+  locked in here).
+- **`matches_posting` and `matches_transaction` stay two distinct calls
+  in the code, at their respective call sites** — do not collapse them
+  behind a single `reports.py`-local dispatcher function that picks one
+  based on report name or a flag. The distinction exists in
+  `ledgerkit/query/eval.py` because the two orientations have genuinely
+  different semantics (Acct/Depth's "any posting matches" rule at
+  transaction level vs. direct per-posting checks — `17-query-semantics-
+  brief.md` §1/§4); reproducing that dispatch a second time in
+  `reports.py` is exactly the kind of duplication to avoid, so each
+  report simply calls the one that matches what it's already iterating
+  over.
 
 `stats`'s existing query support is partial (date/payee only, per its own
-docstring) — extending it to honour `query_ast` via the same shared check
-is in scope; extending its *aggregate output* to reflect richer AST-level
+docstring) — extending it to honour the AST via `matches_transaction` is
+in scope; extending its *aggregate output* to reflect richer AST-level
 filtering beyond what it already reports is not required beyond making
 the filter itself consistent.
 
 `balance`'s depth-truncation-for-display behaviour is untouched — it
-operates on the already-filtered posting set, regardless of whether that
-set was filtered by `query`, `query_ast`, or both.
+operates on the already-filtered posting set, regardless of which
+check(s) produced that filtering.
 
-### 6.3 `cli.py` change
+### 6.4 `cli.py` change
 
 New flag:
 
@@ -517,8 +660,12 @@ if getattr(args, "query_text", None):
         return 1
 ```
 
-Thread `query_ast=query_ast` into the `balance`/`register`/`accounts`/
-`stats` calls in the existing command branches. **`print` and `check` are
+Feed `query_ast` into the `balance`/`register`/`accounts`/`stats` calls
+in the existing command branches, via whichever mechanism §6.1's resolved
+option produces (a `query_ast=` keyword under Option A/B, or the CLI's
+own private/internal filtering step under Option C — this section
+intentionally doesn't hard-code the call shape, since that's the gate's
+own output, not a foregone conclusion). **`print` and `check` are
 explicitly out of scope** — `print` has no query parameter today at any
 level (a materially bigger, separate change); `check` filters nothing by
 design. Both are named as follow-on candidates (§13), not silently
@@ -527,7 +674,7 @@ absorbed into this phase.
 Output formatting after each `reports.X()` call is **completely
 unchanged** — only the input to the report function changes.
 
-### 6.4 What this design deliberately does not do
+### 6.5 What this design deliberately does not do
 
 - Does **not** touch the existing `Query` dataclass's shape, fields, or
   behaviour — `ledgerkit-editor`'s confirmed dependency on `Query`'s
@@ -645,30 +792,59 @@ CodeCompass's backlog.
 
 ## 10. Documentation and project-state update list
 
-| What | Doc | Gate |
-|---|---|---|
-| `reports.py` new `query_ast` param (4 functions) | `dev-docs/api-spec.md` | **Protected — ask before changing**, per `CLAUDE.md`'s Unauthorised Change Rule (same process as Stage C Phase 1's `ledgerkit/query/` addition) |
-| `cli.py` new `-q`/`--query` flag | `docs/usage.md` (user-facing CLI change) | Normal doc-sync, same response as the code change |
-| Any newly-verified hledger behaviour from §7 | `dev-docs/compat-register/*.yaml` (new or updated entries) | Normal — `compat-differential-tester`'s own write scope |
-| CLI-level query behaviour, if materially new re: existing compat notes | `dev-docs/hledger-compatibility.md` | Normal doc-sync |
-| Any non-obvious integration decision (e.g. `query`+`query_ast` precedence) | `knowledge/DECISIONS.md` | Normal, same response |
-| Architecture change | `dev-docs/architecture.md` | Only if the pipeline diagram's shape actually changes — likely a one-line addition ("query/ feeds reports via query_ast"), not an ADR-level change |
-| Roadmap status | `ROADMAP.md` Stage C row | Normal — Phase 2 → `[IN PROGRESS]` at start, updated at completion |
-| Session state | `CONTEXT.md` | Overwrite, same response, per existing rule |
-| Changelog | `CHANGELOG.md` | New `[Unreleased]` entry, same response |
-| CodeCompass validation | `validation/codecompass/findings/CC-LK-001.{yaml,md}` (+more) | New this phase |
-| Phase retro | `dev-docs/retros/STAGE-C-PHASE-2.md` | New this phase, per standing Retro Reports rule |
+| What | Doc | Gate | Commit boundary |
+|---|---|---|---|
+| API-boundary decision itself (§6.1) | `knowledge/DECISIONS.md` | Normal — resolve *before* the row below | 2 (start) |
+| `reports.py` integration, **only if** §6.1 resolves to Option A/B | `dev-docs/api-spec.md` | **Protected — ask before changing, and only after §6.1's gate has resolved**, per `CLAUDE.md`'s Unauthorised Change Rule (same ask-first process as Stage C Phase 1's `ledgerkit/query/` addition — this phase adds the extra precondition that the gate resolve first) | 2 |
+| `cli.py` new `-q`/`--query` flag | `docs/usage.md` (user-facing CLI change) | Normal doc-sync, same response as the code change | 2 |
+| Any newly-verified hledger behaviour from §7 | `dev-docs/compat-register/*.yaml` (new or updated entries) | Normal — `compat-differential-tester`'s own write scope | 2 |
+| CLI-level query behaviour, if materially new re: existing compat notes | `dev-docs/hledger-compatibility.md` | Normal doc-sync | 2 |
+| Architecture change | `dev-docs/architecture.md` | Only if the pipeline diagram's shape actually changes — likely a one-line addition ("query/ feeds reports via canonical evaluator delegation"), not an ADR-level change | 2 |
+| Module-size flag (§1.4a) becoming actionable refactor pressure | `dev-docs/architecture.md` flag + a proposal (not executed) per the Module Size & Refactoring rule | Normal — flag only, never act unilaterally | 2 or 3, whichever this is noticed in |
+| CodeCompass baseline capture artifacts | `validation/codecompass/` (raw evidence, if kept) | New this phase | 1 |
+| Roadmap status | `ROADMAP.md` Stage C row | Normal — Phase 2 → `[IN PROGRESS]` at start, updated at completion | 1 (start) and 3 (completion) |
+| Session state | `CONTEXT.md` | Overwrite, same response, per existing rule | every commit boundary that changes state |
+| Changelog | `CHANGELOG.md` | New `[Unreleased]` entry, same response | every commit boundary |
+| CodeCompass validation | `validation/codecompass/findings/CC-LK-001.{yaml,md}` (+more) | New this phase | 3 |
+| Phase retro | `dev-docs/retros/STAGE-C-PHASE-2.md` | New this phase, per standing Retro Reports rule | 3 |
 
-**No ADR-scale architecture change is anticipated** — this is an additive
-parameter + a new CLI flag, not a redesign. If implementation reveals
-otherwise, stop and re-scope rather than silently expanding.
+**No ADR-scale architecture change is anticipated** — this is a narrowly-
+scoped integration, not a redesign. If implementation reveals otherwise
+(including reports.py's module size, §1.4a, becoming a real blocker rather
+than a flagged concern), stop and re-scope rather than silently expanding.
 
 ---
 
 ## 11. Risks
 
 - **`api-spec.md` sign-off friction** — mitigated: this is now a familiar,
-  fast process (Stage C Phase 1 already went through it once).
+  fast process (Stage C Phase 1 already went through it once), and §6.1's
+  gate means the ask (if any) is narrower and better-justified than the
+  original draft's presumed-necessary new parameter.
+- **The API-boundary gate (§6.1) being skipped or rushed under
+  implementation pressure** — the most direct risk this amendment exists
+  to close. Mitigation: phase step 3 is a standalone step in §2, before
+  any `reports.py` code is written, not a footnote inside the
+  implementation step — it cannot be silently skipped without visibly
+  skipping a numbered phase step.
+- **A new `reports.py`-local dispatch function re-deriving `matches_
+  posting`/`matches_transaction`'s own logic** (the exact failure mode
+  §6.3 rewrites the design to avoid) — mitigated by naming the two
+  canonical functions explicitly as the only delegation targets, and by
+  test coverage (§7.1) asserting each report's filtering behaviour
+  matches what `ledgerkit.query.eval` itself would produce, not a
+  reimplementation.
+- **`reports.py`'s existing size (573 lines, above the 300–500-line
+  signal, §1.4a) creating pressure to "just refactor while I'm in
+  there"** — explicitly named as out of scope; any such pressure is a
+  §13 follow-on candidate, gated by the Module Size & Refactoring rule's
+  flag-propose-wait process, not something this phase resolves itself.
+- **Commit boundaries (§2, §10) blurring in practice** — e.g. a docs fix
+  discovered during context evaluation (boundary 3) that actually belongs
+  with the feature (boundary 2). Mitigation: if this happens, amend
+  boundary 2 with a small follow-up commit before boundary 3 lands, rather
+  than folding an out-of-order change into whichever boundary is
+  currently open.
 - **CodeCompass's `codecompass index`/`sync` proposing an automated edit
   to Ledgerkit's root `CLAUDE.md`** — must be reviewed, not blindly
   applied; `CLAUDE.md` is Ledgerkit's own governance document even though
@@ -677,7 +853,7 @@ otherwise, stop and re-scope rather than silently expanding.
   bug** — mitigated by `context-curator`'s independent verdict role and
   explicit instruction (§5) to keep the two separate in the writeup.
 - **Scope creep into `tag:`/`cur:`/`PythonRegex`/`Query`-as-shim** — this
-  document's own §6.4 names these as explicitly out; any implementation
+  document's own §6.5 names these as explicitly out; any implementation
   pressure toward them should stop and re-scope, per the task's own
   instruction, not be absorbed quietly.
 - **Over-crediting CodeCompass or over-blaming it** — mitigated by §1.9's
@@ -711,9 +887,13 @@ outputs:
 6. ⬜ Baseline discovery/context result captured for the real task,
    before implementation — §4.
 7. ⬜ `ledgerkit/query/` integrated into `balance`/`register`/`accounts`/
-   `stats` and CLI `-q` — §6.
-8. ⬜ Query semantics not duplicated across reports — one shared internal
-   check, confirmed by code review at completion.
+   `stats` and CLI `-q`, via whichever API shape §6.1's gate resolved —
+   §6.
+8. ⬜ Query semantics not duplicated across reports — each report
+   delegates to the canonical `ledgerkit.query.eval.matches_posting` or
+   `matches_transaction` per its own orientation (§6.3), confirmed by
+   code review at completion that no `reports.py`-local re-derivation of
+   AST match logic was introduced.
 9. ⬜ Unit + CLI integration tests exist and pass — §7.1.
 10. ⬜ Full existing regression suite (656+ tests) stays green.
 11. ⬜ Representative hledger differential cases run against the pinned
@@ -735,6 +915,28 @@ outputs:
 19. ⬜ Evidence-backed recommendations for future CodeCompass work exist
     (the `CC-LK-NNN` finding(s)' `proposed_generalised_improvement`).
 20. ⬜ Next Ledgerkit phase proposed, not started — §13.
+
+**Added by this amendment (2026-09-16), same status as items 3-20 above
+— not yet done, tracked here so they aren't silently dropped from the
+completion checklist:**
+
+21. ⬜ The API-boundary decision gate (§6.1) resolved and recorded in
+    `knowledge/DECISIONS.md` **before** any `reports.py` code was
+    written, and **before** any `dev-docs/api-spec.md` change (if the
+    resolved option required one at all).
+22. ⬜ `reports.py`'s module-size flag (§1.4a) acknowledged in the
+    retro/closeout; no unilateral refactor/split occurred this phase; any
+    genuine refactor pressure recorded as a §13 follow-on candidate, not
+    resolved here.
+23. ⬜ The three commit boundaries (§2, §10) were actually kept separate
+    in the real commit history — checkable directly via `git log` at
+    completion (CodeCompass baseline artifacts; query/report/CLI
+    implementation + its feature docs; context evaluation + retro +
+    closeout), not merged into one large commit.
+24. ⬜ The phase objective itself is unchanged and was not diluted by any
+    of the above: current CodeCompass used unmodified on genuine
+    Ledgerkit work, its context independently evaluated, findings fed
+    back without modifying CodeCompass during the experiment.
 
 **This phase is not complete until the user explicitly confirms it**, per
 `ROADMAP.md`'s own standing process — the checklist above is the
@@ -758,6 +960,12 @@ pre-decided now:
 - **Stage C Phase N — `Query`-as-compatibility-shim over `QueryNode`**
   (`07-query-regex.md` §6.5's original target) — the larger, deferred
   architectural change this phase deliberately did not attempt.
+- **`reports.py` module split** (per the Module Size & Refactoring flag,
+  §1.4a) — only if this phase's own additions, or accumulated pressure
+  since, make the file's 573+ lines genuinely hard to work in; proposed
+  as a split (candidate sub-module names, what moves where) for explicit
+  approval, per `CLAUDE.md`'s existing process, never started
+  unilaterally.
 - **A second CodeCompass-assisted Ledgerkit phase**, deliberately chosen
   to differ in *task shape* from both this phase and CodeCompass's own
   Phase 46/54 (e.g. a debugging task, or a cross-file refactor) — if

@@ -9,6 +9,42 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### Amended Stage C Phase 2 plan per review findings — 2026-09-16
+
+Full detail: [dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md](dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md) (amendment note at top)
+
+**Human:** directed four specific amendments to the just-written Stage C
+Phase 2 plan, without otherwise redesigning the phase: add an API-
+boundary decision gate before any new public `query_ast=` parameter;
+replace "one shared internal filtering check" with delegation to the
+canonical `matches_posting`/`matches_transaction` evaluators by report
+orientation; acknowledge `reports.py`'s current size against the module-
+size threshold; and separate CodeCompass-adoption artifacts from feature
+implementation into distinct commits.
+
+**Claude:** rewrote §6 (query/report integration design) to present the
+API-boundary choice as an explicit three-option gate (new public
+parameter / overloaded existing parameter / internal-only, no API change)
+resolved *before* any `api-spec.md` change, added as its own phase step
+so it can't be silently skipped; rewrote the `reports.py` design to name
+`ledgerkit.query.eval.matches_posting`/`matches_transaction` as the only
+delegation targets, explicitly ruling out a new `reports.py`-local
+wrapper that would re-derive AST semantics a second time; added §1.4a
+recording `reports.py` at 573 lines (confirmed live via `wc -l`) against
+`CLAUDE.md`'s 300–500-line refactor-signal threshold, with any resulting
+refactor pressure routed to follow-on work, never this phase, per the
+Module Size & Refactoring rule's existing flag-propose-wait process;
+threaded a three-commit-boundary structure (CodeCompass baseline
+artifacts; query/report/CLI implementation + its feature docs; context
+evaluation + retro + closeout) through the phase steps, task breakdown,
+and doc-update table. Updated risks and added Definition-of-Done items
+21-24 for the four changes, without renumbering the original 20-item
+list. The phase's stated objective is unchanged. Retro:
+`dev-docs/retros/STAGE-C-PHASE-2-PLAN-AMENDMENT.md`. No `ledgerkit/`/
+`tests/` code touched — planning only.
+
+---
+
 ### [Stage C Phase 2 — Planning: CodeCompass adoption + query integration] — 2026-09-16
 
 Full detail: [dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md](dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md)
