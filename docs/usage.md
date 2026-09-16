@@ -68,11 +68,13 @@ commodity symbol must match exactly — `£` and `GBP` are two distinct identifi
 
 ### `-q` / `--query` — Filter reports by a query string
 
-Filters `balance`, `register`, `accounts`, and `stats` by a space-separated
-query string. Supports `acct:`/bare pattern, `desc:`, `date:` (simple dates
-only), `depth:`, `status:`, and `not:` — see
+Filters `balance`, `register`, `accounts`, `stats`, and `print` by a
+space-separated query string. Supports `acct:`/bare pattern, `desc:`,
+`date:` (simple dates only), `depth:`, `status:`, and `not:` — see
 [`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
-for the full term reference. Not supported by `print` or `check`.
+for the full term reference. Not supported by `check` (checks apply to
+the whole journal by design). For `print`, a matching transaction is
+shown **whole** — every posting, not just the one(s) that matched.
 
 ```bash
 # Only food-related accounts
@@ -156,9 +158,12 @@ On success: no output, exit code 0. On failure: errors printed to stderr, exit c
 ### `print` — Display transactions
 
 Prints all transactions from the journal in a human-readable format.
+Supports `-q`/`--query` (see above) — a matching transaction is printed
+in full, all its postings included.
 
 ```bash
 ledgerkit print myledger.journal
+ledgerkit print -f myledger.journal -q "acct:food"
 ```
 
 Example output:

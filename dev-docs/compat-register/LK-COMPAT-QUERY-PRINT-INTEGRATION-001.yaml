@@ -1,0 +1,63 @@
+# Proposed and verified same-session, Stage C Phase 3 (print -q
+# integration) — differential-tested directly against the pinned hledger
+# 1.52.4 binary as part of implementation, not proposed-then-deferred.
+
+id: LK-COMPAT-QUERY-PRINT-INTEGRATION-001
+area: query.print_integration
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `print` command, when a query matches a transaction (i.e.
+  matchesTransaction is true — "any posting matches" for Acct/Depth,
+  direct check for Desc/Status/Date), displays the ENTIRE transaction —
+  every posting, unfiltered within it — not just the posting(s) that
+  individually matched. Confirmed directly: `hledger print depth:1` on a
+  fixture with no depth-1-or-shallower postings at all still showed every
+  transaction completely unfiltered (a separate, still-open observation
+  about depth: + print specifically — see LK-COMPAT-QUERY-DEPTH-001 and
+  knowledge/EDGE_CASES.md EC-017 — not resolved by this entry, which is
+  about the *display-granularity* behaviour of print+query generally, not
+  depth: specifically). Ledgerkit's `-q` integration into `print`
+  (Stage C Phase 3) implements the same whole-transaction display: `cli.py`
+  filters `journal.transactions` via `ledgerkit.query.eval.
+  matches_transaction`, then prints every posting of each matching
+  transaction unchanged — never a per-posting filter within print's own
+  output. Confirmed identical to hledger for acct:/not:/status: queries
+  on the same fixture (formatting differences only).
+
+implementation:
+  - ledgerkit/cli.py (print command branch)
+  - ledgerkit/query/eval.py:matches_transaction
+
+tests:
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_print_query_filters_whole_transactions
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_print_no_match_query_exits_zero_empty
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_print_status_query
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (hledger.1:7224-7226, \"transaction-oriented commands... try to match transactions (including the transaction's postings)\")"
+    pinned_at: "1.52.4"
+  - kind: executable
+    ref: >
+      hledger -f tests/fixtures/filtered.journal print acct:food /
+      not:food / status:* vs. ledgerkit -f tests/fixtures/filtered.journal
+      print -q "acct:food" / "not:acct:food" / "status:*" — identical
+      transactions/postings shown (formatting differences only). Stage C
+      Phase 3.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+status: verified
+verified_by: "Claude (lead session, Stage C Phase 3 implementation)"
+verified_date: "2026-09-17"

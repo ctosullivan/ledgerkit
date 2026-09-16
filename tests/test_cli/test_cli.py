@@ -337,7 +337,7 @@ class TestBalanceAssertions(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestQueryFlag(unittest.TestCase):
-    """CLI-level tests for -q/--query across balance/register/accounts/stats."""
+    """CLI-level tests for -q/--query across balance/register/accounts/stats/print."""
 
     def _run(self, *args: str) -> tuple[int, str, str]:
         """Run main() with the given args; return (exit_code, stdout, stderr)."""
@@ -424,6 +424,50 @@ class TestQueryFlag(unittest.TestCase):
         )
         self.assertEqual(code, 1)
         self.assertIn("invalid query", err)
+
+    def test_print_query_filters_whole_transactions(self):
+        # print shows the WHOLE matching transaction (all its postings),
+        # not just the matching posting -- matches hledger's own print
+        # depth:/acct: behaviour (differential-verified).
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:food", "print"
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("Supermarket", out)
+        self.assertIn("Coffee", out)
+        self.assertIn("assets:bank:checking", out)  # the *other* posting on the matching txn
+        self.assertNotIn("Opening balance", out)
+        self.assertNotIn("Rent", out)
+
+    def test_print_unfiltered_regression(self):
+        _, out_a, _ = self._run("-f", str(FILTERED_JOURNAL), "print")
+        _, out_b, _ = self._run("-f", str(FILTERED_JOURNAL), "print")
+        self.assertEqual(out_a, out_b)
+        self.assertEqual(out_a.count("\n\n"), 6)  # 6 transactions in filtered.journal
+
+    def test_print_no_match_query_exits_zero_empty(self):
+        code, out, err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:doesnotexist", "print"
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(out, "")
+        self.assertEqual(err, "")
+
+    def test_print_malformed_query_exits_one(self):
+        code, out, err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:(", "print"
+        )
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("invalid query", err)
+
+    def test_print_status_query(self):
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "status:*", "print"
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(out.count("2024-01-15") + out.count("2024-03-05"), 2)
+        self.assertNotIn("Opening balance", out)
 
 
 if __name__ == "__main__":

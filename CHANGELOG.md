@@ -9,6 +9,31 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 3 — Wire `-q`/`--query` into `print`] — 2026-09-17
+
+Full detail: [dev-docs/retros/STAGE-C-PHASE-3.md](dev-docs/retros/STAGE-C-PHASE-3.md)
+
+**Human:** directed commencing the next phase; Stage C Phase 2's own
+retro had already named this as the recommended candidate.
+
+**Claude:** wired `-q`/`--query` into `print` — `cli.py` filters
+`journal.transactions` directly via `ledgerkit.query.eval.
+matches_transaction` (print has no `reports.py` function of its own to
+carry a `_query_ast` parameter). Confirmed against hledger's actual
+`print` behaviour before assuming the design: a matching transaction is
+shown **whole** (every posting, not just the matching one(s)) — verified
+directly (`print depth:1`, `print acct:food`) rather than assumed from
+the other four commands' pattern. Differential-tested against the pinned
+hledger 1.52.4 binary for `acct:`/`not:`/`status:` — identical output
+(formatting differences only). Added `LK-COMPAT-QUERY-PRINT-
+INTEGRATION-001` (`status: verified` from the start). Updated
+`dev-docs/hledger-compatibility.md`, `docs/usage.md`, and
+`dev-docs/architecture.md` for the new integration path. 5 new tests —
+684 total, all passing. `dev-docs/api-spec.md` unchanged (no new public
+function/parameter). Only `check` remains unwired from `-q`, by design.
+
+---
+
 ### [Stage C Phase 2, commit 3/3 — context evaluation + closeout] — 2026-09-16
 
 Full detail: [validation/codecompass/findings/CC-LK-001.md](validation/codecompass/findings/CC-LK-001.md), [dev-docs/retros/STAGE-C-PHASE-2.md](dev-docs/retros/STAGE-C-PHASE-2.md)

@@ -110,7 +110,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Filter using a query string (see ledgerkit.query), e.g. "
             "'acct:food date:2024'. Applies to balance, register, accounts, "
-            "and stats."
+            "stats, and print."
         ),
     )
     p.add_argument(
@@ -230,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ledgerkit: invalid -c value {override_str!r}: {exc}", file=sys.stderr)
             return 1
 
-    # --- Parse -q/--query, if given (applies to balance/register/accounts/stats) ---
+    # --- Parse -q/--query, if given (applies to balance/register/accounts/stats/print) ---
     query_ast = None
     if getattr(args, "query_text", None):
         from ledgerkit.query import parse as _parse_query
@@ -399,7 +399,12 @@ def main(argv: list[str] | None = None) -> int:
                     print(name)
 
             elif args.command == "print":
+                if query_ast is not None:
+                    from ledgerkit.query import matches_transaction as _query_ast_matches_transaction
+
                 for txn in sorted(journal.transactions, key=lambda t: t.date):
+                    if query_ast is not None and not _query_ast_matches_transaction(query_ast, txn):
+                        continue
                     flag = " * " if txn.cleared else " ! " if txn.pending else " "
                     print(f"{txn.date}{flag}{txn.description}")
                     for posting in txn.postings:

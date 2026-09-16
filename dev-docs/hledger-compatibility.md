@@ -199,17 +199,23 @@ The assertion amount must be the same commodity as the posting amount (or the co
 ## Query Language (Stage C)
 
 **Wired into the CLI's `-q`/`--query` flag** (`balance`, `register`,
-`accounts`, `stats` — Stage C Phase 2) via a **private, internal-only**
-integration (`reports.py`'s `_query_ast` parameter — not part of the
-public, documented API; see `knowledge/DECISIONS.md`, 2026-09-16, and
-`dev-docs/api-spec.md`, which is deliberately unchanged by this). Query
-text is parsed into a `QueryNode` AST and evaluated directly against
-`Transaction`/`Posting` objects via `ledgerkit.query.eval.
-matches_posting`/`matches_transaction`; see `dev-docs/api-spec.md`'s
+`accounts`, `stats` — Stage C Phase 2; `print` — Stage C Phase 3) via a
+**private, internal-only** integration (`reports.py`'s `_query_ast`
+parameter for the first four; `cli.py`'s own local filtering, using the
+same `ledgerkit.query.eval.matches_transaction`, for `print` — neither is
+part of the public, documented API; see `knowledge/DECISIONS.md`,
+2026-09-16, and `dev-docs/api-spec.md`, which is deliberately unchanged by
+either). Query text is parsed into a `QueryNode` AST and evaluated
+directly against `Transaction`/`Posting` objects via `ledgerkit.query.
+eval.matches_posting`/`matches_transaction`; see `dev-docs/api-spec.md`'s
 `ledgerkit/query/` section for that subpackage's own public API and
 `dev-docs/planning/core-redefinition/17-query-semantics-brief.md` for the
-hledger-source-verified semantics grounding each row below. `print` and
-`check` do not accept `-q` — see Undecided/Future.
+hledger-source-verified semantics grounding each row below. `print -q`
+shows the **whole** matching transaction (every posting, unfiltered
+within it) when any posting/the transaction itself matches — differential-
+verified against hledger's own `print` behaviour, which does the same.
+`check` does not accept `-q` — checks apply to the whole journal by
+design.
 
 | Term | Example | Notes |
 |---|---|---|
