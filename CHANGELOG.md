@@ -9,6 +9,38 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 2, commit 1/3 — CodeCompass baseline] — 2026-09-16
+
+Full detail: [validation/codecompass/findings/CC-LK-001-baseline-evidence.md](validation/codecompass/findings/CC-LK-001-baseline-evidence.md)
+
+**Human:** directed implementing the (amended) Stage C Phase 2 plan.
+
+**Claude:** ran `codecompass` (the real CLI, via its own separate `.venv`
+— not added to Ledgerkit's own dependencies) against the live Ledgerkit
+repo for the first time ever, per the plan's phase step 2. `query
+vendors` empty (predicted — 0 mandatory deps). `query relations` on
+three real, load-bearing docs (`hledger-compatibility.md`,
+`07-query-regex.md`, `17-query-semantics-brief.md`) returned "tracked,
+zero relations" — confirmed CodeCompass's own Phase 49 fix generalises to
+the live repo, including a file that postdates the commit that fix was
+verified against. `query relations` on a `.py` source file produced a
+correctly-disambiguated "not a spec/vendor doc" message, a case type not
+previously tested. `codecompass --budget 0` auto-modified Ledgerkit's own
+`CLAUDE.md` (an empty routing-table block) without being asked — reviewed
+per the plan's explicit instruction, then reverted rather than kept, since
+it currently adds zero value. All CodeCompass-generated artifacts
+(`vendor.toml`, `context-graph.db`, generated Skill/discovery files)
+cleaned from the working tree after capturing evidence — nothing
+CodeCompass-generated persists in the Ledgerkit repo, consistent with
+"development tooling, never a runtime dependency." No Phase B
+AI-enrichment cost incurred (the one `sync` attempt's cost-disclosure
+prompt was declined non-interactively, as intended). `ROADMAP.md`'s Stage
+C row updated. This is commit boundary 1 of 3 for this phase (§2/§10 of
+the plan) — feature implementation and context evaluation/closeout follow
+as separate commits.
+
+---
+
 ### Amended Stage C Phase 2 plan per review findings — 2026-09-16
 
 Full detail: [dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md](dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md) (amendment note at top)
