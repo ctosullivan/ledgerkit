@@ -9,6 +9,43 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 2, commit 3/3 — context evaluation + closeout] — 2026-09-16
+
+Full detail: [validation/codecompass/findings/CC-LK-001.md](validation/codecompass/findings/CC-LK-001.md), [dev-docs/retros/STAGE-C-PHASE-2.md](dev-docs/retros/STAGE-C-PHASE-2.md)
+
+**Human:** directed implementing the plan; no further direction this
+commit boundary.
+
+**Claude:** independently evaluated the CodeCompass context captured in
+commit 1/3 against `05-context-curator.md`'s existing schema and produced
+`validation/codecompass/findings/CC-LK-001.{yaml,md}` — Ledgerkit's first
+real CodeCompass context-quality finding. Verdict: PASS WITH GAPS,
+context advantage LOW — CodeCompass returned honest emptiness (not a
+false "not found"), but contributed nothing to the actual implementation
+work, which was done entirely from direct source reading. Corroborates
+two already-filed CodeCompass gaps (`CG-003`: no executable/behavioural
+technical-dependency concept; `CG-004`: no doc-to-doc relation mechanism)
+from a genuinely new angle — a real implementation task on the live repo,
+not semantics research on a pinned/scratch copy, which is how every prior
+CodeCompass-side evaluation of Ledgerkit ran. Recommendation:
+`collect_more_evidence`, priority `medium` — not proposing new
+CodeCompass work, just independent confirmation for whoever resolves
+GATE DD. Wrote the phase retro (`dev-docs/retros/STAGE-C-PHASE-2.md`),
+which records honestly that differential verification (commit 2/3) was
+performed directly by the lead rather than via a separately-dispatched
+`compat-differential-tester` agent as the plan's own design specified —
+a real process gap, not hidden. Recommendation on CodeCompass joining the
+default workflow: not yet warranted (six consistent LOW-advantage data
+points now, across both usage directions). `ROADMAP.md`'s Stage C row
+updated to "Phase 2 done"; Stage C itself remains `[IN PROGRESS]` (not
+marked done — more phases remain, and only the user confirms a Stage's
+own completion). Confirmed the `/home/cormac/projects/codecompass`
+repository was never modified at any point this phase (`git status`/
+`git log` unchanged from `e40d8d1` throughout). Next phase proposed
+(wiring `-q` into `print`) but not started.
+
+---
+
 ### [Stage C Phase 2, commit 2/3 — query/report/CLI integration] — 2026-09-16
 
 Full detail: [dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md](dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md) §6

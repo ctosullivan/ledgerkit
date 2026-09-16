@@ -1,0 +1,135 @@
+id: CC-LK-001
+ledgerkit_revision: 27c410d
+codecompass_revision: e40d8d1
+task_or_session: >
+  Stage C Phase 2 — integrating the existing ledgerkit/query/ subpackage
+  into reports.py/cli.py (a new -q/--query CLI flag), Ledgerkit's own
+  first-ever real use of the actual codecompass CLI against its own live
+  repository (not a pinned commit or scratch copy, which is how
+  CodeCompass's own prior Phase 45/46/51/54 self-evaluations were run).
+date: "2026-09-16"
+
+problem_statement: >
+  Two distinct needs during this task: (1) discovery — what does
+  Ledgerkit already have (report/CLI architecture, existing filter
+  conventions, the query engine's own shape) that the integration should
+  build on, and how do the relevant docs (dev-docs/hledger-compatibility.md,
+  07-query-regex.md, 17-query-semantics-brief.md) relate to each other and
+  to ledgerkit/reports.py/cli.py? (2) whether CodeCompass's generated
+  entry points (root CLAUDE.md routing table, the generated Skill,
+  /discovery) would have oriented a fresh agent toward the right files/
+  conventions for this specific task.
+
+context_supplied:
+  what_codecompass_returned: >
+    `codecompass --budget 0` (bare, first run against the real repo):
+    bootstrapped an empty vendor.toml (0 vendors), auto-inserted an empty
+    codecompass:start/end routing-table block into CLAUDE.md, generated a
+    generic .claude/skills/codecompass/SKILL.md and .claude/commands/
+    discovery.md (content matching CodeCompass's own generic test fixture
+    template near-verbatim — nothing Ledgerkit-specific). `query vendors
+    --json` -> []. `query skills --json` -> the two generated artifacts
+    themselves, mentions_vendors: [], mentions_source_files: [] for both.
+    `query relations` on dev-docs/hledger-compatibility.md,
+    07-query-regex.md, and 17-query-semantics-brief.md (all three real,
+    directly relevant to this task) -> "(none)" for every one — tracked
+    (not a false "not found", confirming CodeCompass's own Phase 49 fix
+    generalises to the live repo), but zero relations recorded, including
+    no relation between the two dev-docs files to each other despite them
+    being obviously topically connected (07-query-regex.md is literally
+    the plan document 17-query-semantics-brief.md was researched to
+    implement). `query relations ledgerkit/reports.py` -> a correctly-
+    disambiguated "exists as a file but was not detected as a spec/vendor
+    doc" message (accurate — .py source files are outside query relations'
+    documented scope), not a false "not found".
+  edges_or_relations_involved: []
+  suggested_edges_involved: false
+
+independent_evaluation:
+  accuracy: adequate
+  relevance: weak
+  completeness: weak
+  freshness: n/a
+  grounding: adequate
+  noise: strong
+  misleading: false
+  outcome: "PASS WITH GAPS"
+
+context_advantage: LOW
+context_advantage_rationale: >
+  A fresh competent agent doing this exact integration task would get
+  materially the same (zero) starting advantage from CodeCompass's output
+  as from simply opening reports.py and cli.py directly — which is what
+  actually happened: the real implementation (the new _query_ast
+  parameter, the -q CLI flag, the fix to a latent regex-parsing bug, two
+  real CLI bugs found via hledger differential testing) was done entirely
+  from direct source reading and the existing plan document, not from
+  anything CodeCompass surfaced. This is not a case of CodeCompass being
+  wrong — it returned honest emptiness, not a confident false answer
+  (contrast the pre-Phase-49 "not found" FAIL mode) — so this is a clean,
+  expected LOW result, not a defect. It is genuinely new evidence though:
+  every prior CodeCompass-side Ledgerkit evaluation (Phase 45/46/51/54)
+  ran against a pinned commit or a scratch copy, from CodeCompass's own
+  repository, on a semantics-research task; this is the first time the
+  real codecompass CLI has been run from inside the live Ledgerkit repo,
+  by Ledgerkit's own context-curator role, on an implementation
+  (not research) task.
+
+missing_or_manually_rediscovered:
+  - "reports.py's existing shared _posting_matches helper (used by all four report functions already) — found by reading reports.py directly."
+  - "cli.py's argparse flag conventions and existing error-handling pattern for -c/--commodity-style — found by reading cli.py directly, then mirrored for -q's own error handling."
+  - "The exact relationship between the new ledgerkit/query/ subpackage's matches_posting/matches_transaction functions and where each report should delegate to which — found by reading ledgerkit/query/eval.py directly and the Stage C Phase 1 retro/semantics brief, not from anything CodeCompass surfaced."
+  - "The latent regex-parser bug (malformed-but-not-excluded-construct patterns raising a raw re.error instead of QueryParseError) — found by manually smoke-testing the new CLI flag, not from any CodeCompass output."
+  - "Both real CLI bugs (empty-balance-result formatting, the max() crash) and the LK-COMPAT-QUERY-DEPTH-001 misclassification — found entirely through direct differential testing against the pinned hledger binary, a category of evidence (executable comparison against reference material) CodeCompass has no representation for at all (corroborates CG-003)."
+
+impact:
+  - missing_context
+  - missing_relationship
+  - missing_technical_dependency_type
+
+proposed_generalised_improvement: >
+  Two distinct, already-filed CodeCompass gaps are independently
+  corroborated by this task from a genuinely new angle (a real
+  implementation task on the live repo, not a semantics-research task on
+  a pinned/scratch copy): (1) CodeCompass needs relationships between
+  project documentation artifacts themselves, not just literal vendor/
+  Skill name-mention detection — this task's own three dev-docs files are
+  a concrete, real example of topically-obvious documents CodeCompass's
+  current mechanism structurally cannot relate to each other (matches
+  CG-004's own framing: spec_doc rows never get a `name` populated, so
+  mentions_artifact can never match them — not proposing a new mechanism
+  here, just confirming the existing diagnosis holds on new material).
+  (2) CodeCompass needs a way to represent non-package technical
+  dependencies with an executable/behavioural component — a reference CLI
+  tool (here, the pinned hledger binary) used to verify claims by running
+  it, not just reading about it — as a first-class graph concept, not
+  something entirely outside the tool's model (matches CG-003's own
+  framing). Neither is a new proposal; both are corroborating evidence
+  from independent, first-ever live-repo usage, for whoever resolves GATE
+  DD (Phase 55, not yet started as of CodeCompass revision e40d8d1).
+
+evidence:
+  - session_evidence: "This conversation session, Stage C Phase 2 implementation, 2026-09-16"
+    ledgerkit_files:
+      - "validation/codecompass/findings/CC-LK-001-baseline-evidence.md"
+      - "ledgerkit/reports.py"
+      - "ledgerkit/cli.py"
+      - "ledgerkit/query/parser.py"
+      - "dev-docs/hledger-compatibility.md"
+      - "dev-docs/planning/core-redefinition/07-query-regex.md"
+      - "dev-docs/planning/core-redefinition/17-query-semantics-brief.md"
+      - "dev-docs/compat-register/LK-COMPAT-QUERY-DEPTH-001.yaml"
+      - "knowledge/EDGE_CASES.md (EC-016, EC-017)"
+    hledger_evidence:
+      - "hledger 1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger), differential runs against tests/fixtures/filtered.journal"
+    codecompass_output: "validation/codecompass/findings/CC-LK-001-baseline-evidence.md (full transcripts)"
+    related_findings: []
+
+recommendation: collect_more_evidence
+priority_proposed: medium
+priority_note: >
+  Proposed based on impact — this is independent corroboration of two
+  already-filed, already-triaged CodeCompass gaps (CG-003, CG-004) from a
+  new task angle, not a novel discovery demanding urgent action. Final
+  prioritisation, including whether this tips GATE DD's still-open
+  decision, is CodeCompass's own review, not Ledgerkit's call.
