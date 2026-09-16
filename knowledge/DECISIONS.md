@@ -4,6 +4,62 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 ---
 
+## 2026-09-16 — Stage C Phase 2's query/report integration is internal-only this phase; no new public API surface
+
+**Decision:** `reports.py`'s `accounts`/`balance`/`register`/`stats`
+gain a **private**, leading-underscore keyword parameter
+(`_query_ast: ledgerkit.query.QueryNode | None = None`) rather than a
+new public `query_ast=` parameter. `cli.py`'s new `-q`/`--query` flag
+parses text to a `QueryNode` via `ledgerkit.query.parse` and passes it
+through this private parameter. `dev-docs/api-spec.md` is **not**
+updated this phase — the private parameter is explicitly not part of the
+documented, stable contract those four functions carry.
+
+**Why:** per `18-stage-c-phase-2-codecompass-adoption-plan.md` §6.1's own
+decision criteria — prefer the option with the smallest committed public
+surface absent a concrete reason otherwise. No known caller needs
+`QueryNode` at the public `reports.py` level today: `ledgerkit-editor`'s
+confirmed usage (Stage B Phase 1 finding) is `Query`-only, and no other
+external consumer of `reports.py` is known to exist. Adding a new public
+parameter (or widening `query`'s existing type) now would commit to an
+API shape before any real caller has demonstrated needing it — exactly
+the "temporary second public query interface" risk the plan's own
+amendment (2026-09-16) was written to avoid. A leading-underscore keyword
+avoids both the Journal-copying/elision-resolution risk a CLI-side pre-
+filtering approach would have introduced (filtering postings out of a
+transaction *before* `resolve_elision` runs would corrupt elided-amount
+inference, since elision needs the full, unfiltered posting set) and the
+premature-public-surface risk of a fully public new parameter — it
+reuses each report's existing per-posting loop exactly where the
+existing `Query`-based `_posting_matches` check already sits.
+
+**What was rejected:**
+- **A new public `query_ast=` parameter** (the original plan draft's
+  default) — rejected per the amendment's own finding 1; no demonstrated
+  caller need yet.
+- **Overloading `query`'s existing type** to `Query | QueryNode` — same
+  objection; still a public signature change committed without a
+  demonstrated need, and risks `isinstance`-dispatch bugs for the sake of
+  avoiding a second parameter name that isn't otherwise a real problem at
+  private-parameter scope.
+- **CLI-side pre-filtering of the Journal/transaction list** before
+  calling the unchanged public report functions — rejected specifically
+  because it would filter postings out of a transaction before
+  `resolve_elision(txn)` runs, corrupting elided-amount inference for any
+  query that excludes some but not all of a transaction's postings; the
+  in-loop private-parameter approach avoids this because filtering still
+  happens per-posting, after elision resolution, exactly where the
+  existing `Query` check already happens.
+
+**Follow-up:** if a real public, library-level need for `QueryNode`-based
+filtering at the `reports.py` level surfaces (e.g. `ledgerkit-editor`
+adopting the new query engine directly, or another consumer), promoting
+`_query_ast` to a documented public parameter — or resolving §6.1's
+options A/B properly — is a natural, evidence-backed follow-on, not a
+reason to revisit this decision speculatively now.
+
+---
+
 ## 2026-09-13 — Pinned hledger reference binary confirmed and formally recorded as the compat-differential-tester target
 
 **Decision:** `/home/cormac/.local/bin/hledger` (`hledger

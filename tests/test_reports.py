@@ -938,5 +938,106 @@ class TestBalanceMultiCommodity(unittest.TestCase):
         self.assertEqual(commodities, {"£", "$", "€"})
 
 
+# ---------------------------------------------------------------------------
+# _query_ast (Stage C Phase 2 — private, internal-only ledgerkit.query
+# integration; see knowledge/DECISIONS.md, 2026-09-16)
+# ---------------------------------------------------------------------------
+
+class TestQueryAstIntegration(unittest.TestCase):
+    """_query_ast support across accounts/balance/register/stats.
+
+    filtered.journal: 6 transactions, 2024-01-01..2024-03-05. Two are
+    cleared (2024-01-15, 2024-03-05 Salary); the rest are unmarked.
+    """
+
+    def setUp(self):
+        self.journal = load_journal(FILTERED_JOURNAL)
+
+    def test_accounts_filters_by_query_ast(self):
+        from ledgerkit.query.ast import Acct
+        result = accounts(self.journal, _query_ast=Acct("food"))
+        self.assertEqual(result, ["expenses:food:coffee", "expenses:food:groceries"])
+
+    def test_accounts_no_match_query_ast_returns_empty(self):
+        from ledgerkit.query.ast import Acct
+        result = accounts(self.journal, _query_ast=Acct("doesnotexist"))
+        self.assertEqual(result, [])
+
+    def test_balance_filters_by_query_ast(self):
+        from ledgerkit.query.ast import Acct
+        result = balance(self.journal, _query_ast=Acct("food"))
+        self.assertEqual(set(result.keys()), {"expenses:food:coffee", "expenses:food:groceries"})
+        self.assertEqual(result["expenses:food:coffee"]["£"], Decimal("9.00"))
+
+    def test_balance_depth_node_excludes_rather_than_truncates(self):
+        # Unlike Query.depth (which truncates displayed account names),
+        # a Depth AST node is a pure exclusion predicate: postings whose
+        # account is deeper than N are dropped entirely, and the account
+        # name is never rolled up. See reports.balance()'s own docstring.
+        from ledgerkit.query.ast import Depth
+        result = balance(self.journal, _query_ast=Depth(1))
+        self.assertNotIn("expenses:food:coffee", result)
+        self.assertNotIn("expenses:housing:rent", result)
+        for acct in result:
+            self.assertNotIn(":", acct)
+
+    def test_register_filters_by_query_ast(self):
+        from ledgerkit.query.ast import Desc
+        rows = register(self.journal, _query_ast=Desc("salary"))
+        self.assertTrue(all("salary" in r.description.lower() for r in rows))
+        self.assertTrue(len(rows) > 0)
+
+    def test_register_status_query_ast(self):
+        from ledgerkit.query.ast import Status, TxnStatus
+        rows = register(self.journal, _query_ast=Status(TxnStatus.CLEARED))
+        self.assertTrue(all(r.description == "Salary" for r in rows))
+
+    def test_stats_filters_by_query_ast_via_matches_transaction(self):
+        from ledgerkit.query.ast import Status, TxnStatus
+        s = stats(self.journal, _query_ast=Status(TxnStatus.CLEARED))
+        self.assertEqual(s.transaction_count, 2)
+
+    def test_stats_unmarked_query_ast(self):
+        from ledgerkit.query.ast import Status, TxnStatus
+        s = stats(self.journal, _query_ast=Status(TxnStatus.UNMARKED))
+        self.assertEqual(s.transaction_count, 4)
+
+    def test_query_and_query_ast_combine_with_and(self):
+        # Both supplied: a posting must satisfy both — Query(account=...)
+        # AND the AST predicate, not either alone.
+        from ledgerkit.query.ast import Desc
+        result = accounts(
+            self.journal,
+            query=Query(account="expenses"),
+            _query_ast=Desc("rent"),
+        )
+        self.assertEqual(result, ["expenses:housing:rent"])
+
+    def test_query_and_query_ast_and_excludes_when_only_one_matches(self):
+        from ledgerkit.query.ast import Desc
+        # account="income" matches income:salary, but desc "rent" doesn't
+        # match any Salary transaction — AND means no rows.
+        result = accounts(
+            self.journal,
+            query=Query(account="income"),
+            _query_ast=Desc("rent"),
+        )
+        self.assertEqual(result, [])
+
+    def test_query_ast_none_is_unfiltered_regression(self):
+        # Default (no _query_ast) must behave exactly as before this
+        # integration — a plain regression check, not a new behaviour.
+        self.assertEqual(accounts(self.journal), accounts(self.journal, _query_ast=None))
+        self.assertEqual(balance(self.journal), balance(self.journal, _query_ast=None))
+        self.assertEqual(
+            [r.account for r in register(self.journal)],
+            [r.account for r in register(self.journal, _query_ast=None)],
+        )
+        self.assertEqual(
+            stats(self.journal).transaction_count,
+            stats(self.journal, _query_ast=None).transaction_count,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

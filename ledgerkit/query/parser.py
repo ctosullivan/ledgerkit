@@ -21,7 +21,7 @@ import datetime
 import re
 
 from ledgerkit.query.ast import Acct, And, DateSpan, Depth, Desc, Not, Or, QueryNode, Status, TxnStatus
-from ledgerkit.query.regex import validate_hledger_regex
+from ledgerkit.query.regex import compile_hledger_regex
 
 
 class QueryParseError(ValueError):
@@ -166,17 +166,24 @@ def _parse_date_token(token: str) -> datetime.date:
 
 
 def _build_acct(value: str) -> Acct:
+    # compile_hledger_regex both validates against the HledgerRegex subset
+    # (raises UnsupportedRegexConstructError, a ValueError) and confirms the
+    # pattern is syntactically valid Python regex at all (raises re.error) —
+    # catching both here means a malformed pattern (e.g. an unterminated
+    # group, "acct:(") fails at parse time with a clear QueryParseError,
+    # rather than surfacing as a raw re.error later, deep inside eval.py's
+    # matching, the first time a posting is actually checked against it.
     try:
-        validate_hledger_regex(value)
-    except ValueError as exc:
+        compile_hledger_regex(value)
+    except (ValueError, re.error) as exc:
         raise QueryParseError(f"acct: {exc}") from exc
     return Acct(value)
 
 
 def _build_desc(value: str) -> Desc:
     try:
-        validate_hledger_regex(value)
-    except ValueError as exc:
+        compile_hledger_regex(value)
+    except (ValueError, re.error) as exc:
         raise QueryParseError(f"desc: {exc}") from exc
     return Desc(value)
 

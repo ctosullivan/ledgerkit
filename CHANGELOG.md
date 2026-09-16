@@ -9,6 +9,52 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 2, commit 2/3 — query/report/CLI integration] — 2026-09-16
+
+Full detail: [dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md](dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md) §6
+
+**Human:** directed implementing the plan.
+
+**Claude:** resolved the API-boundary decision gate (`knowledge/
+DECISIONS.md`, 2026-09-16): `reports.py`'s `accounts`/`balance`/
+`register`/`stats` gain a **private**, non-public `_query_ast` keyword
+parameter — no new public API surface, `dev-docs/api-spec.md` untouched.
+Each report delegates to the canonical `ledgerkit.query.eval.
+matches_posting` (posting-oriented reports) or `matches_transaction`
+(`stats`) directly, per report orientation, rather than a new shared
+wrapper. Added `cli.py`'s `-q`/`--query` flag, threading the parsed
+`QueryNode` into all four commands. Fixed a real, previously-latent bug in
+`ledgerkit/query/parser.py`: a syntactically invalid (but not excluded-
+construct) regex now raises `QueryParseError` at parse time instead of a
+raw `re.error` surfacing later inside `eval.py`.
+
+**Differential-verified against the pinned hledger 1.52.4 binary**
+(representative cases: simple account query, negation, date range,
+status, multiple conditions, report integration, no-match, malformed
+query) — found and fixed two real, previously-unreachable CLI bugs
+(`balance` printed nothing at all for a zero-match query instead of
+hledger's separator+`0`; fixing that exposed a `max()` crash on the same
+empty-result path — `knowledge/EDGE_CASES.md` EC-016), and **corrected a
+Stage C Phase 1 misclassification**: `LK-COMPAT-QUERY-DEPTH-001` claimed
+`compatible`/`equivalent` from source-reading alone, but real hledger
+`balance`/`register depth:N` truncate-and-aggregate rather than exclude —
+reclassified `intentional_divergence`/`incomparable`, `status: verified`
+(`knowledge/EDGE_CASES.md` EC-017). Five other Stage C Phase 1 entries
+(`ACCT`, `DESC`, `DATE`, `STATUS`, `BOOLCOMBINE`) moved `proposed` →
+`verified` with executable evidence. Updated `dev-docs/hledger-
+compatibility.md`'s Query Language section, `docs/usage.md` (new `-q`
+flag, with the `depth:` caveat), and `dev-docs/architecture.md` (one
+paragraph placing `ledgerkit/query/` in the pipeline). Added 23 new tests
+(11 `reports.py`, 9 CLI, 3 regex-error regression) — 679 total, all
+passing.
+
+**Process note:** differential verification was performed directly by the
+lead session this response, not via a separately-dispatched
+`compat-differential-tester` agent as the plan's agent-role design
+intended — recorded honestly in the retro (commit 3/3), not hidden.
+
+---
+
 ### [Stage C Phase 2, commit 1/3 — CodeCompass baseline] — 2026-09-16
 
 Full detail: [validation/codecompass/findings/CC-LK-001-baseline-evidence.md](validation/codecompass/findings/CC-LK-001-baseline-evidence.md)

@@ -58,7 +58,19 @@ evidence:
   - kind: source
     ref: "hledger-lib/Hledger/Query.hs:217-223 (combineQueriesByType), 656-674 (queryIsAcct/queryIsDesc/queryIsStatus — unnegated-only), 296-299 (Not construction/recursion)"
     pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      hledger -f tests/fixtures/filtered.journal balance not:food vs.
+      ledgerkit -f tests/fixtures/filtered.journal balance -q
+      "not:acct:food" (identical accounts/amounts); hledger balance
+      expenses status:* vs. ledgerkit balance -q "acct:expenses status:*"
+      (both: zero matching postings). Confirms not: negation and
+      different-prefix AND against the real binary. The negated-same-
+      prefix case (e.g. "not:acct:a not:acct:b") was NOT differential-
+      tested this session — still the register entry's own noted
+      priority gap, not closed by this evidence. Stage C Phase 2.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
-verified_by: null
-verified_date: null
+status: verified
+verified_by: "Claude (lead session, Stage C Phase 2 implementation — not a separately-dispatched compat-differential-tester agent; see dev-docs/retros/STAGE-C-PHASE-2.md)"
+verified_date: "2026-09-16"

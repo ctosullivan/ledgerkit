@@ -168,6 +168,25 @@ class TestNotAndCombination(unittest.TestCase):
         )
 
 
+class TestMalformedRegexRaisesAtParseTime(unittest.TestCase):
+    """Stage C Phase 2 fix: a syntactically-invalid (but not excluded-
+    construct) regex must fail at parse time with QueryParseError, not
+    surface as a raw re.error later inside ledgerkit.query.eval the first
+    time a posting is actually checked against it."""
+
+    def test_unterminated_group_in_acct(self):
+        with self.assertRaises(QueryParseError):
+            parse("acct:(")
+
+    def test_unterminated_group_in_desc(self):
+        with self.assertRaises(QueryParseError):
+            parse("desc:(")
+
+    def test_unbalanced_bracket(self):
+        with self.assertRaises(QueryParseError):
+            parse("acct:[abc")
+
+
 class TestEmptyQuery(unittest.TestCase):
     def test_empty_string_matches_everything(self):
         self.assertEqual(parse(""), And(()))

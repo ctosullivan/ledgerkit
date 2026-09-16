@@ -104,6 +104,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Disable balance assertion checking",
     )
     p.add_argument(
+        "-q", "--query",
+        dest="query_text",
+        metavar="TERMS",
+        help=(
+            "Filter using a query string (see ledgerkit.query), e.g. "
+            "'acct:food date:2024'. Applies to balance, register, accounts, "
+            "and stats."
+        ),
+    )
+    p.add_argument(
         "-c", "--commodity-style",
         dest="commodity_styles_override",
         action="append",
@@ -220,6 +230,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ledgerkit: invalid -c value {override_str!r}: {exc}", file=sys.stderr)
             return 1
 
+    # --- Parse -q/--query, if given (applies to balance/register/accounts/stats) ---
+    query_ast = None
+    if getattr(args, "query_text", None):
+        from ledgerkit.query import parse as _parse_query
+        from ledgerkit.query import QueryParseError as _QueryParseError
+        try:
+            query_ast = _parse_query(args.query_text)
+        except _QueryParseError as exc:
+            print(f"ledgerkit: invalid query: {exc}", file=sys.stderr)
+            return 1
+
     # --- Default basic-check gate (runs before every command) ---
     from ledgerkit import checks as _checks
 
@@ -273,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
 
         with contextlib.redirect_stdout(outfile) if outfile else contextlib.nullcontext():
             if args.command == "balance":
-                result = reports.balance(journal)
+                result = reports.balance(journal, _query_ast=query_ast)
                 # result: dict[str, dict[str, Decimal]] — account → commodity → net
 
                 # Flatten to (account, commodity, qty) rows; sorted alphabetically.
@@ -285,63 +306,69 @@ def main(argv: list[str] | None = None) -> int:
                     if qty != 0
                 ]
 
-                if not lines:
-                    pass
-                else:
-                    # Per-commodity grand totals (from filtered lines only).
-                    commodity_totals: dict[str, Decimal] = {}
-                    for _, comm, qty in lines:
-                        commodity_totals[comm] = commodity_totals.get(comm, Decimal(0)) + qty
+                # Per-commodity grand totals (from filtered lines only). This
+                # always runs, even when `lines` is empty (e.g. a -q filter
+                # matches nothing) — hledger prints a separator + bare "0"
+                # total line in that case too, rather than no output at all;
+                # this was unreachable from the CLI before -q existed (no
+                # prior CLI flag could ever make `balance` see zero matching
+                # postings against a real journal), so the gap was latent
+                # until this phase's differential testing exercised it.
+                commodity_totals: dict[str, Decimal] = {}
+                for _, comm, qty in lines:
+                    commodity_totals[comm] = commodity_totals.get(comm, Decimal(0)) + qty
 
-                    formatted_amts = [
-                        _fmt_amount(qty, comm, commodity_styles.get(comm))
-                        for _, comm, qty in lines
-                    ]
-                    # Only show non-zero commodity totals; a single bare "0" when all net zero.
-                    nonzero_totals = [
-                        (comm, qty)
-                        for comm, qty in sorted(commodity_totals.items())
-                        if qty != 0
-                    ]
-                    total_strs = [
-                        _fmt_amount(qty, comm, commodity_styles.get(comm))
-                        for comm, qty in nonzero_totals
-                    ]
-                    col_w = max(
-                        20,
-                        *(len(s) for s in formatted_amts),
-                        *(len(s) for s in total_strs),
-                    )
+                formatted_amts = [
+                    _fmt_amount(qty, comm, commodity_styles.get(comm))
+                    for _, comm, qty in lines
+                ]
+                # Only show non-zero commodity totals; a single bare "0" when all net zero.
+                nonzero_totals = [
+                    (comm, qty)
+                    for comm, qty in sorted(commodity_totals.items())
+                    if qty != 0
+                ]
+                total_strs = [
+                    _fmt_amount(qty, comm, commodity_styles.get(comm))
+                    for comm, qty in nonzero_totals
+                ]
+                # A list literal (not `max(20, *gens)`) is required here:
+                # when both generators are empty (e.g. a -q filter matches
+                # nothing), `max(20, *[], *[])` degenerates to `max(20)` —
+                # a single non-iterable argument, which max() treats as an
+                # iterable to reduce over and raises TypeError on, rather
+                # than as "the sole candidate value 20".
+                col_w = max([20] + [len(s) for s in formatted_amts] + [len(s) for s in total_strs])
 
-                    # Determine the last (account, commodity) row index per account
-                    # so the account name is printed only on that row.
-                    acct_last_idx: dict[str, int] = {
-                        acct: i for i, (acct, _, _) in enumerate(lines)
-                    }
+                # Determine the last (account, commodity) row index per account
+                # so the account name is printed only on that row.
+                acct_last_idx: dict[str, int] = {
+                    acct: i for i, (acct, _, _) in enumerate(lines)
+                }
 
-                    for i, ((acct, comm, qty), amt_str) in enumerate(
-                        zip(lines, formatted_amts)
-                    ):
-                        padded = f"{amt_str:>{col_w}}"
-                        if qty < 0:
-                            padded = f"{_ANSI_RED}{padded}{_ANSI_RESET}"
-                        if i == acct_last_idx[acct]:
-                            print(f"{padded}  {acct}")
-                        else:
-                            print(padded)
-
-                    print("-" * col_w)
-                    if nonzero_totals:
-                        for (comm, total), tot_str in zip(nonzero_totals, total_strs):
-                            tot = f"{tot_str:>{col_w}}"
-                            if total < 0:
-                                tot = f"{_ANSI_RED}{tot}{_ANSI_RESET}"
-                            print(tot)
+                for i, ((acct, comm, qty), amt_str) in enumerate(
+                    zip(lines, formatted_amts)
+                ):
+                    padded = f"{amt_str:>{col_w}}"
+                    if qty < 0:
+                        padded = f"{_ANSI_RED}{padded}{_ANSI_RESET}"
+                    if i == acct_last_idx[acct]:
+                        print(f"{padded}  {acct}")
                     else:
-                        print(f"{'0':>{col_w}}")
+                        print(padded)
+
+                print("-" * col_w)
+                if nonzero_totals:
+                    for (comm, total), tot_str in zip(nonzero_totals, total_strs):
+                        tot = f"{tot_str:>{col_w}}"
+                        if total < 0:
+                            tot = f"{_ANSI_RED}{tot}{_ANSI_RESET}"
+                        print(tot)
+                else:
+                    print(f"{'0':>{col_w}}")
 
             elif args.command == "register":
-                rows = reports.register(journal)
+                rows = reports.register(journal, _query_ast=query_ast)
                 prev_key: tuple | None = None
                 for row in rows:
                     cur_key = (row.date, row.description)
@@ -368,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
                     prev_key = cur_key
 
             elif args.command == "accounts":
-                for name in reports.accounts(journal):
+                for name in reports.accounts(journal, _query_ast=query_ast):
                     print(name)
 
             elif args.command == "print":
@@ -389,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
                     print()
 
             elif args.command == "stats":
-                s = reports.stats(journal)
+                s = reports.stats(journal, _query_ast=query_ast)
                 elapsed = time.perf_counter() - _PROGRAM_START
                 txns_per_s = s.transaction_count / elapsed if elapsed > 0 else 0.0
 

@@ -332,5 +332,99 @@ class TestBalanceAssertions(unittest.TestCase):
         self.assertEqual(code, 0)
 
 
+# ---------------------------------------------------------------------------
+# -q / --query flag (Stage C Phase 2)
+# ---------------------------------------------------------------------------
+
+class TestQueryFlag(unittest.TestCase):
+    """CLI-level tests for -q/--query across balance/register/accounts/stats."""
+
+    def _run(self, *args: str) -> tuple[int, str, str]:
+        """Run main() with the given args; return (exit_code, stdout, stderr)."""
+        with patch("sys.argv", ["ledgerkit", *args]):
+            out = StringIO()
+            err = StringIO()
+            with patch("sys.stdout", out), patch("sys.stderr", err):
+                code = main()
+        return (code, out.getvalue(), err.getvalue())
+
+    def test_balance_query_filters_output(self):
+        code, out, _err = self._run("-f", str(FILTERED_JOURNAL), "-q", "acct:food", "balance")
+        self.assertEqual(code, 0)
+        self.assertIn("expenses:food:coffee", out)
+        self.assertIn("expenses:food:groceries", out)
+        self.assertNotIn("expenses:housing:rent", out)
+
+    def test_balance_unfiltered_unaffected_by_flag_absence(self):
+        # Regression: identical output with and without an unrelated flag present.
+        _, out_no_flag, _ = self._run("-f", str(FILTERED_JOURNAL), "balance")
+        _, out_empty_flag, _ = self._run("-f", str(FILTERED_JOURNAL), "balance")
+        self.assertEqual(out_no_flag, out_empty_flag)
+
+    def test_register_query_filters_output(self):
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "desc:rent", "register"
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("Rent", out)
+        self.assertNotIn("Salary", out)
+
+    def test_accounts_query_filters_output(self):
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:food", "accounts"
+        )
+        self.assertEqual(code, 0)
+        lines = [l for l in out.splitlines() if l]
+        self.assertEqual(sorted(lines), ["expenses:food:coffee", "expenses:food:groceries"])
+
+    def test_stats_query_filters_transaction_count(self):
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "status:*", "stats"
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("Txns                : 2", out)
+
+    def test_multi_term_query(self):
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:expenses status:*", "accounts"
+        )
+        self.assertEqual(code, 0)
+        # No expense postings are on cleared transactions in filtered.journal
+        # (only the two Salary transactions are cleared) -> AND of the two
+        # conditions matches nothing. accounts' CLI output has no separator/
+        # zero-total convention (unlike balance) -- genuinely empty here.
+        self.assertEqual(out.strip(), "")
+
+    def test_no_match_query_exits_zero(self):
+        # hledger prints a separator + bare "0" total line for a query that
+        # matches nothing, rather than no output at all — confirmed against
+        # the pinned hledger binary (differential check, Stage C Phase 2
+        # §7.2) and matched here (a real, pre-existing CLI defect this
+        # phase's differential testing surfaced and fixed — see
+        # knowledge/EDGE_CASES.md).
+        code, out, err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:doesnotexist", "balance"
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("-" * 20, out)
+        self.assertIn("0", out.strip().splitlines()[-1])
+        self.assertEqual(err, "")
+
+    def test_malformed_query_exits_one_with_clear_message(self):
+        code, out, err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:(", "balance"
+        )
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("invalid query", err)
+
+    def test_unsupported_regex_construct_exits_one(self):
+        code, _out, err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", r"acct:\d+", "balance"
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("invalid query", err)
+
+
 if __name__ == "__main__":
     unittest.main()

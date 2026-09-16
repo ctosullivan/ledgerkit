@@ -25,6 +25,9 @@ from ledgerkit.models import (
     Transaction,
 )
 from ledgerkit.parser import resolve_elision
+from ledgerkit.query.ast import QueryNode
+from ledgerkit.query.eval import matches_posting as _query_ast_matches_posting
+from ledgerkit.query.eval import matches_transaction as _query_ast_matches_transaction
 
 
 # ---------------------------------------------------------------------------
@@ -314,12 +317,21 @@ def _build_balance_tree(
 # Report functions
 # ---------------------------------------------------------------------------
 
-def accounts(journal: Journal, query: Query | None = None) -> list[str]:
+def accounts(
+    journal: Journal,
+    query: Query | None = None,
+    _query_ast: QueryNode | None = None,
+) -> list[str]:
     """Return a sorted list of all unique account names in the journal.
 
     Args:
         journal: The parsed journal.
         query: Optional filter. When None or Query(), all accounts are returned.
+        _query_ast: Private, internal-only filter (a ledgerkit.query.QueryNode)
+            used by the CLI's -q/--query flag. Not part of the stable public
+            API — see knowledge/DECISIONS.md, 2026-09-16 ("Stage C Phase 2's
+            query/report integration is internal-only this phase"). AND'd
+            with `query` when both are supplied.
 
     Returns:
         Sorted list of account name strings that appear in at least one
@@ -328,8 +340,11 @@ def accounts(journal: Journal, query: Query | None = None) -> list[str]:
     seen: set[str] = set()
     for txn in journal.transactions:
         for posting in txn.postings:
-            if _posting_matches(posting, txn, query):
-                seen.add(posting.account)
+            if not _posting_matches(posting, txn, query):
+                continue
+            if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting):
+                continue
+            seen.add(posting.account)
     return AccountsResult(sorted(seen))
 
 
@@ -337,6 +352,7 @@ def balance(
     journal: Journal,
     query: Query | None = None,
     tree: bool = False,
+    _query_ast: QueryNode | None = None,
 ) -> dict[str, dict[str, Decimal]] | list[BalanceRow]:
     """Return per-commodity net balances for each account.
 
@@ -347,6 +363,13 @@ def balance(
               and aggregate subtotals. When False (default), returns a flat
               dict[str, dict[str, Decimal]] mapping account name to a
               commodity→net dict.
+        _query_ast: Private, internal-only filter (a ledgerkit.query.QueryNode)
+            used by the CLI's -q/--query flag. Not part of the stable public
+            API — see knowledge/DECISIONS.md, 2026-09-16. AND'd with `query`
+            when both are supplied. Unlike `query`, _query_ast has no depth
+            term with truncation semantics — a Depth node in the AST excludes
+            postings (the query.eval predicate meaning), it does not truncate
+            displayed account names.
 
     Returns:
         When tree=False: dict mapping account name to {commodity: net_balance}.
@@ -369,6 +392,8 @@ def balance(
         for posting in resolve_elision(txn):
             if not _posting_matches(posting, txn, matching_query):
                 continue
+            if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting):
+                continue
             if posting.amount is None:
                 continue
             account = posting.account
@@ -388,12 +413,17 @@ def balance(
 def register(
     journal: Journal,
     query: Query | None = None,
+    _query_ast: QueryNode | None = None,
 ) -> list[RegisterRow]:
     """Return a chronological list of register rows.
 
     Args:
         journal: The parsed journal.
         query: Optional filter. When None or Query(), all postings are included.
+        _query_ast: Private, internal-only filter (a ledgerkit.query.QueryNode)
+            used by the CLI's -q/--query flag. Not part of the stable public
+            API — see knowledge/DECISIONS.md, 2026-09-16. AND'd with `query`
+            when both are supplied.
 
     Returns:
         List of RegisterRow objects in journal order. running_balance is the
@@ -404,6 +434,8 @@ def register(
     for txn in sorted(journal.transactions, key=lambda t: t.date):
         for posting in resolve_elision(txn):
             if not _posting_matches(posting, txn, query):
+                continue
+            if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting):
                 continue
             if posting.amount is None:
                 continue
@@ -418,7 +450,11 @@ def register(
     return RegisterResult(rows, journal.commodity_styles)
 
 
-def stats(journal: Journal, query: Query | None = None) -> JournalStats:
+def stats(
+    journal: Journal,
+    query: Query | None = None,
+    _query_ast: QueryNode | None = None,
+) -> JournalStats:
     """Return summary statistics for the journal.
 
     Args:
@@ -427,6 +463,13 @@ def stats(journal: Journal, query: Query | None = None) -> JournalStats:
                the original implementation (all transactions). When a date or
                payee filter is provided, statistics are computed over the
                matching transaction subset.
+        _query_ast: Private, internal-only filter (a ledgerkit.query.QueryNode)
+            used by the CLI's -q/--query flag. Not part of the stable public
+            API — see knowledge/DECISIONS.md, 2026-09-16. Applied via
+            ledgerkit.query.eval.matches_transaction (stats is transaction-
+            oriented — it filters the transaction list, not individual
+            postings, matching its own existing query= filtering above).
+            AND'd with `query` when both are supplied.
 
     Note: account-level filters (account, not_account, depth) in the query are
     not yet applied to stats fields — those fields still reflect the full
@@ -444,6 +487,8 @@ def stats(journal: Journal, query: Query | None = None) -> JournalStats:
             and (query.date_to is None or t.date <= query.date_to)
             and (query.payee is None or _matches_pattern(query.payee, t.description))
         ]
+    if _query_ast is not None:
+        txns = [t for t in txns if _query_ast_matches_transaction(_query_ast, t)]
 
     all_accounts: set[str] = {p.account for t in txns for p in t.postings}
     all_commodities: set[str] = {

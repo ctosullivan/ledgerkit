@@ -32,6 +32,18 @@ Journal file(s) (.journal / .ledger)
   [ _pandas_compat.py ]   ← Lazy pandas import helper (optional dependency)
 ```
 
+**`ledgerkit/query/`** (Stage C) sits alongside this pipeline rather than
+strictly within its linear flow: `cli.py` parses a `-q`/`--query` string
+via `ledgerkit.query.parser.parse()` into a `QueryNode` AST, and
+`reports.py`'s report functions delegate per-posting/per-transaction
+filtering to `ledgerkit.query.eval.matches_posting`/`matches_transaction`
+via a private, internal-only parameter (`_query_ast` — not part of the
+public API; see `knowledge/DECISIONS.md`, 2026-09-16). `ledgerkit/query/`
+does not import from `reports.py`, `cli.py`, or `checks.py` — only from
+`models.py` — so the existing "each module imports only from modules
+below it" principle still holds with `query/` sitting at the same layer
+as `models.py`.
+
 ---
 
 ## Module Responsibilities

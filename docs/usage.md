@@ -66,6 +66,42 @@ commodity symbol must match exactly — `£` and `GBP` are two distinct identifi
 
 ---
 
+### `-q` / `--query` — Filter reports by a query string
+
+Filters `balance`, `register`, `accounts`, and `stats` by a space-separated
+query string. Supports `acct:`/bare pattern, `desc:`, `date:` (simple dates
+only), `depth:`, `status:`, and `not:` — see
+[`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
+for the full term reference. Not supported by `print` or `check`.
+
+```bash
+# Only food-related accounts
+ledgerkit -f myledger.journal -q "acct:food" balance
+
+# Cleared transactions in January 2024
+ledgerkit -f myledger.journal -q "status:* date:2024-01-01..2024-02-01" register
+
+# Multiple terms of the same prefix OR; different prefixes AND
+ledgerkit -f myledger.journal -q "acct:food acct:rent status:*" balance
+```
+
+Quote a multi-word pattern: `-q 'desc:"whole foods"'`. An invalid query
+string (bad syntax, or a regex construct outside the supported subset)
+prints an error and exits 1; a query matching nothing exits 0 with an
+otherwise-empty (or, for `balance`, a bare `0` total) result — not an
+error.
+
+**`depth:N` here does not behave like hledger's own `depth:`/`--depth`.**
+hledger's `depth:` truncates and aggregates deeper accounts into their
+depth-N ancestor; `-q "depth:N"` here **excludes** postings deeper than N
+entirely instead — `balance -q "depth:1"` can return zero rows where
+`hledger balance depth:1` would show aggregated totals for every
+top-level account. See
+[`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
+for the full explanation.
+
+---
+
 ### `-s` / `--strict` — Strict mode
 
 By default ledgerkit checks that every transaction balances (the `autobalanced`

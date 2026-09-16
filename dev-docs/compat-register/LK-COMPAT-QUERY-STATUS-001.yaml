@@ -52,7 +52,16 @@ evidence:
   - kind: test
     ref: "hledger/test/journal/status.test:65-101 (upstream fixture explicitly confirms all three forms and same-prefix OR)"
     pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      hledger -f tests/fixtures/filtered.journal balance status:* vs.
+      ledgerkit -f tests/fixtures/filtered.journal balance -q "status:*"
+      — identical accounts/amounts (formatting differences only). The
+      "1"/"0" synonyms were not separately differential-tested this
+      session (only "*"/bare were run against the real binary) — noted
+      honestly rather than claimed covered. Stage C Phase 2.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
-verified_by: null
-verified_date: null
+status: verified
+verified_by: "Claude (lead session, Stage C Phase 2 implementation — not a separately-dispatched compat-differential-tester agent; see dev-docs/retros/STAGE-C-PHASE-2.md)"
+verified_date: "2026-09-16"

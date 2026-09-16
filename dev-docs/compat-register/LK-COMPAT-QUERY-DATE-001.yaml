@@ -51,7 +51,17 @@ evidence:
   - kind: source
     ref: "hledger-lib/Hledger/Data/Dates.hs:429 (single-date span), 1132-1148 (doubledatespanp, exclusive end)"
     pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      hledger -f tests/fixtures/filtered.journal balance
+      date:2024-01-01..2024-02-01 vs. ledgerkit -f
+      tests/fixtures/filtered.journal balance -q
+      "date:2024-01-01..2024-02-01" — identical accounts/amounts
+      (formatting differences only), confirming the exclusive-end-date
+      semantics against the real binary, not just source reading.
+      Stage C Phase 2.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
-verified_by: null
-verified_date: null
+status: verified
+verified_by: "Claude (lead session, Stage C Phase 2 implementation — not a separately-dispatched compat-differential-tester agent; see dev-docs/retros/STAGE-C-PHASE-2.md)"
+verified_date: "2026-09-16"

@@ -4,6 +4,66 @@ Human-identified cases that are non-obvious or would be easy to regress. Each en
 
 ---
 
+## EC-016 — `balance` CLI output for a query matching zero postings
+
+**Trigger:** `-q`/`--query` (or, in principle, any future `-a`-style filter)
+narrows `balance`'s result to zero matching postings.
+**Expected behaviour:** Print a separator line and a bare `0` total line
+(matching real hledger's own `balance` output for a zero-match query,
+confirmed by differential test against the pinned hledger 1.52.4 binary,
+Stage C Phase 2). Exit 0 — a zero-match query is not an error.
+**Found:** This was unreachable from the CLI before the `-q` flag existed
+(no prior CLI mechanism could make `balance` see zero matching postings
+against a real journal), so the gap was latent. Two bugs, found together
+via differential testing: (1) `cli.py`'s `balance` branch printed nothing
+at all for zero matching lines instead of the separator+`0`; (2) fixing
+(1) exposed a second, real crash bug — `max(20, *(empty gen), *(empty
+gen))` degenerates to `max(20)`, a single non-iterable argument, which
+Python's `max()` raises `TypeError` on (`'int' object is not iterable`)
+rather than treating as "the sole candidate value 20". Both fixed in the
+same phase.
+**Status:** Handled ✓ (`tests/test_cli/test_cli.py::TestQueryFlag::
+test_no_match_query_exits_zero`). Fix: always compute/print the totals
+block (removed the `if not lines: pass` short-circuit); `col_w` computed
+via `max([20] + [...] + [...])` (a single list argument) instead of
+`max(20, *gen, *gen)`.
+
+## EC-017 — `-q "depth:N"` does not truncate/aggregate `balance` output like hledger's own `depth:`/`--depth`
+
+**Trigger:** `ledgerkit balance -q "depth:N"`, compared against `hledger
+balance depth:N` / `hledger balance --depth N` on the same journal.
+**Expected vs actual:** hledger's `depth:`/`--depth` **truncates and
+rolls up** deeper accounts into their depth-N ancestor, still showing
+aggregated totals (e.g. `depth:1` on a journal with `expenses:food` and
+`expenses:housing` shows one `expenses` row summing both). Ledgerkit's
+`ledgerkit.query.ast.Depth` (via `-q`) is a pure **exclusion** predicate —
+`accountNameLevel(account) <= N` — so a posting deeper than N is dropped
+entirely, not rolled up; `-q "depth:1"` against a journal with no
+depth-1-or-shallower postings returns **zero rows**, not aggregated
+totals. Confirmed via live differential test against the pinned hledger
+1.52.4 binary, Stage C Phase 2 (`hledger -f filtered.journal balance
+--depth 1` shows 4 aggregated rows; `ledgerkit -f filtered.journal
+balance -q "depth:1"` shows none).
+**Why this is intentional, not a bug:** `17-query-semantics-brief.md` §4
+scoped this deliberately — "recommend Stage C treat `depth:N` strictly as
+the `QueryAST` boolean predicate... depth-driven display truncation/
+aggregation for `balance`/`register` is separate report-layer work, not
+something the `QueryAST` evaluator itself should attempt (it isn't a pure
+predicate — it changes what account name gets displayed)." The existing
+`Query.depth` field (used without `-q`) still does the truncation hledger
+users expect for `balance` — this gap is specific to the new `-q`
+flag's `depth:` term, not a regression in existing behaviour.
+**Status:** Documented, not fixed — `LK-DIV-QUERY-DEPTH-001` (compat-
+register), `dev-docs/hledger-compatibility.md`'s Query Language section,
+and `docs/usage.md` all carry this caveat explicitly so a user reaching
+for `-q "depth:N"` on `balance` isn't surprised. Fixing it (making `-q
+depth:N` truncate for `balance` specifically) is a real follow-on
+candidate, not attempted this phase (would require `-q`'s depth handling
+to interact with `balance`'s existing truncation logic in a report-
+specific way the plan's own scope explicitly deferred).
+
+---
+
 ## EC-001 — `end comment` outside a block comment
 
 **Trigger:** `end comment` appears in a file with no preceding `comment` directive.
