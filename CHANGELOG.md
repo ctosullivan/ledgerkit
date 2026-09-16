@@ -9,6 +9,45 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 2 — Planning: CodeCompass adoption + query integration] — 2026-09-16
+
+Full detail: [dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md](dev-docs/planning/core-redefinition/18-stage-c-phase-2-codecompass-adoption-plan.md)
+
+**Human:** directed planning (not implementing) the next Ledgerkit phase:
+adopt current CodeCompass, as it exists today, during a real query/
+report/CLI integration task, with a detailed 11-point current-state
+inspection required first and 13 specific planning outputs.
+
+**Claude:** inspected Ledgerkit's current main (656 tests green),
+`CLAUDE.md`, `ROADMAP.md`/`CONTEXT.md` (no discrepancy found), the
+Stage C Phase 1 query engine, `reports.py`/`cli.py` (found `reports.py`
+already shares one filter helper across all four report functions — the
+real gap is a missing `query_ast` path plus zero CLI query flags, not
+duplicated filtering logic as the request's own illustrative framing
+suggested), the compat-register/pinned-hledger infrastructure, and
+`validation/codecompass/`'s existing (unused) findings scaffold.
+Separately inspected the actual current CodeCompass repository
+(`e40d8d1`) in full and found it has already run six of its own phases
+(45, 46, 47, 49, 51, 54) evaluating itself against Ledgerkit as an
+external reference project — including a FAIL→fix→PASS-WITH-GAPS cycle
+on `query relations` and a same-day (2026-09-16) experiment touching
+`tag:`-query-semantics reference material — none of which is Ledgerkit
+itself adopting CodeCompass (all were CodeCompass-side, against a pinned
+commit or scratch copy). Wrote `18-stage-c-phase-2-codecompass-adoption-
+plan.md`: pinned revisions, current-state reconciliation, a phase plan
+reusing existing agent roles (`compat-differential-tester`,
+`context-curator`) and existing schemas (`05-context-curator.md`'s
+evaluation format, `validation/codecompass/`'s templates) rather than
+inventing new infrastructure, a concrete `reports.py`/`cli.py`
+integration design, a representative hledger differential-test plan, and
+an explicit list of what this phase and its follow-ons must not absorb
+(`tag:`/`cur:`/`PythonRegex`/`Query`-as-shim). `ROADMAP.md`'s Stage C row
+updated to point at the plan; Phase 2 itself not started, awaiting
+approval. Retro: `dev-docs/retros/STAGE-C-PHASE-2-PLAN.md`. No
+`ledgerkit/`/`tests/` code touched — planning only, as directed.
+
+---
+
 ### Confirmed and pinned the hledger reference binary — 2026-09-13
 
 **Human:** directed running a command to verify hledger availability and
