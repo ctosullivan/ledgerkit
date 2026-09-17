@@ -9,6 +9,34 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 5, commit 1/N — process amendment: verification independence] — 2026-09-17
+
+Full detail: [dev-docs/planning/core-redefinition/09-compatibility-system.md](dev-docs/planning/core-redefinition/09-compatibility-system.md) §9.6
+
+**Human:** approved the Phase 5 plan's recommended options for all six
+gates ("proceed as recommended"), including G-PROCESS-1 (adopt the
+tiered verification-independence rule as specified) and G-PROCESS-2
+(relabel the 11 existing lead-self-verified entries now rather than
+re-dispatching independent review on all of them immediately).
+
+**Claude:** amended `09-compatibility-system.md` with new §9.6
+(claim-strength-tiered process: Tier 0 ordinary work needs nothing new;
+Tier 2 — first promotion to `verified`, or any change to an already-
+`verified`/`final` entry's `kind` — must come from an actual
+`compat-differential-tester` Agent dispatch's own output, never written
+by the implementing session directly; the retro must name the dispatch
+for each; `release-phase-auditor` checks this). Added `status:
+self-verified` to `dev-docs/compat-register/schema.md` and cross-
+referenced it from `README.md`, and updated both
+`compat-differential-tester.md`/`release-phase-auditor.md` agent role
+files. Relabelled all 11 existing lead-self-verified entries (Phases
+2-4) from `verified` to `self-verified`, each with a note recording the
+relabel and pointing at the new process section — evidence and reasoning
+in every entry left exactly as written, only the status/framing
+corrected. No `ledgerkit/`/`tests/` code touched this commit.
+
+---
+
 ### [Stage C Phase 5 — Planning: verification independence + `depth:` semantics] — 2026-09-17
 
 Full detail: [dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md](dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md), [dev-docs/retros/STAGE-C-PHASE-5-PLAN.md](dev-docs/retros/STAGE-C-PHASE-5-PLAN.md)

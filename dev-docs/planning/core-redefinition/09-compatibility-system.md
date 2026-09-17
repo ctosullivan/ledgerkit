@@ -106,18 +106,22 @@ evidence:
     ref: <URL, file:line, or command run>
     pinned_at: <version/commit, for source/executable evidence>
 
-status: proposed | verified | final
+status: proposed | self-verified | verified | final
 verified_by: <agent/person>
 verified_date: <YYYY-MM-DD>
 ```
 
 `status` tracks the register entry's own lifecycle (separate from `kind`,
 which is the compatibility classification itself): `proposed` (by
-`hledger-researcher`, not yet executable-verified), `verified`
-(`compat-differential-tester` has run the comparison), `final` (docs
-reconciled, register entry cross-linked from `hledger-compatibility.md`).
-An entry with `kind: unexplained_mismatch` can only be `status: verified`
-— by definition it hasn't been resolved into a final classification yet.
+`hledger-researcher`, not yet executable-verified), `self-verified` (an
+actual hledger-vs-Ledgerkit comparison was run, with real command output,
+but by the same identity/session that implemented the feature under test
+— see §9.6), `verified` (`compat-differential-tester`, dispatched
+separately from the implementing session, has run the comparison
+independently), `final` (docs reconciled, register entry cross-linked
+from `hledger-compatibility.md`). An entry with `kind:
+unexplained_mismatch` can only be `status: verified` — by definition it
+hasn't been resolved into a final classification yet.
 
 ## 9.4 Relationship between documentation, source, executable, implementation, tests
 
@@ -171,3 +175,57 @@ entries — this is transcription-with-verification, not new analysis:
   as `status: proposed` initially and verified as Stage A's compatibility-
   harness work runs through them, not asserted `verified` from the
   existing manual-only documentation.
+
+## 9.6 Verification independence (amended Stage C Phase 5, 2026-09-17)
+
+An audit of every register entry ever moved past `status: proposed`
+across Stage C Phases 2-4 (`dev-docs/planning/core-redefinition/
+21-stage-c-phase-5-depth-and-verification-plan.md` §1.1) found all 11 of
+them were marked `verified` by the same session that implemented the
+feature being classified — never by a separately-dispatched
+`compat-differential-tester`, despite that role's own charter ("the only
+role authorised to move a compat-register entry out of status:proposed")
+already saying otherwise. This section makes that independence
+structurally checkable rather than a convention to remember.
+
+**Process overhead scales with claim strength, not change size:**
+
+| Tier | Trigger | Requirement |
+|---|---|---|
+| 0 — no compatibility claim change | Ordinary implementation/refactor/bugfix touching no register entry's `kind`/`relationship`/`status` | Normal lead verification (tests + judgment). No dispatch. |
+| 1 — proposed classification | A new entry drafted, or an existing entry's `reason`/`kind` proposed to change, not yet promoted past `proposed` | `hledger-researcher` (or the lead reading source/manual directly) proposes freely — already the correctly-followed process. |
+| 2 — promotion to independently-verified truth | An entry's `status` is set to `verified` for the **first time**, or an already-`verified`/`final` entry's `kind`/`relationship` changes | MUST come from an actual `compat-differential-tester` Agent dispatch's own returned output. The lead never writes `status: verified` into a register YAML directly — see §9.3's `self-verified` value for what to use instead when independent review is deferred. |
+| 3 — finalisation | `status: final` | Requires doc reconciliation (unchanged) AND the Tier 2 evidence packet (below) referenced from the entry, not just asserted to exist. |
+
+Tier 0 is deliberately unchanged from today — the overwhelming majority
+of day-to-day work never touches a register entry's `status`/`kind` at
+all and is completely unaffected by this section.
+
+**Making Tier 2 checkable, not just a convention:** a phase's retro
+(`dev-docs/retros/`, already mandatory) must name, for every register
+entry it touches, whether the entry ended the phase at `self-verified` or
+`verified` — and if `verified`, cite the specific `compat-differential-
+tester` dispatch that produced it. `release-phase-auditor` checks, for
+any entry newly at `status: verified`/`final` in a phase's diff, that the
+retro names an actual dispatch for it — a non-blocking observation if
+not (it never repairs what it audits; it surfaces, the user decides).
+
+**Evidence packet** — a fixed, compact shape the lead hands a Tier 2
+dispatch so it never has to reconstruct context from scratch:
+
+```
+Ledgerkit revision:      <commit hash>
+Upstream revision:       hledger <version>, commit <hash>, binary <exact version string>
+Register entry:          <LK-...-NNN id(s) affected>
+Fixture(s):              <path(s) under tests/fixtures/, or fixture text to create>
+Commands to run:         <exact hledger command> vs <exact ledgerkit command>, per scenario
+Proposed interpretation: <kind + relationship the lead believes applies, and why>
+Prior evidence:          <what the lead already observed, explicitly labelled
+                          self-verified / not yet independent>
+```
+
+`compat-differential-tester.md` already has the correct hard rules for
+what happens once it receives this packet (never edit `ledgerkit/` to
+make a mismatch disappear; report findings back, don't silently fix
+them) — this section changes when it must be invoked, not what it does
+once invoked.

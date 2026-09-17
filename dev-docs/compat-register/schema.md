@@ -51,10 +51,21 @@ evidence:
     ref: <URL, file:line, or exact command run>
     pinned_at: <version or commit — required for source/executable evidence>
 
-status: proposed | verified | final
-  # proposed — hledger-researcher's reading; not yet run against the real binary
-  # verified — compat-differential-tester has executed the comparison
-  # final    — docs reconciled and cross-linked from hledger-compatibility.md
+status: proposed | self-verified | verified | final
+  # proposed      — hledger-researcher's reading; not yet run against the real binary
+  # self-verified — an actual hledger-vs-Ledgerkit comparison WAS run, with
+  #                 real command output, but by the same identity/session
+  #                 that implemented the feature under test — not yet
+  #                 independently confirmed. Use this, never `verified`,
+  #                 when independent review is deferred (dev-docs/
+  #                 planning/core-redefinition/09-compatibility-system.md
+  #                 §9.6). The lead may set this status directly.
+  # verified      — compat-differential-tester, dispatched separately from
+  #                 the implementing session, has executed the comparison
+  #                 independently. The lead must NEVER write this status
+  #                 into a register YAML directly — only a dispatched
+  #                 compat-differential-tester agent's own output sets it.
+  # final         — docs reconciled and cross-linked from hledger-compatibility.md
   # (unexplained_mismatch entries can only be `verified` — by definition
   #  they haven't resolved into a final classification yet)
 
@@ -81,6 +92,12 @@ directly_translated: true | false     # optional, default false — set true onl
   before `status` moves past `proposed`, per
   `09-compatibility-system.md` §9.4 — documentation/source evidence alone
   explains intent, not observed compatibility.
+- `status: verified` is reserved for a separately-dispatched
+  `compat-differential-tester` agent's own output — never write it into
+  an entry directly from the implementing session, even with real
+  executable evidence in hand. Use `status: self-verified` for that case
+  instead. See `09-compatibility-system.md` §9.6 (added Stage C Phase 5)
+  for the full tiered rule and why it exists.
 - `implementation` and `tests` may be empty only for `kind: unsupported`
   entries describing something not yet built.
 - `directly_translated: true` is rare and should be rare — most Ledgerkit

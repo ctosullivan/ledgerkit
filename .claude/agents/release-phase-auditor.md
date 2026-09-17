@@ -43,6 +43,15 @@ own stated Definition of Done.
    feature is "supported" needs at least a `status: proposed` entry; a
    phase claiming it's "verified against hledger" needs `status:
    verified` from `compat-differential-tester`, not just documentation).
+   **For any entry newly at `status: verified`/`final` in this phase's
+   diff** (`09-compatibility-system.md` §9.6, added Stage C Phase 5):
+   confirm the phase's retro names the specific `compat-differential-
+   tester` dispatch that produced it. If the retro instead shows the
+   entry was verified by the same session that implemented the feature,
+   that is a non-blocking observation, not grounds for `FAIL` by itself
+   — but call it out by entry id so the user can see the independence gap
+   directly, and check whether `status: self-verified` (not `verified`)
+   would have been the honest label instead.
 5. **`CHANGELOG.md`/`ROADMAP.md`/`CONTEXT.md` are current** for this
    phase — a `CHANGELOG.md [Unreleased]` entry exists with Human/Claude
    lines; `CONTEXT.md` reflects the new state, not the previous phase's.

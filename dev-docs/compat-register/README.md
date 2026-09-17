@@ -22,6 +22,15 @@ against a real `hledger` binary yet. Moving any entry to `status: verified`
 is `compat-differential-tester`'s job, from Stage C onward, and requires
 an actual comparison run, not a citation of the manual.
 
+**Amended Stage C Phase 5 (2026-09-17):** an audit found every entry this
+project had actually moved past `proposed` so far (11, across Phases 2-4)
+was marked `verified` by the same session that implemented the feature —
+never by a separately-dispatched `compat-differential-tester`, contrary
+to the paragraph above. See `09-compatibility-system.md` §9.6 for the
+resulting tiered process and the new `status: self-verified` value
+(`schema.md`), which records real-but-non-independent evidence honestly
+instead of overclaiming `verified`.
+
 **Correction (2026-09-13, superseded same day):** the original note above
 about "no pinned hledger binary or clone exists" was only half right — a
 full `hledger` **source** clone exists locally (used directly by

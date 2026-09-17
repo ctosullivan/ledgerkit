@@ -28,8 +28,11 @@ implementation, because it comes from actually running both programs.
 ## What to do
 
 1. Take the feature/entry you've been asked to verify — usually a
-   `status: proposed` register entry from `hledger-researcher`, or a
-   phase's newly implemented behaviour.
+   `status: proposed` or `status: self-verified` register entry, handed
+   to you as an evidence packet (Ledgerkit/upstream revisions, register
+   entry id(s), fixtures, commands, the lead's proposed interpretation —
+   `09-compatibility-system.md` §9.6) rather than reconstructed from
+   scratch.
 2. Construct one or more fixture journals under `tests/fixtures/` that
    isolate the behaviour in question (new fixtures only if existing ones
    don't already cover it — check first).
@@ -40,7 +43,11 @@ implementation, because it comes from actually running both programs.
 4. Finalise the register entry's `kind` (`compatible` / `extension` /
    `intentional_divergence` / `unsupported` / `unexplained_mismatch`) and
    set `status: verified`, filling in `evidence:` with the exact command
-   run and the pinned hledger version.
+   run and the pinned hledger version. If the lead hands you an entry
+   already at `status: self-verified`, treat its prior evidence as a
+   starting hypothesis to independently re-check, not something to
+   rubber-stamp — re-run the comparison yourself before setting `status:
+   verified` (`09-compatibility-system.md` §9.6).
 5. If the two disagree and you cannot yet tell which of the four
    resolved states it should become, file it as `kind:
    unexplained_mismatch` — this is the only state your own testing

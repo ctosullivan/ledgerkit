@@ -53,6 +53,6 @@ evidence:
       only). Stage C Phase 2.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: verified
-verified_by: "Claude (lead session, Stage C Phase 2 implementation — not a separately-dispatched compat-differential-tester agent; see dev-docs/retros/STAGE-C-PHASE-2.md)"
+status: self-verified
+verified_by: "Claude (lead session, Stage C Phase 2 implementation — not a separately-dispatched compat-differential-tester agent; see dev-docs/retros/STAGE-C-PHASE-2.md). Relabelled `verified` → `self-verified`, Stage C Phase 5 (2026-09-17): this session's own original executable check, real evidence, but not independent of the implementing session — see dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md §1.1 and 09-compatibility-system.md §9.6"
 verified_date: "2026-09-16"
