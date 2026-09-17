@@ -1,69 +1,81 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C Phase 4 (tag data model — parsing/storage only, not the `tag:`
-query term) is done. About to commit and push (single commit — this
-phase, like Phase 3, is cohesive enough not to need a multi-commit
-boundary structure).
+Stage C Phase 5 is a **planning-only** pass (no code touched), resolving
+two issues the user identified in recent Stage C work: verification
+independence for compatibility claims, and `depth:`'s modelling as a
+pure boolean predicate. Plan document written and awaiting the six
+explicit human-decision gates it names — not started.
 
 ## Where We Are
-Full closeout complete: implementation (`ledgerkit/tags.py`,
-`models.py`, `parser.py`), 46 new tests (728 total, all passing),
-differential verification against the pinned hledger 1.52.4 binary, 4
-new compat-register entries (all `status: verified`), and all doc/
-knowledge updates (`dev-docs/api-spec.md`, `dev-docs/architecture.md`,
-`dev-docs/hledger-compatibility.md`, `docs/journal-format.md`,
-`knowledge/DOMAIN_RULES.md`, `knowledge/DECISIONS.md`, `ROADMAP.md`,
-`CHANGELOG.md`) are all written. Retro written:
-`dev-docs/retros/STAGE-C-PHASE-4.md`. Next: `git commit` + `git push`.
+Plan complete: `dev-docs/planning/core-redefinition/
+21-stage-c-phase-5-depth-and-verification-plan.md`. Retro written:
+`dev-docs/retros/STAGE-C-PHASE-5-PLAN.md`. `ROADMAP.md`, `CHANGELOG.md`
+updated. Next step is entirely the user's: resolve gates G-DEPTH-1..4
+and G-PROCESS-1..2 (plan §9), then implementation (plan §8, Phases
+5a-5d) can begin. Nothing to do until then unless the user wants to
+discuss/adjust the plan itself.
 
 ## Decisions In Flight
-- None — both open questions this phase raised (split data-model-first
-  vs. push through disorganized; back-reference vs. pure-function
-  date-override resolution) were put to the user via `AskUserQuestion`
-  and resolved, then recorded in `knowledge/DECISIONS.md`.
+- None yet — every substantive call in this phase is one of the six
+  named gates, deliberately left open for the user, not decided by the
+  lead. Do not pre-resolve any of them unilaterally when implementation
+  starts, even if one answer seems obviously preferable.
 
 ## Files Currently Relevant
-- `ledgerkit/tags.py` — new module (`parse_tags`, `effective_date`,
-  `effective_date2`).
-- `ledgerkit/models.py`, `ledgerkit/parser.py` — new tag fields and
-  parser wiring.
-- `dev-docs/compat-register/LK-COMPAT-PARSER-TAG-001.yaml`,
-  `LK-COMPAT-PARSER-TAG-SCOPE-001.yaml`,
-  `LK-COMPAT-PARSER-POSTINGDATE-001.yaml`,
-  `LK-COMPAT-DIRECTIVE-TAG-001.yaml` — new entries, all verified.
-- `dev-docs/retros/STAGE-C-PHASE-4.md` — this phase's retro.
+- `dev-docs/planning/core-redefinition/
+  21-stage-c-phase-5-depth-and-verification-plan.md` — the plan; read
+  §9 first for the open gates, §8 for phase sequencing once gates are
+  resolved.
+- `dev-docs/retros/STAGE-C-PHASE-5-PLAN.md` — this planning pass's retro.
+- `ledgerkit/reports.py` (lines ~241-410) — contains the existing,
+  correct `Query.depth` truncation logic the plan's design unifies with,
+  and the self-diagnosing docstrings that flagged the inconsistency.
+- `ledgerkit/query/ast.py`, `eval.py`, `parser.py` — where `Depth`
+  currently lives and will change per G-DEPTH-1/3.
+- `dev-docs/compat-register/LK-COMPAT-QUERY-DEPTH-001.yaml`,
+  `dev-docs/compat-register/schema.md`,
+  `dev-docs/planning/core-redefinition/09-compatibility-system.md` §9.4
+  — the entry to be reclassified, and the process docs §2's amendment
+  targets (not yet edited — proposed only).
 
 ## Blockers / Open Questions
-- The `tag:NAME[=REGEX]` query term itself (brief 19's remaining scope:
-  matching, the four inheritance rules, always-AND-never-OR combination,
-  and the separate account-name-level matching mechanism) is unscoped —
-  deliberately deferred by the user's split decision, not started.
-- Stage C's other named-but-unscoped candidate remains `cur:` term
-  extension and the larger `Query`-as-compatibility-shim migration
-  (`07-query-regex.md` §6.5). Neither started.
-- `check` remains the only report/display command without `-q` — by
-  design (checks apply to the whole journal), unrelated to this phase.
+All six are open, none pre-resolved by this session (plan §9):
+- G-DEPTH-1: approve the `DepthSpec` report-option model (vs. keeping
+  Depth as a QueryNode).
+- G-DEPTH-2: `Query.depth`/`ReportSection.depth`'s public shape — stay
+  flat-only, or retype to the richer `DepthSpec` (breaking change).
+- G-DEPTH-3: fate of the current boolean-exclusion `ast.Depth` node —
+  remove / rename-and-keep-Python-API-only (recommended) / new
+  non-colliding string token.
+- G-DEPTH-4: standalone `--depth`/`-N` CLI flag in this phase or deferred.
+- G-PROCESS-1: approve the tiered verification-independence rule
+  (four-value `status` enum incl. `self-verified`) as specified.
+- G-PROCESS-2: relabel the 11 existing lead-self-verified entries to
+  `self-verified` now (cheap) vs. real `compat-differential-tester`
+  re-dispatch on all 11 immediately (thorough, costlier).
 
 ## What NOT To Revisit
-- Stage A, Stage B, and Stage C Phases 1-4 are all closed/committed
-  (Phase 4 about to be, this response).
-- Don't re-litigate the tag data-model field shapes (`Posting.tags`,
-  `date_override`/`date2_override`, `Transaction.tags`,
-  `Journal.declared_account_tags`, pure-function date resolution) —
-  explicitly user-confirmed via `AskUserQuestion`, not the lead's
-  unilateral call.
-- Don't re-run this phase's differential verification — done, evidenced
-  (4 verified compat-register entries), about to be committed.
-- Don't conflate `Journal.declared_tags` (the pre-existing `tag`
-  directive's list of allowed tag *names*, `LK-COMPAT-TAGDIR-001`) with
-  the new `Journal.declared_account_tags` (per-account `(name, value)`
-  tag pairs from `account` directive comments, this phase's
-  `LK-COMPAT-DIRECTIVE-TAG-001`) — distinct fields, distinct features.
+- Stage A, Stage B, and Stage C Phases 1-4 are closed/committed. This
+  Phase 5 planning pass has NOT been committed yet (see Recent Git State
+  below) — still pending in this response.
+- Don't re-derive the `depth:` behavioural findings — 14 scenarios were
+  differentially tested this session against the pinned 1.52.4 binary
+  and cross-checked against `hledger-lib` source directly (every
+  command's `Query` consumption traced, not just the `Depth` constructor
+  itself); the plan's §1.3/§6 are primary evidence, not a summary to
+  re-verify from scratch next session.
+- Don't assume `tag:` query-term work (deferred at end of Phase 4) is
+  what Phase 5 is about — Phase 5 is verification-process + `depth:`
+  only; `tag:` remains separately unscoped.
+- Don't mark any compat-register entry `status: verified` directly from
+  the lead session once implementation starts — that is now explicitly
+  the point of this whole phase; use `self-verified` if independent
+  dispatch is deferred, and say so honestly.
 
 ## Recent Git State (before this response's commit, if any)
+fd144ed feat: Stage C Phase 4 -- tag data model (parsing/storage)
 d362bbb feat: Stage C Phase 3 -- wire -q/--query into print
 b7d5d32 docs: Stage C Phase 2, commit 3/3 -- context evaluation + closeout
 27c410d feat: Stage C Phase 2, commit 2/3 -- query/report/CLI integration
 0f4465d docs: Stage C Phase 2, commit 1/3 -- CodeCompass baseline
-d86f9b4 docs: amend Stage C Phase 2 plan per review findings

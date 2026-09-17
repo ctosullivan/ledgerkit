@@ -9,6 +9,54 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 5 — Planning: verification independence + `depth:` semantics] — 2026-09-17
+
+Full detail: [dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md](dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md), [dev-docs/retros/STAGE-C-PHASE-5-PLAN.md](dev-docs/retros/STAGE-C-PHASE-5-PLAN.md)
+
+**Human:** directed planning (not implementing) a phase resolving two
+issues found in recent Stage C work — every compat-register entry ever
+marked `verified` was self-verified by the implementing session, not
+independently checked; and `depth:` is modelled as a pure boolean
+exclusion predicate, which may not match hledger's real behaviour.
+Required inspecting the current repository, manual, source, and pinned
+executable directly rather than relying on prior chat discussion, and
+producing nine specific planning outputs with explicit human-decision
+gates before any implementation begins.
+
+**Claude:** confirmed both issues via direct inspection. (1) All 11
+compat-register entries ever moved past `status: proposed` (Phases 2-4)
+were verified by the same session that implemented the feature, not a
+dispatched `compat-differential-tester` — a gap Phase 2's own retro had
+already named and never enforced. Proposes a claim-strength-tiered
+process amendment: ordinary work needs no new process; any first-time
+promotion to `verified` (or a change to an already-verified entry's
+`kind`) must come from an actual `compat-differential-tester` dispatch;
+a new `status: self-verified` value records real-but-non-independent
+evidence honestly instead of overclaiming. (2) Traced every hledger
+command that consumes a `Query` (`MultiBalanceReport.hs`,
+`PostingsReport.hs`, `EntriesReport.hs`, `Accounts.hs`,
+`AccountTransactionsReport.hs`) and found every one strips `Depth`/
+`DepthAcct` before postings are selected, reapplying it only as
+display-name clipping/aggregation (`DepthSpec`) — confirmed live against
+the pinned 1.52.4 binary across 14 scenarios (general depth, custom
+`REGEX=NUM` depth, multiple-depth-option precedence, `balance`/
+`register`/`print`/`accounts`/`stats`). Also found `ledgerkit/reports.py`
+already contains a second, correct, pre-existing depth-truncation
+mechanism (`Query.depth`) that disagrees with the newer `-q`-path
+`Depth` AST node — an internal inconsistency, not just an external
+divergence. Definitively resolved Phase 2's open "`print depth:1`"
+question (hledger ignores depth entirely for `print`; current Ledgerkit
+wrongly excludes everything) and found a third, previously undocumented
+defect in `accounts -q "depth:N"` (filters instead of clipping/
+deduplicating). Proposes a `DepthSpec` report-option model (not a
+`QueryNode`) matching hledger's exact precedence rules. Six explicit
+human-decision gates recorded, none resolved. `ROADMAP.md`'s Stage C row
+updated to point at the plan; Phase 5 itself not started, awaiting
+approval. No `ledgerkit/`/`tests/` code touched — planning only, as
+directed.
+
+---
+
 ### [Stage C Phase 4 — Tag data model (parsing/storage)] — 2026-09-17
 
 Full detail: [dev-docs/retros/STAGE-C-PHASE-4.md](dev-docs/retros/STAGE-C-PHASE-4.md)
