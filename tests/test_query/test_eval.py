@@ -6,7 +6,7 @@ import datetime
 import unittest
 
 from ledgerkit.models import Amount, Posting, Transaction
-from ledgerkit.query.ast import Acct, And, DateSpan, Depth, Desc, Not, Or, Status, TxnStatus
+from ledgerkit.query.ast import Acct, And, DateSpan, Desc, MaxAccountLevel, Not, Or, Status, TxnStatus
 from ledgerkit.query.eval import matches_posting, matches_transaction
 from decimal import Decimal
 
@@ -85,21 +85,27 @@ class TestDateSpan(unittest.TestCase):
         self.assertFalse(matches_transaction(span, _txn("2024-01-01", "x", "a")))
 
 
-class TestDepth(unittest.TestCase):
+class TestMaxAccountLevel(unittest.TestCase):
+    """MaxAccountLevel is a Ledgerkit-native, Python-API-only boolean
+    predicate — deliberately NOT hledger's depth: (see ledgerkit.query.depth
+    for that, and MaxAccountLevel's own docstring for why). No `-q` string
+    form exists for it; these tests construct the node directly."""
+
     def setUp(self):
         self.txn = _txn("2024-01-15", "x", "expenses:food:groceries")
 
     def test_matches_at_or_above_depth(self):
-        self.assertTrue(matches_transaction(Depth(3), self.txn))
-        self.assertTrue(matches_transaction(Depth(5), self.txn))
+        self.assertTrue(matches_transaction(MaxAccountLevel(3), self.txn))
+        self.assertTrue(matches_transaction(MaxAccountLevel(5), self.txn))
 
     def test_does_not_match_below_depth(self):
-        self.assertFalse(matches_transaction(Depth(2), self.txn))
+        self.assertFalse(matches_transaction(MaxAccountLevel(2), self.txn))
 
     def test_any_posting_rule_at_transaction_level(self):
         txn = _txn("2024-01-15", "x", "expenses:food:groceries:organic", "a")
-        # "a" (depth 1) satisfies depth:1 even though the other posting is deeper.
-        self.assertTrue(matches_transaction(Depth(1), txn))
+        # "a" (depth 1) satisfies MaxAccountLevel(1) even though the other
+        # posting is deeper.
+        self.assertTrue(matches_transaction(MaxAccountLevel(1), txn))
 
 
 class TestStatus(unittest.TestCase):

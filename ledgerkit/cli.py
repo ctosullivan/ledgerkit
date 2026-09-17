@@ -231,12 +231,21 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     # --- Parse -q/--query, if given (applies to balance/register/accounts/stats/print) ---
+    # query_ast is the selection predicate only — never depth, which the
+    # parser returns separately as query_depth (a DepthSpec). print
+    # deliberately uses only query_ast, never query_depth, matching
+    # hledger's own print (which ignores depth: entirely — see
+    # dev-docs/planning/core-redefinition/
+    # 21-stage-c-phase-5-depth-and-verification-plan.md §1.3).
     query_ast = None
+    query_depth = None
     if getattr(args, "query_text", None):
         from ledgerkit.query import parse as _parse_query
         from ledgerkit.query import QueryParseError as _QueryParseError
         try:
-            query_ast = _parse_query(args.query_text)
+            _plan = _parse_query(args.query_text)
+            query_ast = _plan.predicate
+            query_depth = _plan.depth
         except _QueryParseError as exc:
             print(f"ledgerkit: invalid query: {exc}", file=sys.stderr)
             return 1
@@ -294,16 +303,28 @@ def main(argv: list[str] | None = None) -> int:
 
         with contextlib.redirect_stdout(outfile) if outfile else contextlib.nullcontext():
             if args.command == "balance":
-                result = reports.balance(journal, _query_ast=query_ast)
+                result = reports.balance(journal, _query_ast=query_ast, _query_depth=query_depth)
                 # result: dict[str, dict[str, Decimal]] — account → commodity → net
 
                 # Flatten to (account, commodity, qty) rows; sorted alphabetically.
-                # Zero-balance commodity lines are omitted (matching hledger behaviour).
+                # Zero-balance commodity lines are omitted (matching hledger
+                # behaviour) — EXCEPT the "..." row produced by clipping to
+                # depth 0 (ledgerkit.query.depth.clip_account_name), which
+                # hledger always shows even though it necessarily nets to
+                # zero for any balanced journal (every account collapses
+                # into that one bucket, and a balanced journal's grand
+                # total is always zero) — confirmed live against the pinned
+                # binary this phase: `hledger balance --depth 0` shows one
+                # "..." = 0 row, never an empty report. Ordinary (non-"...")
+                # zero-net accounts are still omitted as before — a
+                # separate, unrelated hledger elision rule not touched here
+                # (dev-docs/planning/core-redefinition/
+                # 21-stage-c-phase-5-depth-and-verification-plan.md §1.3).
                 lines: list[tuple[str, str, Decimal]] = [
                     (acct, comm, qty)
                     for acct in sorted(result)
                     for comm, qty in sorted(result[acct].items())
-                    if qty != 0
+                    if qty != 0 or acct == "..."
                 ]
 
                 # Per-commodity grand totals (from filtered lines only). This
@@ -318,8 +339,13 @@ def main(argv: list[str] | None = None) -> int:
                 for _, comm, qty in lines:
                     commodity_totals[comm] = commodity_totals.get(comm, Decimal(0)) + qty
 
+                # Bare "0" (no commodity symbol) for a zero-quantity row —
+                # only reachable via the "..." depth-0 exception above, but
+                # formatted the same way hledger does (and the same way the
+                # grand total below already does): confirmed live, `hledger
+                # balance --depth 0` shows "0  ..." not "£0.00  ...".
                 formatted_amts = [
-                    _fmt_amount(qty, comm, commodity_styles.get(comm))
+                    "0" if qty == 0 else _fmt_amount(qty, comm, commodity_styles.get(comm))
                     for _, comm, qty in lines
                 ]
                 # Only show non-zero commodity totals; a single bare "0" when all net zero.
@@ -368,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"{'0':>{col_w}}")
 
             elif args.command == "register":
-                rows = reports.register(journal, _query_ast=query_ast)
+                rows = reports.register(journal, _query_ast=query_ast, _query_depth=query_depth)
                 prev_key: tuple | None = None
                 for row in rows:
                     cur_key = (row.date, row.description)
@@ -395,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
                     prev_key = cur_key
 
             elif args.command == "accounts":
-                for name in reports.accounts(journal, _query_ast=query_ast):
+                for name in reports.accounts(journal, _query_ast=query_ast, _query_depth=query_depth):
                     print(name)
 
             elif args.command == "print":
@@ -421,7 +447,7 @@ def main(argv: list[str] | None = None) -> int:
                     print()
 
             elif args.command == "stats":
-                s = reports.stats(journal, _query_ast=query_ast)
+                s = reports.stats(journal, _query_ast=query_ast, _query_depth=query_depth)
                 elapsed = time.perf_counter() - _PROGRAM_START
                 txns_per_s = s.transaction_count / elapsed if elapsed > 0 else 0.0
 

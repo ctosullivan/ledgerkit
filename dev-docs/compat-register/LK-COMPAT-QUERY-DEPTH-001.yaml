@@ -1,92 +1,146 @@
 # Proposed by hledger-researcher's semantics brief (Stage C Phase 1),
 # dev-docs/planning/core-redefinition/17-query-semantics-brief.md §4.
 # CORRECTED 2026-09-16 (Stage C Phase 2): executable differential testing
-# against the pinned hledger 1.52.4 binary — the first time this entry's
-# claim was actually run, not just read from source — found the original
-# `kind: compatible` classification does not hold. See `reason:` below.
+# found the original `kind: compatible` classification did not hold
+# (exclusion vs. truncation) -- reclassified `intentional_divergence`.
+# REDESIGNED AND RECLASSIFIED 2026-09-17 (Stage C Phase 5): rather than
+# accept the divergence, `depth:` was redesigned from a QueryNode into a
+# report-display option (ledgerkit.query.depth.DepthSpec), matching
+# hledger's real behaviour instead of diverging from it. status:
+# self-verified pending independent compat-differential-tester dispatch
+# per the new verification-independence process (09-compatibility-
+# system.md §9.6) -- this entry is itself that process's first real test.
 
 id: LK-COMPAT-QUERY-DEPTH-001
 area: query.depth
-kind: intentional_divergence
+kind: compatible
 
 upstream:
   project: hledger
   compatibility_target: "1.52.4"
 
 ledgerkit:
-  relationship: incomparable
+  relationship: equivalent
 
 compatibility:
   upstream_syntax_preserved: true
   extension_requires_explicit_syntax: n/a
 
 reason: >
-  ORIGINAL CLAIM (Phase 1, source-reading only): hledger's depth:N is a
-  pure boolean predicate (accountNameLevel(account) <= N), and Ledgerkit's
-  Depth AST node implements exactly that, so the two are equivalent.
+  HISTORY: Phase 1 (source-reading only) claimed hledger's depth:N is a
+  pure boolean predicate and classified Ledgerkit's Depth AST node as
+  compatible/equivalent on that basis. Phase 2 (first executable check)
+  found this wrong -- hledger's balance/register depth:1 truncates and
+  aggregates, never excludes -- and reclassified to intentional_
+  divergence/incomparable, treating Ledgerkit's exclusion behaviour as a
+  disclosed, deliberate difference. Phase 2 also tried `print depth:1`
+  and found neither exclusion nor truncation on its fixture, left
+  explicitly unresolved.
 
-  CORRECTED (Phase 2, executable-verified against the real hledger 1.52.4
-  binary): this is not what hledger actually does in practice, in every
-  report context tested. `hledger balance depth:1` does not exclude
-  deeper postings — it TRUNCATES their account name to the depth-1
-  ancestor and AGGREGATES totals into that ancestor (e.g. expenses:food
-  and expenses:housing both roll into one "expenses" row). `hledger
-  register depth:1` behaves the same way at the per-posting level —
-  every posting is still shown, with its account name truncated, none
-  excluded. Ledgerkit's ledgerkit.query.Depth is a pure exclusion
-  predicate instead (accountNameLevel(account) <= N; deeper postings are
-  dropped, not renamed) — confirmed via `ledgerkit balance -q "depth:1"`
-  returning zero rows against the same fixture where `hledger balance
-  depth:1`/`--depth 1` returns four aggregated rows. This is a
-  deliberate, disclosed design choice from
-  `17-query-semantics-brief.md` §4 ("depth-driven display truncation/
-  aggregation... is separate report-layer work, not something the
-  QueryAST evaluator itself should attempt — it isn't a pure predicate"),
-  not an accident — but the Phase 1 classification of that choice as
-  `compatible`/`equivalent` was wrong: there is no real hledger context
-  found so far where `depth:` behaves as a pure exclusion predicate, so
-  Ledgerkit's model isn't "the same behaviour, minus an unrelated display
-  feature" — it's a genuinely different semantic (exclude vs.
-  truncate-and-aggregate), correctly classified as `intentional_
-  divergence`/`incomparable`, not `compatible`/`equivalent`. `hledger
-  print depth:1` was also tried and showed neither exclusion nor
-  truncation on this fixture (all transactions displayed unchanged,
-  full account names) — not fully explained by this session's testing;
-  left as an open question for whoever next touches `print`+query wiring,
-  not asserted either way.
+  PHASE 5 (this entry): rather than continue accepting the divergence, a
+  full trace of hledger's own source was done for every command that
+  consumes a Query (not just the Depth constructor's own matchesAccount
+  function, which is what Phase 1 stopped at). Every one --
+  MultiBalanceReport.hs (balance, register --interval), PostingsReport.hs
+  (register), EntriesReport.hs (print), Accounts.hs (accounts),
+  AccountTransactionsReport.hs (aregister) -- strips Depth/DepthAcct out
+  of the query used to SELECT postings via `filterQuery (not .
+  queryIsDepth)`, before selection happens, and re-derives a DepthSpec
+  used purely for display-name clipping/aggregation via
+  getAccountNameClippedDepth/clipAccountName/clipOrEllipsifyAccountName
+  (AccountName.hs). The Depth/DepthAcct boolean predicate is real and
+  hledger-lib-internal-test-covered, but no shipped command ever invokes
+  it for selection. This resolved Phase 2's open `print depth:1` question
+  definitively: EntriesReport.hs strips Depth from its filter and never
+  calls any clip function at all -- print is fully depth-blind, by
+  design, confirmed via source AND a live run (print depth:1 shows every
+  transaction unchanged).
 
-  This is exactly the class of mistake `compat-differential-tester`'s
-  independence exists to catch: a claim that looked right from source
-  alone did not survive contact with the real binary, the first time
-  anyone actually ran it (no pinned hledger binary existed at Phase 1).
+  Ledgerkit's ledgerkit.query.depth.DepthSpec now implements the SAME
+  strip-then-clip architecture: depth:N/depth:REGEX=N never reach the
+  selection-predicate AST at all (QueryPlan.depth, not QueryPlan.
+  predicate); reports.py's balance/register/accounts clip and aggregate
+  display names via clip_account_name, matching hledger's own
+  getAccountNameClippedDepth precedence rule exactly (most-specific-
+  regex-match wins over flat; ties go to the later-declared rule);
+  cli.py's print branch only ever reads QueryPlan.predicate, never
+  .depth, which is what makes it correctly depth-blind without any
+  special-casing. Custom REGEX=N depths and multi-term precedence
+  (general terms combine via minimum when multiple appear in one query
+  string -- hledger's own DepthSpec Semigroup instance, confirmed live,
+  order-independent, NOT the separate "last wins" rule for multiple
+  --depth CLI flags) are new Ledgerkit capability, not present before
+  this phase at all.
+
+  The old exclusion-predicate Depth node was not deleted -- it is kept as
+  ledgerkit.query.ast.MaxAccountLevel, a disclosed, Python-API-only
+  Ledgerkit-native primitive with NO `-q` string syntax, so `-q
+  "depth:..."` in the CLI can never mean anything other than hledger's
+  own semantics (see knowledge/DECISIONS.md, 2026-09-17, for the full
+  remain/rename/remove analysis).
+
+  `stats` is a separate, genuine exception NOT covered by this entry --
+  see LK-COMPAT-QUERY-DEPTH-STATS-001.
+
+  Executable evidence (this session, self-verified -- pending independent
+  compat-differential-tester dispatch): 15+ scenarios run against the
+  pinned 1.52.4 binary and compared to Ledgerkit's `-q "depth:..."`
+  output on a purpose-built fixture (general depth, depth 0 ellipsis,
+  custom regex depth, two-regex specificity precedence reproducing the
+  manual's own worked example, mixed general+custom, multiple general
+  terms order-independence, register/accounts/print scenarios) -- every
+  structural comparison (which rows appear, aggregation, row content)
+  matched exactly; remaining diffs were thousand-separator/column-width
+  formatting only (a pre-existing, unrelated, already-accepted
+  formatting difference throughout this project).
 
 implementation:
-  - ledgerkit/query/ast.py:Depth
-  - ledgerkit/query/eval.py:_account_depth
-  - ledgerkit/query/parser.py:_build_depth
+  - ledgerkit/query/ast.py:MaxAccountLevel (renamed from Depth)
+  - ledgerkit/query/ast.py:QueryPlan
+  - ledgerkit/query/depth.py (DepthSpec, merge_depth_specs, clipped_depth_for_account, clip_account_name)
+  - ledgerkit/query/parser.py:_build_depth_spec, parse
+  - ledgerkit/reports.py:_effective_depth_spec, balance, register, accounts
+  - ledgerkit/cli.py (query_ast/query_depth split; print uses only query_ast)
 
 tests:
-  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes::test_depth_prefix
-  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes::test_depth_zero_is_valid
-  - tests/test_query/test_parser.py::TestBarePatternAndPrefixes::test_depth_negative_rejected
-  - tests/test_query/test_eval.py::TestDepth
-  - tests/test_reports.py::TestQueryAstIntegration::test_balance_depth_node_excludes_rather_than_truncates
+  - tests/test_query/test_parser.py::TestDepthSpec
+  - tests/test_query/test_eval.py::TestMaxAccountLevel
+  - tests/test_reports.py::TestQueryAstIntegration::test_balance_query_depth_truncates_rather_than_excludes
+  - tests/test_reports.py::TestQueryAstIntegration::test_balance_query_depth_custom_regex
+  - tests/test_reports.py::TestQueryAstIntegration::test_accounts_query_depth_clips_and_deduplicates
+  - tests/test_reports.py::TestQueryAstIntegration::test_register_query_depth_clips_label_never_excludes
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_balance_query_depth_truncates
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_balance_query_depth_zero_shows_ellipsis_row
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_balance_query_depth_custom_regex
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_print_ignores_depth_entirely
 
 evidence:
   - kind: manual
-    ref: "https://hledger.org/1.52/hledger.html#queries (depth:, hledger.1:7325-7332)"
+    ref: "https://hledger.org/1.52/hledger.html#queries (depth:, hledger.1:7325-7332); .SH Depth, hledger.1:7054-7098"
     pinned_at: "1.52.4"
   - kind: source
-    ref: "hledger-lib/Hledger/Data/AccountName.hs:165-167 (accountNameLevel); Hledger/Query.hs:489-506,965 (parseDepthSpec, matchesTransaction)"
+    ref: >
+      hledger-lib/Hledger/Data/AccountName.hs:165-167 (accountNameLevel),
+      340-372 (getAccountNameClippedDepth, clipAccountName,
+      clipOrEllipsifyAccountName); Hledger/Query.hs:489-506,680-683,
+      796-801,876-877,965-966 (parseDepthSpec, queryIsDepth, queryDepth,
+      matchesAccount, matchesTransaction); Hledger/Reports/
+      MultiBalanceReport.hs:211,237-238; Hledger/Reports/
+      PostingsReport.hs:74,174; Hledger/Reports/EntriesReport.hs:36-42;
+      hledger/Hledger/Cli/Commands/Accounts.hs:65-69,108-109; Hledger/
+      Reports/AccountTransactionsReport.hs:105; Hledger/Data/Types.hs:
+      172-182 (DepthSpec Semigroup instance)
     pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
   - kind: executable
     ref: >
-      hledger -f tests/fixtures/filtered.journal balance depth:1  (and
-      --depth 1, and register depth:1) vs. ledgerkit -f
-      tests/fixtures/filtered.journal balance -q "depth:1" — real
-      binaries, same fixture, compared directly this session.
+      Purpose-built fixture (depth.journal, 8 accounts depth 2-4 incl. a
+      deliberate assets/savings regex-collision case) run against both
+      `hledger` and `ledgerkit -q` for: balance --depth 1/0/assets=1/
+      assets=1+savings=2/assets=3+expenses=2+general=1/1+2(multi-general);
+      register depth:1 and --depth assets=2 acct:assets; print depth:1;
+      accounts --depth 2 and depth:assets=1. Stage C Phase 5.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
 status: self-verified
-verified_by: "Claude (lead session, Stage C Phase 2 implementation — not a separately-dispatched compat-differential-tester agent; see dev-docs/retros/STAGE-C-PHASE-2.md for this process note). Relabelled `verified` → `self-verified`, Stage C Phase 5 (2026-09-17): this session's own original executable check, real evidence, but not independent of the implementing session — see dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md §1.1 and 09-compatibility-system.md §9.6"
-verified_date: "2026-09-16"
+verified_by: "Claude (lead session, Stage C Phase 5 implementation) -- pending independent compat-differential-tester dispatch per 09-compatibility-system.md §9.6; this entry is that process's first real application, not yet completed"
+verified_date: "2026-09-17"

@@ -377,12 +377,55 @@ class TestQueryFlag(unittest.TestCase):
         lines = [l for l in out.splitlines() if l]
         self.assertEqual(sorted(lines), ["expenses:food:coffee", "expenses:food:groceries"])
 
+    def test_stats_query_depth_excludes_rather_than_clips(self):
+        # stats is the one command where depth: excludes rather than
+        # clips (Stage C Phase 5 — a genuine hledger quirk, confirmed via
+        # source and the pinned binary, not a Ledgerkit invention).
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "depth:2", "stats"
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("Accounts            : 2 (depth 2)", out)
+
     def test_stats_query_filters_transaction_count(self):
         code, out, _err = self._run(
             "-f", str(FILTERED_JOURNAL), "-q", "status:*", "stats"
         )
         self.assertEqual(code, 0)
         self.assertIn("Txns                : 2", out)
+
+    def test_balance_query_depth_truncates(self):
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "depth:1", "balance"
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("assets", out)
+        self.assertIn("expenses", out)
+        self.assertNotIn("expenses:food", out)  # rolled up, not shown at full depth
+
+    def test_balance_query_depth_zero_shows_ellipsis_row(self):
+        # Depth 0 always nets to zero for a balanced journal (every
+        # account collapses into one bucket) but hledger still shows it —
+        # confirmed live against the pinned binary; a bare "0", no
+        # commodity symbol, distinct from ordinary zero-net-account
+        # elision (Stage C Phase 5).
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "depth:0", "balance"
+        )
+        self.assertEqual(code, 0)
+        lines = [l for l in out.splitlines() if l.strip()]
+        self.assertEqual(len(lines), 3)  # "..." row, separator, total
+        self.assertIn("...", lines[0])
+        self.assertTrue(lines[0].strip().startswith("0"))
+
+    def test_balance_query_depth_custom_regex(self):
+        code, out, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "depth:expenses=2", "balance"
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("expenses:food", out)
+        self.assertNotIn("expenses:food:coffee", out)
+        self.assertIn("assets:bank:checking", out)  # untouched — doesn't match "expenses"
 
     def test_multi_term_query(self):
         code, out, _err = self._run(
@@ -444,6 +487,22 @@ class TestQueryFlag(unittest.TestCase):
         _, out_b, _ = self._run("-f", str(FILTERED_JOURNAL), "print")
         self.assertEqual(out_a, out_b)
         self.assertEqual(out_a.count("\n\n"), 6)  # 6 transactions in filtered.journal
+
+    def test_print_ignores_depth_entirely(self):
+        # Stage C Phase 5: hledger's print never consults depth: at either
+        # the selection or display layer (confirmed via EntriesReport.hs
+        # source and live against the pinned binary — dev-docs/planning/
+        # core-redefinition/21-stage-c-phase-5-depth-and-verification-
+        # plan.md §1.3). Before this phase, print -q "depth:1" wrongly
+        # excluded every transaction (a confirmed defect, not just an
+        # "open question" as Phase 2's retro had left it).
+        code, out_depth, _err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "depth:1", "print"
+        )
+        _, out_unfiltered, _ = self._run("-f", str(FILTERED_JOURNAL), "print")
+        self.assertEqual(code, 0)
+        self.assertEqual(out_depth, out_unfiltered)
+        self.assertIn("assets:bank:checking", out_depth)  # full, unclipped account names
 
     def test_print_no_match_query_exits_zero_empty(self):
         code, out, err = self._run(

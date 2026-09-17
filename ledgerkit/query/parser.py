@@ -1,4 +1,4 @@
-"""Query text -> QueryAST parser.
+"""Query text -> QueryPlan parser.
 
 Implements Stage C's initial term set only: acct:/bare pattern, desc:,
 date: (simple dates — a single full date, or two full dates joined by
@@ -10,9 +10,21 @@ see `dev-docs/planning/core-redefinition/17-query-semantics-brief.md`).
 Combination semantics mirror hledger's own `combineQueriesByType`
 (verified in the semantics brief §6): unnegated acct:/desc:/status: terms
 of the same prefix are OR-combined with each other; everything else
-(date:, depth:, and every not:-wrapped term regardless of its own prefix)
-is AND-combined individually. This is not a design choice made here — it
-is hledger's actual, source-verified behaviour, replicated deliberately.
+(date:, and every not:-wrapped term regardless of its own prefix) is
+AND-combined individually. This is not a design choice made here — it is
+hledger's actual, source-verified behaviour, replicated deliberately.
+
+`depth:N`/`depth:REGEX=N` terms are handled entirely separately, as of
+Stage C Phase 5 (`21-stage-c-phase-5-depth-and-verification-plan.md`):
+they never become part of the selection predicate `And`/`Or` tree at all
+— they are extracted into a `ledgerkit.query.depth.DepthSpec`, merged via
+`merge_depth_specs` (hledger's own MIN-based multi-`depth:`-term
+combination, confirmed live against the pinned binary — NOT "last wins",
+which is a separate rule for multiple `--depth` CLI flags Ledgerkit
+doesn't have yet), and returned as `QueryPlan.depth`. `not:depth:...` is
+rejected at parse time (depth is a report option, not something that can
+be negated as a predicate) rather than silently misparsed as an account
+pattern.
 """
 
 from __future__ import annotations
@@ -20,7 +32,8 @@ from __future__ import annotations
 import datetime
 import re
 
-from ledgerkit.query.ast import Acct, And, DateSpan, Depth, Desc, Not, Or, QueryNode, Status, TxnStatus
+from ledgerkit.query.ast import Acct, And, DateSpan, Desc, Not, Or, QueryNode, QueryPlan, Status, TxnStatus
+from ledgerkit.query.depth import DepthSpec, merge_depth_specs
 from ledgerkit.query.regex import compile_hledger_regex
 
 
@@ -188,14 +201,29 @@ def _build_desc(value: str) -> Desc:
     return Desc(value)
 
 
-def _build_depth(value: str) -> Depth:
+def _parse_depth_int(value: str) -> int:
     try:
         n = int(value)
     except ValueError:
         raise QueryParseError(f"depth: expects an integer, got {value!r}") from None
     if n < 0:
         raise QueryParseError(f"depth: expects a non-negative integer, got {n}")
-    return Depth(n)
+    return n
+
+
+def _build_depth_spec(value: str) -> DepthSpec:
+    # depth:N (general) vs depth:REGEX=N (custom, since hledger 1.41) —
+    # split on the FIRST '=' only, matching hledger's own parseDepthSpec
+    # (T.break (=='=')); a REGEX containing '=' isn't cleanly supported by
+    # hledger either, so this isn't a Ledgerkit-specific gap.
+    pattern, sep, num_str = value.partition("=")
+    if not sep:
+        return DepthSpec(flat=_parse_depth_int(value))
+    try:
+        compile_hledger_regex(pattern)
+    except (ValueError, re.error) as exc:
+        raise QueryParseError(f"depth: {exc}") from exc
+    return DepthSpec(by_pattern=((pattern, _parse_depth_int(num_str)),))
 
 
 def _build_status(value: str) -> Status:
@@ -228,9 +256,19 @@ _PREFIX_BUILDERS = {
     "acct:": _build_acct,
     "desc:": _build_desc,
     "date:": _build_date,
-    "depth:": _build_depth,
     "status:": _build_status,
 }
+
+
+def _wraps_depth(token: str) -> bool:
+    """True for `depth:...` wrapped in one or more `not:` — e.g.
+    `not:depth:2`, `not:not:depth:2`. Bare `depth:...` (zero `not:` wraps)
+    is handled separately by `parse()` itself, not here."""
+    while token.startswith("not:"):
+        token = token[len("not:"):]
+        if token.startswith("depth:"):
+            return True
+    return False
 
 
 def _parse_term(token: str) -> QueryNode:
@@ -258,30 +296,47 @@ def _simplify(node: QueryNode) -> QueryNode:
     return node
 
 
-def parse(query_text: str) -> QueryNode:
-    """Parse a query string into a QueryNode.
+def parse(query_text: str) -> QueryPlan:
+    """Parse a query string into a QueryPlan (a selection predicate plus a
+    separate DepthSpec — see ledgerkit.query.ast.QueryPlan).
 
-    An empty or whitespace-only string parses to `And(())` — the vacuous
-    "match everything" query, consistent with `Query()`/`query=None`
-    elsewhere in ledgerkit.
+    An empty or whitespace-only string's predicate is `And(())` — the
+    vacuous "match everything" query, consistent with `Query()`/
+    `query=None` elsewhere in ledgerkit — and its depth is the empty
+    `DepthSpec()` (no clipping).
 
     Raises:
-        QueryParseError: the string is malformed, or a term uses a
-            construct outside this phase's supported subset.
+        QueryParseError: the string is malformed, a term uses a construct
+            outside this phase's supported subset, or `depth:` is wrapped
+            in `not:` (depth is a report option, not a predicate that can
+            be negated).
     """
     tokens = _tokenize(query_text)
-    terms = [_parse_term(t) for t in tokens]
+
+    depth_spec = DepthSpec()
+    predicate_terms: list[QueryNode] = []
+    for token in tokens:
+        if token.startswith("depth:"):
+            depth_spec = merge_depth_specs(depth_spec, _build_depth_spec(token[len("depth:"):]))
+            continue
+        if _wraps_depth(token):
+            raise QueryParseError(
+                f"depth: cannot be negated ({token!r}) — it is a report-display "
+                f"option (see ledgerkit.query.depth.DepthSpec), not a selection predicate"
+            )
+        predicate_terms.append(_parse_term(token))
 
     # Replicates hledger's combineQueriesByType: unnegated acct:/desc:/
     # status: terms of the same type are OR'd with each other; every other
-    # term (date:, depth:, and any not:-wrapped term of any prefix) is
-    # AND'd in individually. A Not(...) node is never pulled into an OR
-    # bucket even when its wrapped prefix matches one of the three types —
-    # see 17-query-semantics-brief.md §6.
-    acct_terms = [t for t in terms if isinstance(t, Acct)]
-    desc_terms = [t for t in terms if isinstance(t, Desc)]
-    status_terms = [t for t in terms if isinstance(t, Status)]
-    other_terms = [t for t in terms if not isinstance(t, (Acct, Desc, Status))]
+    # term (date:, and any not:-wrapped term of any prefix) is AND'd in
+    # individually. A Not(...) node is never pulled into an OR bucket even
+    # when its wrapped prefix matches one of the three types — see
+    # 17-query-semantics-brief.md §6. depth: terms never reach this
+    # combination at all (extracted above into depth_spec instead).
+    acct_terms = [t for t in predicate_terms if isinstance(t, Acct)]
+    desc_terms = [t for t in predicate_terms if isinstance(t, Desc)]
+    status_terms = [t for t in predicate_terms if isinstance(t, Status)]
+    other_terms = [t for t in predicate_terms if not isinstance(t, (Acct, Desc, Status))]
 
     buckets: list[QueryNode] = []
     if acct_terms:
@@ -291,4 +346,5 @@ def parse(query_text: str) -> QueryNode:
     if status_terms:
         buckets.append(Or(tuple(status_terms)))
 
-    return _simplify(And(tuple(buckets + other_terms)))
+    predicate = _simplify(And(tuple(buckets + other_terms)))
+    return QueryPlan(predicate=predicate, depth=depth_spec)

@@ -884,8 +884,11 @@ def stats(journal: Journal, query: Query | None = None) -> JournalStats:
 ```
 
 When `query` is non-`None`, transaction-level filters (date range, payee) are applied
-before computing statistics. Account-level filters are not yet applied to `stats` fields
-(deferred to a follow-on task).
+before computing statistics. `account`/`not_account` filters are not yet applied to
+`account_count`/`account_depth` (deferred to a follow-on task); depth filters are, as
+of Stage C Phase 5 — but via exclusion, not clipping, matching a genuine hledger quirk
+specific to `stats` (see `dev-docs/planning/core-redefinition/
+21-stage-c-phase-5-depth-and-verification-plan.md`).
 
 Also accessible as `ledgerkit.JournalStats` (re-exported from `__init__.py`).
 
@@ -976,18 +979,22 @@ positional argument is an error.
 
 ---
 
-## `ledgerkit/query/` `[NEW — Stage C Phase 1]`
+## `ledgerkit/query/` `[Stage C Phase 1; wired into cli.py/reports.py since Phase 2-3; depth: model changed Phase 5]`
 
-**Not yet re-exported from `ledgerkit/__init__.py`, and not yet wired into
-`reports.py`, `cli.py`, or `Query`** — this is a standalone subpackage so
-far. Implements Stage C's initial term set only: `acct:`/bare pattern,
-`desc:`, `date:` (a single simple date, or two simple dates joined by
-`-`/`..`/` to `, open-ended forms allowed), `depth:`, `status:`, and
-`not:`/implicit-AND/same-prefix-OR combination. `tag:`, `cur:`, hledger's
-smart/period date expressions, and the `PythonRegex` extension syntax
-(`07-query-regex.md` §7.4) are **not implemented** — Stage C follow-on
-work. Full semantics grounding: `dev-docs/planning/core-redefinition/
-17-query-semantics-brief.md`.
+Re-exported from `ledgerkit/__init__.py`. Wired into `cli.py`'s `-q`/
+`--query` flag (all of `balance`/`register`/`accounts`/`stats`/`print`)
+via `reports.py`'s private `_query_ast`/`_query_depth` parameters — see
+`knowledge/DECISIONS.md`, 2026-09-16 (private, internal-only integration;
+no public API change from that alone). Implements Stage C's initial term
+set: `acct:`/bare pattern, `desc:`, `date:` (a single simple date, or two
+simple dates joined by `-`/`..`/` to `, open-ended forms allowed),
+`depth:N`/`depth:REGEX=N`, `status:`, and `not:`/implicit-AND/
+same-prefix-OR combination. `tag:`, `cur:`, hledger's smart/period date
+expressions, and the `PythonRegex` extension syntax (`07-query-regex.md`
+§7.4) are **not implemented** — Stage C follow-on work. Full semantics
+grounding: `dev-docs/planning/core-redefinition/
+17-query-semantics-brief.md`; the Stage C Phase 5 `depth:` redesign:
+`21-stage-c-phase-5-depth-and-verification-plan.md`.
 
 ### `ledgerkit/query/ast.py`
 
@@ -1011,8 +1018,8 @@ class DateSpan:
     end: datetime.date | None    # EXCLUSIVE — see below
 
 @dataclass(frozen=True)
-class Depth:
-    n: int  # >= 0
+class MaxAccountLevel:
+    n: int  # >= 0 — see note below; NOT hledger's depth:
 
 @dataclass(frozen=True)
 class Status:
@@ -1030,7 +1037,12 @@ class Or:
 class Not:
     term: QueryNode
 
-QueryNode = Union[Acct, Desc, DateSpan, Depth, Status, And, Or, Not]
+QueryNode = Union[Acct, Desc, DateSpan, MaxAccountLevel, Status, And, Or, Not]
+
+@dataclass(frozen=True)
+class QueryPlan:
+    predicate: QueryNode  # never contains MaxAccountLevel
+    depth: DepthSpec = field(default_factory=DepthSpec)  # default: empty (no clipping)
 ```
 
 `DateSpan.end` is deliberately **exclusive**, matching hledger's real
@@ -1040,6 +1052,71 @@ interchangeable. `Status`/`TxnStatus` are always transaction-level:
 Ledgerkit's `Transaction`/`Posting` models have no per-posting status
 override (unlike hledger), so there is no posting-level status distinct
 from its transaction's.
+
+**`MaxAccountLevel`** (renamed from `Depth`, Stage C Phase 5) is a
+Ledgerkit-native, **Python-API-only** boolean predicate —
+`accountNameLevel(account) <= n`. It has **no `-q`/`--query` string
+syntax**: `ledgerkit.query.parser.parse()` never produces one; it exists
+only for direct programmatic `QueryNode` construction. It is deliberately
+NOT what `depth:`/`--depth` means in the `-q` string grammar — see
+`ledgerkit.query.depth.DepthSpec` below, and `dev-docs/planning/
+core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md` §3.1
+for why hledger's own `depth:` was found (across every real command it
+tested — `balance`/`register`/`print`/`accounts`) to be a report-display
+clipping/aggregation option, never a selection predicate, and why the
+existing boolean node was kept as a distinct, disclosed primitive rather
+than reused under a colliding name.
+
+**`QueryPlan`** is `ledgerkit.query.parser.parse()`'s return type (Stage C
+Phase 5, changed from a bare `QueryNode`): `predicate` is the selection
+AST as before; `depth` carries any `depth:`/`depth:REGEX=N` term(s) from
+the query text, resolved by `ledgerkit.query.depth`, never folded into
+`predicate`.
+
+### `ledgerkit/query/depth.py` `[NEW — Stage C Phase 5]`
+
+```python
+@dataclass(frozen=True)
+class DepthSpec:
+    """Report-display depth clipping/aggregation — never a selection
+    filter. flat: general depth, or None. by_pattern: (regex, depth)
+    pairs from depth:REGEX=N, in declaration order."""
+    flat: int | None = None
+    by_pattern: tuple[tuple[str, int], ...] = ()
+
+    def is_empty(self) -> bool: ...
+
+def merge_depth_specs(a: DepthSpec, b: DepthSpec) -> DepthSpec:
+    """Combines two DepthSpecs as hledger does for multiple depth: terms
+    WITHIN one query (its DepthSpec Semigroup instance) — the smaller
+    (more restrictive) flat depth wins, order-independent; by_pattern
+    entries accumulate from both. NOT the same rule as multiple --depth
+    CLI flags (last-wins) — Ledgerkit has no standalone --depth flag yet."""
+
+def clipped_depth_for_account(spec: DepthSpec, account: str) -> int | None:
+    """Resolves hledger's own precedence rule (getAccountNameClippedDepth):
+    among by_pattern entries matching the account or a strict ancestor,
+    the one starting to match at the greatest specificity wins (a pattern
+    matching only the leaf, not any ancestor, is MOST specific); ties go
+    to the later-declared entry; falls back to `flat` if none match;
+    None if neither applies (no clipping)."""
+
+def clip_account_name(spec: DepthSpec, account: str) -> str:
+    """Applies clipped_depth_for_account's result. Depth 0 clips to the
+    literal string "..." (confirmed live: hledger never produces an
+    empty/excluded result at depth 0)."""
+
+def account_excluded_by_depth(spec: DepthSpec, account: str) -> bool:
+    """hledger's RAW Depth/DepthAcct boolean-EXCLUSION semantics — used
+    ONLY by reports.stats(), a genuine source-confirmed exception (see
+    reports.stats()'s own docstring and this function's own for the full
+    evidence) where hledger excludes rather than clips."""
+```
+
+`DepthSpec`/its functions are never selection predicates — see
+`reports.py`'s `balance`/`register`/`accounts`/`stats` below for how each
+applies (or, for `stats`, deliberately does not apply)
+`clip_account_name`.
 
 ### `ledgerkit/query/regex.py`
 
@@ -1064,17 +1141,23 @@ def compile_hledger_regex(pattern: str) -> re.Pattern[str]:
 ```python
 class QueryParseError(ValueError): ...
 
-def parse(query_text: str) -> QueryNode:
-    """Parse a query string into a QueryNode. An empty/whitespace-only
-    string parses to And(()) — matches everything, consistent with
-    Query()/query=None elsewhere in ledgerkit.
+def parse(query_text: str) -> QueryPlan:
+    """Parse a query string into a QueryPlan (Stage C Phase 5 — changed
+    from a bare QueryNode). An empty/whitespace-only string's predicate
+    is And(()) — matches everything, consistent with Query()/query=None
+    elsewhere in ledgerkit — and its depth is the empty DepthSpec().
 
-    Combination rule (verified against hledger source, not invented):
-    unnegated acct:/desc:/status: terms of the same type OR-combine with
-    each other; every other term (date:, depth:, and any not:-wrapped
-    term of any prefix) AND-combines individually. A negated term never
-    joins an Or bucket even when its own prefix matches one of the three
-    OR-eligible types."""
+    Combination rule for `predicate` (verified against hledger source,
+    not invented): unnegated acct:/desc:/status: terms of the same type
+    OR-combine with each other; every other term (date:, and any
+    not:-wrapped term of any prefix) AND-combines individually. A negated
+    term never joins an Or bucket even when its own prefix matches one of
+    the three OR-eligible types.
+
+    depth:N/depth:REGEX=N terms never reach `predicate` at all — they
+    accumulate into `depth` via merge_depth_specs. not:depth:... raises
+    QueryParseError (depth is a report option, not a negatable
+    predicate)."""
 ```
 
 ### `ledgerkit/query/eval.py`
@@ -1082,12 +1165,13 @@ def parse(query_text: str) -> QueryNode:
 ```python
 def matches_transaction(node: QueryNode, txn: Transaction) -> bool:
     """Transaction-oriented matching (used by print-like commands).
-    Acct/Depth match if ANY posting in the transaction matches."""
+    Acct/MaxAccountLevel match if ANY posting in the transaction matches."""
 
 def matches_posting(node: QueryNode, txn: Transaction, posting: Posting) -> bool:
     """Posting-oriented matching (used by register/balance-like commands).
     Desc/DateSpan/Status are transaction-level facts a posting inherits
-    unchanged; Acct/Depth are checked against the posting's own account."""
+    unchanged; Acct/MaxAccountLevel are checked against the posting's own
+    account. depth: is never evaluated here — see ledgerkit.query.depth."""
 ```
 
 `Depth`'s predicate is purely `accountNameLevel(account) <= n` (colon-

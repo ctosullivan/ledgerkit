@@ -36,6 +36,21 @@ reason: >
   output. Confirmed identical to hledger for acct:/not:/status: queries
   on the same fixture (formatting differences only).
 
+  UPDATE (Stage C Phase 5, 2026-09-17): the depth:+print open question
+  this entry originally left unresolved is now definitively closed, via
+  LK-COMPAT-QUERY-DEPTH-001's own redesign -- confirmed via direct
+  source read (EntriesReport.hs's entriesReport strips Depth/DepthAcct
+  from its filter query via filterQuery (not.queryIsDepth) and never
+  calls any account-name-clipping function at all) that print is
+  unconditionally depth-blind, by hledger's own design, not an
+  unexplained quirk. Ledgerkit's cli.py now matches this structurally:
+  the print branch reads only QueryPlan.predicate, never .depth, so it
+  is correctly depth-blind without any special-casing. Before this fix,
+  Ledgerkit's print -q "depth:N" was actively wrong in the opposite
+  direction from hledger (excluded every transaction; hledger shows all
+  of them) -- a confirmed defect this phase fixed, not merely the "open
+  question" this entry originally described.
+
 implementation:
   - ledgerkit/cli.py (print command branch)
   - ledgerkit/query/eval.py:matches_transaction
@@ -44,6 +59,7 @@ tests:
   - tests/test_cli/test_cli.py::TestQueryFlag::test_print_query_filters_whole_transactions
   - tests/test_cli/test_cli.py::TestQueryFlag::test_print_no_match_query_exits_zero_empty
   - tests/test_cli/test_cli.py::TestQueryFlag::test_print_status_query
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_print_ignores_depth_entirely
 
 evidence:
   - kind: manual

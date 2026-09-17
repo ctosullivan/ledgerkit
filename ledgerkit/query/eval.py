@@ -3,9 +3,11 @@
 Two entry points, matching hledger's own transaction- vs posting-oriented
 matching (`17-query-semantics-brief.md` §1-§5): `matches_transaction` (used
 by transaction-oriented commands like `print`) and `matches_posting` (used
-by posting-oriented commands like `register`/`balance`). Acct/Depth use
-hledger's "any posting matches" rule at the transaction level; Desc/Status
-are transaction-level facts that a posting simply inherits.
+by posting-oriented commands like `register`/`balance`). Acct/
+MaxAccountLevel use hledger's "any posting matches" rule at the
+transaction level; Desc/Status are transaction-level facts that a posting
+simply inherits. `depth:` is not evaluated here at all as of Stage C
+Phase 5 — see `ledgerkit.query.depth`.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ import datetime
 import functools
 
 from ledgerkit.models import Posting, Transaction
-from ledgerkit.query.ast import Acct, And, DateSpan, Depth, Desc, Not, Or, QueryNode, Status, TxnStatus
+from ledgerkit.query.ast import Acct, And, DateSpan, Desc, MaxAccountLevel, Not, Or, QueryNode, Status, TxnStatus
 from ledgerkit.query.regex import compile_hledger_regex
 
 
@@ -58,9 +60,11 @@ def _txn_status(txn: Transaction) -> TxnStatus:
 def matches_transaction(node: QueryNode, txn: Transaction) -> bool:
     """Return True if `txn` matches `node` (transaction-oriented matching).
 
-    Acct/Depth match if *any* posting in the transaction matches
+    Acct/MaxAccountLevel match if *any* posting in the transaction matches
     (hledger's `matchesTransaction q@(Acct _) t = any (q \`matchesPosting\`)
-    $ tpostings t` rule, likewise for Depth).
+    $ tpostings t` rule; MaxAccountLevel mirrors it as a Ledgerkit-native
+    convenience, not because hledger's own `depth:` works this way — see
+    `MaxAccountLevel`'s docstring).
     """
     if isinstance(node, Acct):
         return any(_account_matches(node.pattern, p.account) for p in txn.postings)
@@ -68,7 +72,7 @@ def matches_transaction(node: QueryNode, txn: Transaction) -> bool:
         return _text_matches(node.pattern, txn.description)
     if isinstance(node, DateSpan):
         return _date_in_span(txn.date, node)
-    if isinstance(node, Depth):
+    if isinstance(node, MaxAccountLevel):
         return any(_account_depth(p.account) <= node.n for p in txn.postings)
     if isinstance(node, Status):
         return _txn_status(txn) == node.value
@@ -93,7 +97,7 @@ def matches_posting(node: QueryNode, txn: Transaction, posting: Posting) -> bool
         return _text_matches(node.pattern, txn.description)
     if isinstance(node, DateSpan):
         return _date_in_span(txn.date, node)
-    if isinstance(node, Depth):
+    if isinstance(node, MaxAccountLevel):
         return _account_depth(posting.account) <= node.n
     if isinstance(node, Status):
         return _txn_status(txn) == node.value

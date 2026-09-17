@@ -70,7 +70,8 @@ commodity symbol must match exactly — `£` and `GBP` are two distinct identifi
 
 Filters `balance`, `register`, `accounts`, `stats`, and `print` by a
 space-separated query string. Supports `acct:`/bare pattern, `desc:`,
-`date:` (simple dates only), `depth:`, `status:`, and `not:` — see
+`date:` (simple dates only), `depth:N`/`depth:REGEX=N`, `status:`, and
+`not:` — see
 [`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
 for the full term reference. Not supported by `check` (checks apply to
 the whole journal by design). For `print`, a matching transaction is
@@ -85,6 +86,12 @@ ledgerkit -f myledger.journal -q "status:* date:2024-01-01..2024-02-01" register
 
 # Multiple terms of the same prefix OR; different prefixes AND
 ledgerkit -f myledger.journal -q "acct:food acct:rent status:*" balance
+
+# Summarise to 2 levels of account detail
+ledgerkit -f myledger.journal -q "depth:2" balance
+
+# Collapse only assets-matching accounts to depth 1; everything else stays full
+ledgerkit -f myledger.journal -q "depth:assets=1" balance
 ```
 
 Quote a multi-word pattern: `-q 'desc:"whole foods"'`. An invalid query
@@ -93,14 +100,17 @@ prints an error and exits 1; a query matching nothing exits 0 with an
 otherwise-empty (or, for `balance`, a bare `0` total) result — not an
 error.
 
-**`depth:N` here does not behave like hledger's own `depth:`/`--depth`.**
-hledger's `depth:` truncates and aggregates deeper accounts into their
-depth-N ancestor; `-q "depth:N"` here **excludes** postings deeper than N
-entirely instead — `balance -q "depth:1"` can return zero rows where
-`hledger balance depth:1` would show aggregated totals for every
-top-level account. See
+`depth:N`/`depth:REGEX=N` matches hledger's own `--depth`/`depth:`
+exactly: it **truncates and aggregates** deeper accounts into their
+depth-N ancestor for `balance`/`register`/`accounts` — it never excludes
+a posting. `print` ignores `depth:` entirely (matching hledger's own
+`print`, which does too). `stats` is the one exception: its `Accounts`
+count/depth genuinely **excludes** deeper accounts rather than
+aggregating them — a real hledger quirk specific to `stats`, not a
+Ledgerkit choice. See
 [`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
-for the full explanation.
+for the full explanation and the worked precedence examples for combining
+multiple `depth:` terms.
 
 ---
 

@@ -1,29 +1,64 @@
-"""Tests for ledgerkit.query.parser — query text -> QueryAST."""
+"""Tests for ledgerkit.query.parser — query text -> QueryPlan."""
 
 from __future__ import annotations
 
 import datetime
 import unittest
 
-from ledgerkit.query.ast import Acct, And, DateSpan, Depth, Desc, Not, Or, Status, TxnStatus
+from ledgerkit.query.ast import Acct, And, DateSpan, Desc, Not, Or, Status, TxnStatus
+from ledgerkit.query.depth import DepthSpec
 from ledgerkit.query.parser import QueryParseError, parse
+
+
+def _pred(text: str):
+    """The selection-predicate half of parse(text) — most tests only care
+    about this; depth: never appears in it (see TestDepthSpec below)."""
+    return parse(text).predicate
 
 
 class TestBarePatternAndPrefixes(unittest.TestCase):
     def test_bare_pattern_defaults_to_acct(self):
-        self.assertEqual(parse("groceries"), Acct("groceries"))
+        self.assertEqual(_pred("groceries"), Acct("groceries"))
 
     def test_acct_prefix(self):
-        self.assertEqual(parse("acct:groceries"), Acct("groceries"))
+        self.assertEqual(_pred("acct:groceries"), Acct("groceries"))
 
     def test_desc_prefix(self):
-        self.assertEqual(parse("desc:amazon"), Desc("amazon"))
+        self.assertEqual(_pred("desc:amazon"), Desc("amazon"))
 
-    def test_depth_prefix(self):
-        self.assertEqual(parse("depth:2"), Depth(2))
+    def test_status_cleared(self):
+        self.assertEqual(_pred("status:*"), Status(TxnStatus.CLEARED))
+
+    def test_status_pending(self):
+        self.assertEqual(_pred("status:!"), Status(TxnStatus.PENDING))
+
+    def test_status_unmarked_bare(self):
+        self.assertEqual(_pred("status:"), Status(TxnStatus.UNMARKED))
+
+    def test_status_cleared_synonym_1(self):
+        self.assertEqual(_pred("status:1"), Status(TxnStatus.CLEARED))
+
+    def test_status_unmarked_synonym_0(self):
+        self.assertEqual(_pred("status:0"), Status(TxnStatus.UNMARKED))
+
+    def test_status_invalid_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("status:x")
+
+
+class TestDepthSpec(unittest.TestCase):
+    """depth: terms never join the selection predicate (Stage C Phase 5) —
+    they're extracted into QueryPlan.depth, a report-display option. See
+    dev-docs/planning/core-redefinition/
+    21-stage-c-phase-5-depth-and-verification-plan.md."""
+
+    def test_depth_prefix_produces_flat_depthspec_not_a_predicate_node(self):
+        plan = parse("depth:2")
+        self.assertEqual(plan.depth, DepthSpec(flat=2))
+        self.assertEqual(plan.predicate, And(()))  # vacuous — matches everything
 
     def test_depth_zero_is_valid(self):
-        self.assertEqual(parse("depth:0"), Depth(0))
+        self.assertEqual(parse("depth:0").depth, DepthSpec(flat=0))
 
     def test_depth_negative_rejected(self):
         with self.assertRaises(QueryParseError):
@@ -33,59 +68,88 @@ class TestBarePatternAndPrefixes(unittest.TestCase):
         with self.assertRaises(QueryParseError):
             parse("depth:abc")
 
-    def test_status_cleared(self):
-        self.assertEqual(parse("status:*"), Status(TxnStatus.CLEARED))
+    def test_depth_regex_form(self):
+        plan = parse("depth:assets=2")
+        self.assertEqual(plan.depth, DepthSpec(by_pattern=(("assets", 2),)))
+        self.assertEqual(plan.predicate, And(()))
 
-    def test_status_pending(self):
-        self.assertEqual(parse("status:!"), Status(TxnStatus.PENDING))
-
-    def test_status_unmarked_bare(self):
-        self.assertEqual(parse("status:"), Status(TxnStatus.UNMARKED))
-
-    def test_status_cleared_synonym_1(self):
-        self.assertEqual(parse("status:1"), Status(TxnStatus.CLEARED))
-
-    def test_status_unmarked_synonym_0(self):
-        self.assertEqual(parse("status:0"), Status(TxnStatus.UNMARKED))
-
-    def test_status_invalid_rejected(self):
+    def test_depth_regex_form_invalid_pattern_rejected(self):
         with self.assertRaises(QueryParseError):
-            parse("status:x")
+            parse("depth:(=2")
+
+    def test_depth_regex_form_non_integer_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("depth:assets=abc")
+
+    def test_multiple_flat_depth_terms_take_the_minimum(self):
+        # Confirmed live against the pinned hledger 1.52.4 binary: multiple
+        # depth:N terms WITHIN one query (not multiple --depth CLI flags,
+        # a separate "last wins" rule Ledgerkit doesn't have a flag for
+        # yet) combine via minimum, order-independent — hledger's own
+        # DepthSpec Semigroup instance (Min-based), not last-wins.
+        self.assertEqual(parse("depth:3 depth:1").depth, DepthSpec(flat=1))
+        self.assertEqual(parse("depth:1 depth:3").depth, DepthSpec(flat=1))
+
+    def test_flat_and_regex_depth_terms_accumulate(self):
+        plan = parse("depth:assets=3 depth:1")
+        self.assertEqual(plan.depth, DepthSpec(flat=1, by_pattern=(("assets", 3),)))
+
+    def test_two_regex_depth_terms_both_accumulate(self):
+        plan = parse("depth:assets=1 depth:savings=2")
+        self.assertEqual(
+            plan.depth,
+            DepthSpec(by_pattern=(("assets", 1), ("savings", 2))),
+        )
+
+    def test_not_depth_rejected(self):
+        # depth: is a report option, not a predicate — it cannot be
+        # negated. Must raise cleanly, never silently fall through to
+        # treating "depth:2" as a literal acct: pattern.
+        with self.assertRaises(QueryParseError):
+            parse("not:depth:2")
+
+    def test_double_not_depth_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("not:not:depth:2")
+
+    def test_no_depth_term_gives_empty_depthspec(self):
+        self.assertEqual(parse("acct:food").depth, DepthSpec())
+        self.assertTrue(parse("acct:food").depth.is_empty())
 
 
 class TestQuoting(unittest.TestCase):
     def test_quoted_bare_pattern_with_space(self):
-        self.assertEqual(parse('"expenses dining"'), Acct("expenses dining"))
+        self.assertEqual(_pred('"expenses dining"'), Acct("expenses dining"))
 
     def test_quoted_desc_with_space(self):
-        self.assertEqual(parse('desc:"whole foods"'), Desc("whole foods"))
+        self.assertEqual(_pred('desc:"whole foods"'), Desc("whole foods"))
 
     def test_unquoted_two_words_are_two_terms(self):
-        self.assertEqual(parse("expenses:dining out"), Or((Acct("expenses:dining"), Acct("out"))))
+        self.assertEqual(_pred("expenses:dining out"), Or((Acct("expenses:dining"), Acct("out"))))
 
 
 class TestDateSpans(unittest.TestCase):
     def test_single_date(self):
         self.assertEqual(
-            parse("date:2024-01-15"),
+            _pred("date:2024-01-15"),
             DateSpan(datetime.date(2024, 1, 15), datetime.date(2024, 1, 16)),
         )
 
     def test_closed_range_dash_separator(self):
         self.assertEqual(
-            parse("date:2024-01-01-2024-02-01"),
+            _pred("date:2024-01-01-2024-02-01"),
             DateSpan(datetime.date(2024, 1, 1), datetime.date(2024, 2, 1)),
         )
 
     def test_closed_range_dotdot_separator(self):
         self.assertEqual(
-            parse("date:2024-01-01..2024-02-01"),
+            _pred("date:2024-01-01..2024-02-01"),
             DateSpan(datetime.date(2024, 1, 1), datetime.date(2024, 2, 1)),
         )
 
     def test_closed_range_to_separator(self):
         self.assertEqual(
-            parse('date:"2024-01-01 to 2024-02-01"'),
+            _pred('date:"2024-01-01 to 2024-02-01"'),
             DateSpan(datetime.date(2024, 1, 1), datetime.date(2024, 2, 1)),
         )
 
@@ -94,15 +158,15 @@ class TestDateSpans(unittest.TestCase):
         # one-day span), a written range's second date becomes the
         # exclusive end exactly as given — so date:D1-2024-01-31 does
         # NOT include Jan 31 itself (17-query-semantics-brief.md §3).
-        span = parse("date:2024-01-01-2024-01-31")
+        span = _pred("date:2024-01-01-2024-01-31")
         self.assertEqual(span.end, datetime.date(2024, 1, 31))
         self.assertNotEqual(span.end, datetime.date(2024, 2, 1))
 
     def test_open_ended_from(self):
-        self.assertEqual(parse("date:2024-01-01.."), DateSpan(datetime.date(2024, 1, 1), None))
+        self.assertEqual(_pred("date:2024-01-01.."), DateSpan(datetime.date(2024, 1, 1), None))
 
     def test_open_ended_to(self):
-        self.assertEqual(parse("date:..2024-01-01"), DateSpan(None, datetime.date(2024, 1, 1)))
+        self.assertEqual(_pred("date:..2024-01-01"), DateSpan(None, datetime.date(2024, 1, 1)))
 
     def test_two_digit_year_rejected(self):
         with self.assertRaises(QueryParseError):
@@ -119,37 +183,41 @@ class TestDateSpans(unittest.TestCase):
 
 class TestNotAndCombination(unittest.TestCase):
     def test_not_wraps_bare_pattern(self):
-        self.assertEqual(parse("not:groceries"), Not(Acct("groceries")))
+        self.assertEqual(_pred("not:groceries"), Not(Acct("groceries")))
 
     def test_not_wraps_prefixed_term(self):
-        self.assertEqual(parse("not:desc:amazon"), Not(Desc("amazon")))
+        self.assertEqual(_pred("not:desc:amazon"), Not(Desc("amazon")))
 
     def test_double_negation(self):
-        self.assertEqual(parse("not:not:groceries"), Not(Not(Acct("groceries"))))
+        self.assertEqual(_pred("not:not:groceries"), Not(Not(Acct("groceries"))))
 
     def test_same_prefix_acct_terms_are_ored(self):
-        self.assertEqual(parse("acct:a acct:b"), Or((Acct("a"), Acct("b"))))
+        self.assertEqual(_pred("acct:a acct:b"), Or((Acct("a"), Acct("b"))))
 
     def test_same_prefix_desc_terms_are_ored(self):
-        self.assertEqual(parse("desc:a desc:b"), Or((Desc("a"), Desc("b"))))
+        self.assertEqual(_pred("desc:a desc:b"), Or((Desc("a"), Desc("b"))))
 
     def test_same_prefix_status_terms_are_ored(self):
         self.assertEqual(
-            parse("status: status:!"),
+            _pred("status: status:!"),
             Or((Status(TxnStatus.UNMARKED), Status(TxnStatus.PENDING))),
         )
 
     def test_different_prefixes_are_anded(self):
+        # depth:2 is included here specifically to confirm it does NOT
+        # appear in the predicate tree at all (Stage C Phase 5) — only
+        # desc:/date: remain AND'd; depth:2 is checked separately below.
+        plan = parse("date:2022-01-01.. desc:amazon depth:2")
         self.assertEqual(
-            parse("date:2022-01-01.. desc:amazon depth:2"),
+            plan.predicate,
             And(
                 (
                     Desc("amazon"),
                     DateSpan(datetime.date(2022, 1, 1), None),
-                    Depth(2),
                 )
             ),
         )
+        self.assertEqual(plan.depth, DepthSpec(flat=2))
 
     def test_negated_same_prefix_terms_are_anded_not_ored(self):
         # The central footgun from 17-query-semantics-brief.md §6: two
@@ -157,13 +225,13 @@ class TestNotAndCombination(unittest.TestCase):
         # neither), not OR'd (which would mean "match not-a or not-b" — a
         # much weaker, almost-always-true exclusion).
         self.assertEqual(
-            parse("not:acct:a not:acct:b"),
+            _pred("not:acct:a not:acct:b"),
             And((Not(Acct("a")), Not(Acct("b")))),
         )
 
     def test_mixed_negated_and_unnegated_same_prefix(self):
         self.assertEqual(
-            parse("acct:a acct:b not:acct:c"),
+            _pred("acct:a acct:b not:acct:c"),
             And((Or((Acct("a"), Acct("b"))), Not(Acct("c")))),
         )
 
@@ -189,10 +257,12 @@ class TestMalformedRegexRaisesAtParseTime(unittest.TestCase):
 
 class TestEmptyQuery(unittest.TestCase):
     def test_empty_string_matches_everything(self):
-        self.assertEqual(parse(""), And(()))
+        plan = parse("")
+        self.assertEqual(plan.predicate, And(()))
+        self.assertEqual(plan.depth, DepthSpec())
 
     def test_whitespace_only_matches_everything(self):
-        self.assertEqual(parse("   "), And(()))
+        self.assertEqual(parse("   ").predicate, And(()))
 
 
 if __name__ == "__main__":

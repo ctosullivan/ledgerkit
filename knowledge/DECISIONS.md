@@ -542,3 +542,143 @@ implementation shape genuinely differs, per the reasoning above.
 
 **Applies to:** `ledgerkit/tags.py`, `dev-docs/compat-register/
 LK-COMPAT-PARSER-TAG-001.yaml`
+
+---
+
+## 2026-09-17 — `depth:` modelled as a `DepthSpec` report option, never a `QueryNode`
+
+**Decision:** `ledgerkit.query.ast.Depth` (Stage C Phase 1's pure boolean
+exclusion predicate) is removed from the selection-predicate AST
+entirely. `depth:N`/`depth:REGEX=N` in a `-q` query string produce a
+`ledgerkit.query.depth.DepthSpec` on `QueryPlan.depth` instead — a
+report-display clipping/aggregation option consumed by `reports.py`, not
+something `ledgerkit.query.eval.matches_posting`/`matches_transaction`
+ever sees.
+
+**Why:** a full trace of every hledger command that consumes a `Query`
+(`MultiBalanceReport.hs`, `PostingsReport.hs`, `EntriesReport.hs`,
+`Accounts.hs`, `AccountTransactionsReport.hs`) found every one strips
+`Depth`/`DepthAcct` out of the query used to select postings *before*
+selection happens, and re-derives a `DepthSpec` purely for display
+truncation/aggregation. `depth:` is never a real selection predicate in
+any hledger command's actual behaviour, despite the `Depth` constructor's
+own `matchesAccount` function existing and being real — Phase 1 mistook
+"this function exists and is unit-tested" for "this function is what a
+user's `depth:` query actually does." See `dev-docs/planning/
+core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md` §1.3
+for the full source citations and live-binary confirmation.
+
+**Rejected alternative:** keeping `Depth` as the string-grammar's
+`depth:` handler and accepting the divergence as `intentional_divergence`
+(the Phase 2-4 status quo) — rejected because a real fix was available
+and the divergence provided no offsetting value; nothing depended on the
+old exclusion behaviour (shipped only days earlier, no external users).
+
+**Applies to:** `ledgerkit/query/ast.py`, `ledgerkit/query/parser.py`,
+`ledgerkit/query/eval.py`, `ledgerkit/query/depth.py`, `ledgerkit/reports.py`
+
+---
+
+## 2026-09-17 — `Query.depth`/`ReportSection.depth` stay flat-only; the richer `DepthSpec` is not retrofitted onto them
+
+**Decision:** the pre-existing public `models.Query.depth: int | None`
+and `models.ReportSection.depth: int | None` fields are **not** retyped
+to `DepthSpec`. The richer custom-`REGEX=N`/multi-term form is reachable
+only via the `-q` CLI string grammar and `ledgerkit.query.depth`
+directly, not through the older Python-API `Query`/`ReportSection`
+dataclasses.
+
+**Why:** retyping a currently-shipped public field is a breaking change
+to existing callers for no demonstrated need — nothing in this phase's
+scope required `Query.depth` to grow regex support, and the two
+mechanisms (legacy flat `Query.depth`, newer `-q`-driven `DepthSpec`) can
+coexist: `reports._effective_depth_spec` already reconciles them (prefers
+`_query_depth` when supplied and non-empty, else wraps `query.depth` as
+`DepthSpec(flat=query.depth)`).
+
+**Rejected alternative:** retyping `Query.depth`/`ReportSection.depth`
+to `DepthSpec` directly, unifying the two representations — rejected as
+unnecessary API churn; can be revisited if a real need for regex-depth
+via the Python `Query` API surfaces.
+
+**Applies to:** `ledgerkit/models.py`, `ledgerkit/reports.py`
+
+---
+
+## 2026-09-17 — Old exclusion-predicate `Depth` kept as `MaxAccountLevel`, Python-API-only, no `-q` string syntax
+
+**Decision:** the removed `ast.Depth` node is not deleted outright — it's
+renamed to `MaxAccountLevel` and kept as a disclosed, Ledgerkit-native
+boolean predicate, reachable only by constructing the `QueryNode` object
+directly in Python. `ledgerkit.query.parser.parse()` never produces one —
+there is no `-q` string spelling for it at all, `depth:` included.
+
+**Why:** the underlying predicate ("is this posting at or shallower than
+depth N") is a real, independently useful primitive with no other
+spelling in the AST, and deleting working, tested code purely because its
+name collided with hledger's own token would be needlessly destructive.
+But keeping it reachable under the literal `depth:` string — even as a
+documented divergence — was rejected: reusing hledger's own exact token
+for different semantics is a durable trap for anyone who reasonably
+assumes `depth:` means what it means everywhere else, and fails the
+register schema's own `extension_requires_explicit_syntax` bar
+structurally (an extension must be reachable only via syntax that
+doesn't collide with upstream).
+
+**Rejected alternatives:** (a) delete `Depth` entirely — rejected, see
+above; (b) give it a new non-colliding string token (e.g. `levelmax:N`)
+reachable from `-q` — rejected as unnecessary complexity for a primitive
+that, so far, has no demonstrated Python-API caller at all; can be
+revisited if one appears.
+
+**Applies to:** `ledgerkit/query/ast.py`, `ledgerkit/query/eval.py`
+
+---
+
+## 2026-09-17 — No standalone `--depth`/`-N` CLI flag this phase
+
+**Decision:** Stage C Phase 5 fixes `-q "depth:N"`'s semantics but does
+not add a standalone `--depth`/`-N` CLI flag independent of `-q` (which
+hledger itself treats as equivalent: `depth:2` ≡ `--depth=2` ≡ `-2`).
+
+**Why:** the phase's approved scope was correcting `depth:`'s semantics,
+not expanding CLI surface area; `-q "depth:N"` already gives full access
+to the corrected behaviour (general and custom-regex forms alike) without
+a new flag. Keeps this phase's diff focused on the actual defect.
+
+**Rejected alternative:** adding `--depth`/`-N` in the same phase —
+deferred as a named, explicitly-scoped follow-on instead
+(`21-stage-c-phase-5-depth-and-verification-plan.md` §9, gate G-DEPTH-4).
+
+**Applies to:** `ledgerkit/cli.py`
+
+---
+
+## 2026-09-17 — `stats`'s depth-exclusion quirk replicated exactly, not treated as a divergence
+
+**Decision:** `reports.stats()`'s `account_count`/`account_depth` fields
+use `ledgerkit.query.depth.account_excluded_by_depth` — a genuine
+EXCLUSION rule — rather than `clip_account_name` (the clipping rule every
+other depth-aware report function here uses).
+
+**Why:** hledger's own `Ledger.hs:ledgerFromJournal`, which `stats`
+alone (of the commands Ledgerkit tracks) builds its account list from,
+has a doc-comment stating plainly: "If the query includes a depth limit,
+the ledger's journal will be depth limited [excluded], but the ledger's
+account tree will not [clipped]." This is a real, narrow, source-
+confirmed exception specific to `stats` — verified live against the
+pinned 1.52.4 binary on two independent scenarios (a single custom-regex
+depth, and a mixed custom+general combination), both reproducing
+hledger's exact `Accounts: N (depth D)` output. Choosing NOT to replicate
+this quirk (i.e. clipping `stats`' counts too, for internal Ledgerkit
+consistency) was considered and rejected: the whole point of this phase
+was matching hledger's actual observable behaviour, and this is
+observable, real, and now verified — treating it as "too weird to bother
+matching" would have been arbitrary.
+
+**Rejected alternative:** clipping `stats`' account_count/account_depth
+like every other depth-aware function, for internal consistency across
+Ledgerkit's own reports — rejected in favour of hledger-accuracy, given
+the exception is real and now confirmed, not speculative.
+
+**Applies to:** `ledgerkit/query/depth.py`, `ledgerkit/reports.py`

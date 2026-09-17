@@ -9,7 +9,7 @@ from __future__ import annotations
 import datetime
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterator
 
@@ -26,6 +26,7 @@ from ledgerkit.models import (
 )
 from ledgerkit.parser import resolve_elision
 from ledgerkit.query.ast import QueryNode
+from ledgerkit.query.depth import DepthSpec, account_excluded_by_depth, clip_account_name
 from ledgerkit.query.eval import matches_posting as _query_ast_matches_posting
 from ledgerkit.query.eval import matches_transaction as _query_ast_matches_transaction
 
@@ -246,7 +247,16 @@ def _posting_matches(
     """Return True if the posting should be included given the query.
 
     Transaction-level filters (date, payee) are checked against txn.
-    Posting-level filters (account, not_account, depth) are checked against posting.
+    Posting-level filters (account, not_account) are checked against posting.
+
+    `query.depth` is deliberately NOT checked here — depth is never a
+    selection/exclusion criterion in hledger (confirmed across every real
+    command; see `dev-docs/planning/core-redefinition/
+    21-stage-c-phase-5-depth-and-verification-plan.md` §1.3) and callers
+    must never exclude a posting based on it. Report functions that
+    support depth (`balance`/`register`/`accounts`/`stats`) apply it
+    afterwards, purely as a display-name transform, via
+    `_effective_depth_spec`/`ledgerkit.query.depth.clip_account_name`.
 
     A None query or a Query() with all None fields always returns True.
     """
@@ -262,9 +272,24 @@ def _posting_matches(
         return False
     if query.not_account is not None and _matches_pattern(query.not_account, posting.account):
         return False
-    if query.depth is not None and len(posting.account.split(":")) > query.depth:
-        return False
     return True
+
+
+def _effective_depth_spec(query: Query | None, _query_depth: DepthSpec | None) -> DepthSpec:
+    """Resolve the DepthSpec a report function should clip display names to.
+
+    `_query_depth` (from the CLI's `-q`/`--query` string, via
+    `ledgerkit.query.parser.parse`) takes precedence when supplied and
+    non-empty — it is the richer, more recent mechanism. Otherwise falls
+    back to the legacy `query.depth` (a flat int only; wrapped as
+    `DepthSpec(flat=query.depth)`). Both are Ledgerkit-internal report
+    options, never a selection filter — see `_posting_matches`.
+    """
+    if _query_depth is not None and not _query_depth.is_empty():
+        return _query_depth
+    if query is not None and query.depth is not None:
+        return DepthSpec(flat=query.depth)
+    return DepthSpec()
 
 
 def _aggregate_posting_amounts(
@@ -321,6 +346,7 @@ def accounts(
     journal: Journal,
     query: Query | None = None,
     _query_ast: QueryNode | None = None,
+    _query_depth: DepthSpec | None = None,
 ) -> list[str]:
     """Return a sorted list of all unique account names in the journal.
 
@@ -332,11 +358,19 @@ def accounts(
             API — see knowledge/DECISIONS.md, 2026-09-16 ("Stage C Phase 2's
             query/report integration is internal-only this phase"). AND'd
             with `query` when both are supplied.
+        _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
+            from the CLI's -q/--query flag's depth: term(s), added Stage C
+            Phase 5. See `_effective_depth_spec` for precedence against the
+            legacy `query.depth`.
 
     Returns:
         Sorted list of account name strings that appear in at least one
-        matching posting.
+        matching posting, clipped/deduplicated per the effective DepthSpec
+        (matching hledger's own `accounts --depth`/`depth:` — clipping and
+        merging, never excluding — dev-docs/planning/core-redefinition/
+        21-stage-c-phase-5-depth-and-verification-plan.md §1.3).
     """
+    depth_spec = _effective_depth_spec(query, _query_depth)
     seen: set[str] = set()
     for txn in journal.transactions:
         for posting in txn.postings:
@@ -344,7 +378,7 @@ def accounts(
                 continue
             if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting):
                 continue
-            seen.add(posting.account)
+            seen.add(clip_account_name(depth_spec, posting.account))
     return AccountsResult(sorted(seen))
 
 
@@ -353,6 +387,7 @@ def balance(
     query: Query | None = None,
     tree: bool = False,
     _query_ast: QueryNode | None = None,
+    _query_depth: DepthSpec | None = None,
 ) -> dict[str, dict[str, Decimal]] | list[BalanceRow]:
     """Return per-commodity net balances for each account.
 
@@ -366,39 +401,34 @@ def balance(
         _query_ast: Private, internal-only filter (a ledgerkit.query.QueryNode)
             used by the CLI's -q/--query flag. Not part of the stable public
             API — see knowledge/DECISIONS.md, 2026-09-16. AND'd with `query`
-            when both are supplied. Unlike `query`, _query_ast has no depth
-            term with truncation semantics — a Depth node in the AST excludes
-            postings (the query.eval predicate meaning), it does not truncate
-            displayed account names.
+            when both are supplied. Never carries depth — depth is never a
+            selection predicate (see `_posting_matches`).
+        _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
+            from the CLI's -q/--query flag's depth: term(s), added Stage C
+            Phase 5. See `_effective_depth_spec` for precedence against the
+            legacy `query.depth`.
 
     Returns:
         When tree=False: dict mapping account name to {commodity: net_balance}.
         When tree=True: list[BalanceRow] sorted alphabetically, including
         implicit parent accounts with is_subtotal=True.
 
-    Note on depth: depth in the query causes account names to be *truncated*
-    (rolled up) rather than excluded — matching hledger's --depth behaviour.
+    Note on depth: depth causes account names to be *clipped and aggregated*
+    (rolled up) rather than excluded — matching hledger's --depth/depth:
+    behaviour, including custom REGEX=N depths via `_query_depth`.
     expenses:food:groceries at depth=2 contributes to expenses:food.
     """
-    # Strip depth from the query before _posting_matches so deep postings are
-    # not excluded, then apply truncation to the account name manually.
-    matching_query = (
-        replace(query, depth=None)
-        if query is not None and query.depth is not None
-        else query
-    )
+    depth_spec = _effective_depth_spec(query, _query_depth)
     totals: dict[str, dict[str, Decimal]] = {}
     for txn in journal.transactions:
         for posting in resolve_elision(txn):
-            if not _posting_matches(posting, txn, matching_query):
+            if not _posting_matches(posting, txn, query):
                 continue
             if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting):
                 continue
             if posting.amount is None:
                 continue
-            account = posting.account
-            if query is not None and query.depth is not None:
-                account = ":".join(account.split(":")[:query.depth])
+            account = clip_account_name(depth_spec, posting.account)
             commodity = posting.amount.commodity
             if account not in totals:
                 totals[account] = {}
@@ -414,6 +444,7 @@ def register(
     journal: Journal,
     query: Query | None = None,
     _query_ast: QueryNode | None = None,
+    _query_depth: DepthSpec | None = None,
 ) -> list[RegisterRow]:
     """Return a chronological list of register rows.
 
@@ -424,11 +455,24 @@ def register(
             used by the CLI's -q/--query flag. Not part of the stable public
             API — see knowledge/DECISIONS.md, 2026-09-16. AND'd with `query`
             when both are supplied.
+        _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
+            from the CLI's -q/--query flag's depth: term(s), added Stage C
+            Phase 5. See `_effective_depth_spec` for precedence against the
+            legacy `query.depth`.
 
     Returns:
         List of RegisterRow objects in journal order. running_balance is the
-        cumulative sum of amount.quantity across all rows in output order.
+        cumulative sum of amount.quantity across all rows in output order —
+        never grouped/aggregated by account, even when depth clips several
+        postings' displayed account names to the same string (matching
+        hledger's own `register --depth`: every posting stays its own row,
+        only its displayed account name is clipped). No posting is ever
+        excluded on account of `query.depth`/`_query_depth` — fixed Stage C
+        Phase 5; previously this function (unlike `balance`) applied depth
+        as an exclusion filter via `_posting_matches`, a real pre-existing
+        bug distinct from the `-q` `depth:` divergence.
     """
+    depth_spec = _effective_depth_spec(query, _query_depth)
     rows: list[RegisterRow] = []
     running: Decimal = Decimal(0)
     for txn in sorted(journal.transactions, key=lambda t: t.date):
@@ -443,7 +487,7 @@ def register(
             rows.append(RegisterRow(
                 date=txn.date,
                 description=txn.description,
-                account=posting.account,
+                account=clip_account_name(depth_spec, posting.account),
                 amount=posting.amount,
                 running_balance=running,
             ))
@@ -454,6 +498,7 @@ def stats(
     journal: Journal,
     query: Query | None = None,
     _query_ast: QueryNode | None = None,
+    _query_depth: DepthSpec | None = None,
 ) -> JournalStats:
     """Return summary statistics for the journal.
 
@@ -470,11 +515,22 @@ def stats(
             oriented — it filters the transaction list, not individual
             postings, matching its own existing query= filtering above).
             AND'd with `query` when both are supplied.
+        _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
+            from the CLI's -q/--query flag's depth: term(s), added Stage C
+            Phase 5 — resolves this function's own prior TODO for the depth
+            portion of "account-level query filters". Applied via
+            `ledgerkit.query.depth.account_excluded_by_depth`, NOT
+            `clip_account_name` — stats is a genuine, source-confirmed
+            exception where hledger EXCLUDES accounts deeper than the
+            limit for this field rather than clipping them, unlike every
+            other depth-aware report function here; see that function's
+            own docstring for the full evidence.
 
-    Note: account-level filters (account, not_account, depth) in the query are
-    not yet applied to stats fields — those fields still reflect the full
-    journal.
-    # TODO: Apply account-level query filters to account_count and account_depth.
+    Note: account/not_account filters in the query are still not applied to
+    account_count/account_depth — those two fields reflect every account
+    depth-exclusion already narrows to, not a further account-name-pattern
+    restriction.
+    # TODO: Apply account/not_account query filters to account_count and account_depth.
     """
     today = datetime.date.today()
     txns = journal.transactions
@@ -490,7 +546,11 @@ def stats(
     if _query_ast is not None:
         txns = [t for t in txns if _query_ast_matches_transaction(_query_ast, t)]
 
-    all_accounts: set[str] = {p.account for t in txns for p in t.postings}
+    depth_spec = _effective_depth_spec(query, _query_depth)
+    all_accounts: set[str] = {
+        p.account for t in txns for p in t.postings
+        if not account_excluded_by_depth(depth_spec, p.account)
+    }
     all_commodities: set[str] = {
         p.amount.commodity for t in txns for p in t.postings if p.amount is not None
     }

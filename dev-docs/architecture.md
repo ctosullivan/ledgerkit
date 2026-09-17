@@ -34,17 +34,30 @@ Journal file(s) (.journal / .ledger)
 
 **`ledgerkit/query/`** (Stage C) sits alongside this pipeline rather than
 strictly within its linear flow: `cli.py` parses a `-q`/`--query` string
-once via `ledgerkit.query.parser.parse()` into a `QueryNode` AST, then
-either passes it into `reports.py`'s `balance`/`register`/`accounts`/
+once via `ledgerkit.query.parser.parse()` into a `QueryPlan` (Stage C
+Phase 5 — previously a bare `QueryNode`), which bundles two genuinely
+different things: `plan.predicate` (a `QueryNode` selection AST) and
+`plan.depth` (a `ledgerkit.query.depth.DepthSpec` report-display option —
+**never** a selection predicate; see below). `cli.py` passes
+`plan.predicate` into `reports.py`'s `balance`/`register`/`accounts`/
 `stats` via a private, internal-only parameter (`_query_ast` — not part
-of the public API; see `knowledge/DECISIONS.md`, 2026-09-16), or, for
-`print` (which has no `reports.py` function of its own — it iterates
-`journal.transactions` directly in `cli.py`), calls `ledgerkit.query.
-eval.matches_transaction` directly inline. Either way, filtering always
-delegates to `ledgerkit.query.eval.matches_posting`/`matches_transaction`
-— never a second, local reimplementation of AST match semantics.
-`ledgerkit/query/` does not import from `reports.py`, `cli.py`, or
-`checks.py` — only from `models.py` — so the existing "each module
+of the public API; see `knowledge/DECISIONS.md`, 2026-09-16) and
+`plan.depth` via a second private parameter (`_query_depth`, added Phase
+5). For `print` (which has no `reports.py` function of its own — it
+iterates `journal.transactions` directly in `cli.py`), only
+`plan.predicate` is used, via `ledgerkit.query.eval.matches_transaction`
+called directly inline — `plan.depth` is never even read for `print`,
+which is what makes it correctly ignore `depth:` entirely, matching
+hledger's own `print` (confirmed source+executable,
+`21-stage-c-phase-5-depth-and-verification-plan.md` §1.3). Filtering
+always delegates to `ledgerkit.query.eval.matches_posting`/
+`matches_transaction` for the predicate half, and to
+`ledgerkit.query.depth.clip_account_name` (or, uniquely for `stats`,
+`account_excluded_by_depth` — a genuine, source-confirmed hledger quirk
+where `stats` excludes rather than clips; see that function's own
+docstring) for the depth half — never a second, local reimplementation of
+either. `ledgerkit/query/` does not import from `reports.py`, `cli.py`,
+or `checks.py` — only from `models.py` — so the existing "each module
 imports only from modules
 below it" principle still holds with `query/` sitting at the same layer
 as `models.py`.

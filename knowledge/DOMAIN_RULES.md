@@ -210,3 +210,62 @@ Haskell's `Text.split isSpace` does not, which is exactly the
 space-before-colon case above).
 
 **Applies to:** `ledgerkit/tags.py`, `ledgerkit/parser.py`, `ledgerkit/models.py`
+
+---
+
+## `depth:` is a report-display option, never a selection predicate — except `stats`
+
+Every real hledger command that consumes a `Query` (`balance`, `register`,
+`print`, `accounts`, `aregister`) strips `depth:`/`depth:REGEX=N` out of
+the query used to select/include postings *before* selection happens,
+and reapplies it purely as a display-name transform (truncation +
+aggregation into the depth-N ancestor — never exclusion). This holds even
+though hledger's own `Query` AST has a real, unit-tested boolean
+`Depth`/`DepthAcct` predicate (`accountNameLevel a <= d`) — that function
+is real, it's just never invoked by any actual report command for
+selection purposes. `depth:0` clips every account to the literal string
+`"..."`, never to empty/nothing.
+
+**Custom depth precedence** (`depth:REGEX=N`, since hledger 1.41): among
+multiple regex-depth rules matching an account (or any of its strict
+ancestors), the one that starts matching at the *greatest* specificity
+wins — counterintuitively, a regex that matches only the account's own
+leaf name (no strict ancestor at all) is **more** specific than one
+matching a shallow ancestor, not less. Ties (including two rules that
+happen to match at the same ancestor depth) go to the **later-declared**
+rule. A regex matching wins outright over a `flat` general depth,
+regardless of specificity — `flat` is purely the fallback when no regex
+matches at all.
+
+**Multiple `depth:` terms combine differently depending on where they
+come from**: multiple terms *within one query string* (e.g. `-q "depth:3
+depth:1"`) combine flat depths via **minimum** (the more restrictive
+value wins, order-independent — hledger's own `DepthSpec` `Semigroup`
+instance) and simply accumulate `by_pattern` entries from both. This is
+**not** the same as multiple `--depth` CLI flags (a separate mechanism,
+"last wins," order-dependent) — Ledgerkit has no standalone `--depth`
+flag yet, only the `-q` string form, so only the minimum-based rule
+applies today.
+
+**`stats` is a genuine, source-confirmed exception**: unlike every other
+command, `stats`'s `Accounts: N (depth D)` fields come from hledger's own
+`Ledger.hs:ledgerFromJournal`, whose doc-comment states plainly the
+ledger's journal (which `stats` reads its account list from) IS depth-
+limited by exclusion — the account tree (used by other commands) is not.
+So `stats -q "depth:N"` genuinely drops accounts deeper than N from its
+count, rather than clipping/aggregating them — confirmed live on two
+independent scenarios (a lone custom-regex depth, and a mixed
+custom+general combination), both reproducing hledger's exact counts.
+
+**Why it matters:** Stage C Phase 1 read the `Depth` constructor's own
+`matchesAccount` function and its unit test coverage, and concluded
+`depth:` was a pure exclusion predicate — a real function doing real
+work, correctly read in isolation. The mistake was not tracing whether
+any actual command invokes it that way; none do. The general lesson: for
+any hledger source-reading exercise, "does a function with this name
+exist and do what I'd expect" is not sufficient evidence that it
+describes user-observable command behaviour — trace the function's real
+callers.
+
+**Applies to:** `ledgerkit/query/depth.py`, `ledgerkit/query/parser.py`,
+`ledgerkit/reports.py`

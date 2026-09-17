@@ -160,10 +160,18 @@ class TestPostingMatches(unittest.TestCase):
         q = Query(depth=3)
         self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
 
-    def test_depth_filter_excludes_deep(self):
-        # expenses:food:groceries has depth 3; depth=2 should exclude it
+    def test_depth_is_never_excluded_by_posting_matches(self):
+        # Stage C Phase 5: query.depth must NEVER exclude a posting —
+        # depth is a display option (see reports._effective_depth_spec/
+        # ledgerkit.query.depth.clip_account_name), applied by the report
+        # functions themselves, not by this shared matching helper. Before
+        # this phase, register()/accounts() (unlike balance()) incorrectly
+        # excluded via this exact code path — a real pre-existing bug,
+        # distinct from the -q "depth:" divergence; see
+        # dev-docs/planning/core-redefinition/
+        # 21-stage-c-phase-5-depth-and-verification-plan.md §1.2b.
         q = Query(depth=2)
-        self.assertFalse(_posting_matches(self.food_posting, self.txn, q))
+        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
 
     def test_date_from_filter(self):
         q = Query(date_from=datetime.date(2024, 2, 10))
@@ -969,17 +977,79 @@ class TestQueryAstIntegration(unittest.TestCase):
         self.assertEqual(set(result.keys()), {"expenses:food:coffee", "expenses:food:groceries"})
         self.assertEqual(result["expenses:food:coffee"]["£"], Decimal("9.00"))
 
-    def test_balance_depth_node_excludes_rather_than_truncates(self):
-        # Unlike Query.depth (which truncates displayed account names),
-        # a Depth AST node is a pure exclusion predicate: postings whose
-        # account is deeper than N are dropped entirely, and the account
-        # name is never rolled up. See reports.balance()'s own docstring.
-        from ledgerkit.query.ast import Depth
-        result = balance(self.journal, _query_ast=Depth(1))
+    def test_balance_query_depth_truncates_rather_than_excludes(self):
+        # Stage C Phase 5: _query_depth (from -q's depth: term) truncates
+        # and aggregates displayed account names, matching hledger's real
+        # --depth/depth: behaviour — it never excludes a posting. Confirmed
+        # live against the pinned hledger 1.52.4 binary; see
+        # dev-docs/planning/core-redefinition/
+        # 21-stage-c-phase-5-depth-and-verification-plan.md §1.3.
+        from ledgerkit.query.depth import DepthSpec
+        result = balance(self.journal, _query_depth=DepthSpec(flat=1))
         self.assertNotIn("expenses:food:coffee", result)
         self.assertNotIn("expenses:housing:rent", result)
+        self.assertIn("expenses", result)  # rolled up, not dropped
+        self.assertIn("assets", result)
         for acct in result:
             self.assertNotIn(":", acct)
+        # Nothing is lost: the rolled-up "expenses" total still reflects
+        # every deeper posting that fed into it.
+        self.assertEqual(
+            result["expenses"]["£"],
+            Decimal("1200.00") + Decimal("150.00") + Decimal("9.00"),
+        )
+
+    def test_balance_query_depth_custom_regex(self):
+        from ledgerkit.query.depth import DepthSpec
+        result = balance(self.journal, _query_depth=DepthSpec(by_pattern=(("expenses", 2),)))
+        # expenses:* collapses to depth 2; assets:bank:checking (not
+        # matching "expenses") is untouched.
+        self.assertIn("expenses:food", result)
+        self.assertIn("expenses:housing", result)
+        self.assertIn("assets:bank:checking", result)
+        self.assertNotIn("expenses:food:coffee", result)
+
+    def test_accounts_query_depth_clips_and_deduplicates(self):
+        from ledgerkit.query.depth import DepthSpec
+        result = accounts(self.journal, _query_depth=DepthSpec(flat=2))
+        self.assertIn("expenses:food", result)
+        self.assertNotIn("expenses:food:coffee", result)
+        self.assertNotIn("expenses:food:groceries", result)
+        # both expenses:food:coffee and expenses:food:groceries clip to
+        # the same "expenses:food" — deduplicated, not two rows.
+        self.assertEqual(result.count("expenses:food"), 1)
+
+    def test_register_query_depth_clips_label_never_excludes(self):
+        from ledgerkit.query.depth import DepthSpec
+        rows = register(self.journal, _query_depth=DepthSpec(flat=1))
+        # every posting still present as its own row (register never
+        # aggregates, unlike balance) — only the displayed account label
+        # is clipped.
+        unfiltered = register(self.journal)
+        self.assertEqual(len(rows), len(unfiltered))
+        self.assertTrue(any(r.account == "expenses" for r in rows))
+        self.assertFalse(any(":" in r.account for r in rows))
+
+    def test_stats_query_depth_excludes_rather_than_clips(self):
+        # stats is a genuine, source-confirmed exception (hledger's own
+        # Ledger.hs:ledgerFromJournal doc-comment: "the ledger's journal
+        # will be depth limited [excluded], but the ledger's account tree
+        # will not [clipped]") — unlike balance/register/accounts, its
+        # account_count/account_depth fields come from EXCLUDING accounts
+        # deeper than the limit, never from clipping/aggregating them.
+        # Confirmed live against the pinned hledger 1.52.4 binary; see
+        # dev-docs/planning/core-redefinition/
+        # 21-stage-c-phase-5-depth-and-verification-plan.md §1.3.
+        from ledgerkit.query.depth import DepthSpec
+        s_full = stats(self.journal)
+        s_depth2 = stats(self.journal, _query_depth=DepthSpec(flat=2))
+        # filtered.journal accounts at depth <=2: equity:opening-balances,
+        # income:salary (both depth 2) — assets:bank:checking (depth 3)
+        # and the depth-3 expenses accounts are excluded, not clipped to
+        # "assets"/"expenses".
+        self.assertLess(s_depth2.account_count, s_full.account_count)
+        self.assertEqual(s_depth2.account_count, 2)
+        self.assertEqual(s_depth2.account_depth, 2)
 
     def test_register_filters_by_query_ast(self):
         from ledgerkit.query.ast import Desc

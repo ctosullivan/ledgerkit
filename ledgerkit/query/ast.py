@@ -1,11 +1,15 @@
 """Query AST node types.
 
 Mirrors hledger's own query term set (see hledger.1 "Queries" section) for
-Stage C's initial target: acct:, desc:, date: (simple dates only), depth:,
-status:, and not:/implicit-AND/same-prefix-OR combination. Node shapes and
-matching semantics are sourced from `dev-docs/planning/core-redefinition/
-17-query-semantics-brief.md`, verified against the pinned hledger 1.52.4
-source (not yet executable-verified against a real hledger binary).
+Stage C's initial target: acct:, desc:, date: (simple dates only), status:,
+and not:/implicit-AND/same-prefix-OR combination. `depth:` is deliberately
+NOT a node here — as of Stage C Phase 5 it is `ledgerkit.query.depth.
+DepthSpec`, a report-display option carried on `QueryPlan.depth`, never a
+selection predicate (see `MaxAccountLevel`'s docstring below for why, and
+`21-stage-c-phase-5-depth-and-verification-plan.md` for the evidence).
+Node shapes and matching semantics are sourced from `dev-docs/planning/
+core-redefinition/17-query-semantics-brief.md`, differentially verified
+against the pinned hledger 1.52.4 binary (Stage C Phase 2 onward).
 
 No node type here executes anything — see ledgerkit.query.eval for
 evaluation and ledgerkit.query.parser for query-text parsing.
@@ -15,8 +19,10 @@ from __future__ import annotations
 
 import datetime
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Union
+
+from ledgerkit.query.depth import DepthSpec
 
 
 class TxnStatus(enum.Enum):
@@ -72,15 +78,29 @@ class DateSpan:
 
 
 @dataclass(frozen=True)
-class Depth:
-    """Matches a posting whose account is at or above tree depth `n`.
+class MaxAccountLevel:
+    """Ledgerkit-native: matches a posting whose account is at or above
+    tree depth `n` (colon-segment count, `accountNameLevel` in hledger).
 
-    Depth is colon-segment count (`accountNameLevel` in hledger): `n >= 0`
-    is the only valid range — `depth:0` is legal input but matches
-    essentially nothing, per `17-query-semantics-brief.md` §4. This node
-    is a pure boolean predicate; hledger's separate depth-driven *display*
-    truncation/aggregation for balance/register is deliberately not
-    represented here (§4's recommendation).
+    This is deliberately NOT hledger's `depth:`/`--depth` — confirmed
+    across every real hledger command (`balance`/`register`/`print`/
+    `accounts`/`aregister`) that `depth:` is always a report-display
+    clipping/aggregation option, never a selection predicate; see
+    `ledgerkit.query.depth.DepthSpec` for that, and
+    `dev-docs/planning/core-redefinition/
+    21-stage-c-phase-5-depth-and-verification-plan.md` §1.3/§3.1 for the
+    full evidence and the decision to keep this as a distinct, disclosed
+    Ledgerkit-only primitive rather than overload hledger's own `depth:`
+    token for different semantics. Renamed from the earlier `Depth` (Stage
+    C Phase 1) for exactly that reason — see `knowledge/DECISIONS.md`,
+    2026-09-17.
+
+    Python-API-only: there is no `-q`/`--query` string-syntax spelling for
+    this node — `ledgerkit.query.parser.parse()` never produces one; it is
+    reachable only by constructing `MaxAccountLevel(n)` directly and
+    passing it into `matches_transaction`/`matches_posting` yourself.
+    `n >= 0` is the only valid range enforced by callers that build one
+    programmatically; this dataclass itself does not validate `n`.
     """
 
     n: int
@@ -120,4 +140,21 @@ class Not:
     term: "QueryNode"
 
 
-QueryNode = Union[Acct, Desc, DateSpan, Depth, Status, And, Or, Not]
+QueryNode = Union[Acct, Desc, DateSpan, MaxAccountLevel, Status, And, Or, Not]
+
+
+@dataclass(frozen=True)
+class QueryPlan:
+    """The result of parsing a query string: a selection predicate plus
+    report/display options that are never part of that predicate.
+
+    `predicate`: the `QueryNode` tree — never contains a `MaxAccountLevel`
+        node (the string grammar has no way to produce one; see
+        `ledgerkit.query.parser.parse`).
+    `depth`: the `DepthSpec` accumulated from any `depth:N`/`depth:REGEX=N`
+        terms in the query text. Defaults to the empty spec (no clipping)
+        for a query with no depth: term at all.
+    """
+
+    predicate: "QueryNode"
+    depth: DepthSpec = field(default_factory=DepthSpec)

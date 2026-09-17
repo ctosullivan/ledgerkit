@@ -9,6 +9,53 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 5, commit 2/N — redesign `depth:` as a report-display option] — 2026-09-17
+
+Full detail: [dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md](dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md)
+
+**Human:** approved the plan's recommended options for the four depth
+gates ("proceed as recommended"): G-DEPTH-1 (DepthSpec report-option
+model, not a QueryNode), G-DEPTH-2 (`Query.depth`/`ReportSection.depth`
+stay flat-only), G-DEPTH-3 (keep the old boolean predicate, renamed,
+Python-API-only), and left G-DEPTH-4 (standalone `--depth` flag) to the
+lead's judgement since the plan gave no recommendation — deferred as a
+follow-on to keep this phase's scope to the actual defect.
+
+**Claude:** removed `ledgerkit.query.ast.Depth` from the selection AST;
+`depth:N`/`depth:REGEX=N` now produce a `ledgerkit.query.depth.DepthSpec`
+on a new `QueryPlan.depth` (`parser.parse()`'s return type changed from
+`QueryNode` to `QueryPlan`), applied by `reports.py`'s
+`balance`/`register`/`accounts` as display clipping/aggregation —
+matching hledger's real behaviour (confirmed via a full source trace of
+every command consuming a `Query`, and 15+ live scenarios against the
+pinned 1.52.4 binary), never exclusion. Implemented hledger's exact
+custom-`REGEX=N` precedence rule and its multi-term-in-one-query
+MIN-based combination (order-independent — distinct from the separate
+"last wins" rule for multiple `--depth` CLI flags, which Ledgerkit
+doesn't have). Fixed `print` to correctly ignore `depth:` entirely
+(previously wrongly excluded every transaction). Found and fixed two
+further pre-existing bugs while implementing this: `register()`/
+`accounts()` had silently treated the legacy `Query.depth` as an
+exclusion filter too (only `balance()` was ever correct); and discovered
+— via a genuine executable surprise, not anticipated by the plan — that
+hledger's `stats` command uniquely EXCLUDES rather than clips deeper
+accounts for its own `Accounts:` count (source-confirmed via
+`Ledger.hs:ledgerFromJournal`'s own doc-comment), which Ledgerkit now
+replicates exactly via a dedicated `account_excluded_by_depth` function.
+Old `Depth` kept as `ledgerkit.query.ast.MaxAccountLevel` — a disclosed,
+Python-API-only Ledgerkit-native primitive, unreachable from `-q` string
+syntax. 21 new/rewritten tests — 746 total, all passing. Reclassified
+`LK-COMPAT-QUERY-DEPTH-001` (`intentional_divergence`→`compatible`),
+added `LK-COMPAT-QUERY-DEPTH-STATS-001`, updated
+`LK-COMPAT-QUERY-PRINT-INTEGRATION-001` — all `status: self-verified`
+pending Phase 5c's independent `compat-differential-tester` dispatch
+(not yet run). Updated `dev-docs/api-spec.md`, `dev-docs/architecture.md`,
+`dev-docs/hledger-compatibility.md`, `docs/usage.md`,
+`knowledge/DECISIONS.md`, `knowledge/DOMAIN_RULES.md` (marked EC-017
+resolved).
+
+---
+
 ### [Stage C Phase 5, commit 1/N — process amendment: verification independence] — 2026-09-17
 
 Full detail: [dev-docs/planning/core-redefinition/09-compatibility-system.md](dev-docs/planning/core-redefinition/09-compatibility-system.md) §9.6

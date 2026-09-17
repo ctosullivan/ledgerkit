@@ -30,6 +30,26 @@ via `max([20] + [...] + [...])` (a single list argument) instead of
 
 ## EC-017 — `-q "depth:N"` does not truncate/aggregate `balance` output like hledger's own `depth:`/`--depth`
 
+**RESOLVED Stage C Phase 5 (2026-09-17):** `depth:`/`depth:REGEX=N` no
+longer produces a `QueryNode` at all — it's a `ledgerkit.query.depth.
+DepthSpec` report-display option (`QueryPlan.depth`), applied via
+clipping/aggregation across `balance`/`register`/`accounts`, matching
+hledger exactly (including custom `REGEX=N` depths and multi-term
+precedence, which didn't exist before this phase at all). `print` now
+correctly ignores `depth:` entirely (previously it wrongly excluded
+everything — a confirmed defect, not just the "open question" this entry
+originally left it as). See `LK-COMPAT-QUERY-DEPTH-001` (reclassified
+`compatible`) and `dev-docs/planning/core-redefinition/
+21-stage-c-phase-5-depth-and-verification-plan.md`. One claim in the
+original entry below turned out to be wrong and is corrected here rather
+than silently: "the existing `Query.depth` field... still does the
+truncation hledger users expect for `balance`" was true only for
+`balance()` — `register()`/`accounts()` had the *same* exclusion bug via
+`Query.depth` all along (a real, independent, pre-existing defect this
+phase also found and fixed, not just the new `-q` `depth:` divergence).
+
+**Original entry (kept for history):**
+
 **Trigger:** `ledgerkit balance -q "depth:N"`, compared against `hledger
 balance depth:N` / `hledger balance --depth N` on the same journal.
 **Expected vs actual:** hledger's `depth:`/`--depth` **truncates and

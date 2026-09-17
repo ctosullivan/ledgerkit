@@ -1,0 +1,82 @@
+# Proposed and self-verified same-session, Stage C Phase 5 (depth:
+# redesign) -- a genuine hledger quirk discovered during implementation,
+# not anticipated by the phase's own planning pass. Split into its own
+# entry from LK-COMPAT-QUERY-DEPTH-001 because it documents an EXCEPTION
+# to that entry's own general rule ("depth: clips, never excludes"),
+# specific to one command, not the general depth: redesign itself.
+
+id: LK-COMPAT-QUERY-DEPTH-STATS-001
+area: query.depth.stats_exclusion
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  Unlike balance/register/accounts/print, hledger's `stats` command
+  computes its `Accounts: N (depth D)` fields from a genuinely
+  EXCLUSION-filtered posting set, not from clipping/aggregation.
+  Hledger-lib/Hledger/Data/Ledger.hs's `ledgerFromJournal` -- which
+  `stats` alone (of the commands Ledgerkit tracks) builds its account
+  list from -- has a doc-comment stating plainly: "If the query includes
+  a depth limit, the ledger's journal will be depth limited, but the
+  ledger's account tree will not." Concretely: `ledgerFromJournal` splits
+  the query into its non-depth part (q') and depth-only part (depthq),
+  builds the account TREE from q'-filtered postings only (unclipped,
+  matching every other command), but then ALSO filters the ledger's own
+  JOURNAL (which stats.hs's account/commodity counting reads from) by
+  `filterJournalPostings depthq j'` -- i.e. by the RAW Depth/DepthAcct
+  boolean predicate, genuinely excluding postings deeper than the limit
+  from stats' own counts.
+
+  Ledgerkit replicates this exactly via
+  `ledgerkit.query.depth.account_excluded_by_depth` (general term:
+  excludes if account level > flat; REGEX=N term: excludes only if the
+  regex ALSO matches the account AND level > N -- a non-matching regex
+  term never excludes on its own, matching hledger's own `matchesAccount
+  (DepthAcct r d) a = accountNameLevel a <= d || not (regexMatchText r
+  a)`; multiple terms combine via AND).
+
+  Considered and rejected: clipping stats' counts too, for internal
+  consistency with Ledgerkit's own other depth-aware reports. Rejected
+  because the whole point of this phase was matching hledger's actual
+  observable behaviour, and this exception is real, source-confirmed, and
+  now executable-verified -- not speculative or an edge case too obscure
+  to bother with.
+
+implementation:
+  - ledgerkit/query/depth.py:account_excluded_by_depth
+  - ledgerkit/reports.py:stats
+
+tests:
+  - tests/test_reports.py::TestQueryAstIntegration::test_stats_query_depth_excludes_rather_than_clips
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_stats_query_depth_excludes_rather_than_clips
+
+evidence:
+  - kind: source
+    ref: >
+      hledger-lib/Hledger/Data/Ledger.hs:51-67 (ledgerFromJournal's own
+      doc-comment and implementation, the q'/depthq split);
+      hledger/Hledger/Cli/Commands/Stats.hs:142,156,181-182 (acctnum/
+      acctdepth computed from `l`'s own ljournal, i.e. depth-excluded)
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      hledger -f depth.journal stats --depth 2 / depth:assets=1 /
+      "depth:assets=1 depth:3" / depth:0 vs. ledgerkit -f depth.journal
+      stats -q "depth:2" / "depth:assets=1" / "depth:assets=1 depth:3" /
+      "depth:0" -- Accounts count and reported depth matched exactly on
+      all four scenarios (3/5/4/0 accounts respectively). Stage C Phase 5.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+status: self-verified
+verified_by: "Claude (lead session, Stage C Phase 5 implementation) -- pending independent compat-differential-tester dispatch per 09-compatibility-system.md §9.6"
+verified_date: "2026-09-17"
