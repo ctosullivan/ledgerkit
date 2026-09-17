@@ -9,6 +9,37 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 5, commit 3/3 — independent verification + closeout] — 2026-09-17
+
+Full detail: [dev-docs/retros/STAGE-C-PHASE-5.md](dev-docs/retros/STAGE-C-PHASE-5.md)
+
+**Human:** no further direction needed — this commit executes the process
+commit 1/N itself introduced, and closes out the phase.
+
+**Claude:** dispatched a genuinely separate `compat-differential-tester`
+agent (not the implementing session) with a full evidence packet, per
+this phase's own new Tier 2 rule — the first real application of the
+process amended in commit 1/N. The dispatch built its own new fixture
+(`tests/fixtures/depth.journal`, 7 accounts depth 2-4, including a
+deliberate `assets`/`savings` regex-collision pair) and independently
+re-ran every claimed scenario against the pinned hledger 1.52.4 binary:
+general/zero/custom-regex depth, specificity precedence, multi-term
+MIN-combination order-independence, register/accounts clipping, print's
+unconditional depth-blindness, and `stats`' exclusion exception. All
+claims held — no mismatches found. `LK-COMPAT-QUERY-DEPTH-001`,
+`LK-COMPAT-QUERY-DEPTH-STATS-001`, and `LK-COMPAT-QUERY-PRINT-
+INTEGRATION-001` promoted `self-verified` → `verified`, each with its own
+independently-authored evidence entry (not the prior session's evidence
+copied forward). 746 tests still passing (unchanged — no `ledgerkit/`
+code touched this commit, only `tests/fixtures/` and
+`dev-docs/compat-register/`, exactly matching
+`compat-differential-tester`'s own write-access restriction). Updated
+`dev-docs/hledger-compatibility.md`'s depth: row to cite the independent
+`status: verified` outcome. `ROADMAP.md`'s Stage C row updated: Phase 5
+done.
+
+---
+
 ### [Stage C Phase 5, commit 2/N — redesign `depth:` as a report-display option] — 2026-09-17
 
 Full detail: [dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md](dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md)

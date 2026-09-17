@@ -1,81 +1,70 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C Phase 5 is a **planning-only** pass (no code touched), resolving
-two issues the user identified in recent Stage C work: verification
-independence for compatibility claims, and `depth:`'s modelling as a
-pure boolean predicate. Plan document written and awaiting the six
-explicit human-decision gates it names — not started.
+Stage C Phase 5 (verification independence + `depth:` redesign) is done
+— all three commits complete, independently verified. About to commit
+this closeout and push.
 
 ## Where We Are
-Plan complete: `dev-docs/planning/core-redefinition/
-21-stage-c-phase-5-depth-and-verification-plan.md`. Retro written:
-`dev-docs/retros/STAGE-C-PHASE-5-PLAN.md`. `ROADMAP.md`, `CHANGELOG.md`
-updated. Next step is entirely the user's: resolve gates G-DEPTH-1..4
-and G-PROCESS-1..2 (plan §9), then implementation (plan §8, Phases
-5a-5d) can begin. Nothing to do until then unless the user wants to
-discuss/adjust the plan itself.
+Full closeout complete: process amendment committed (`17d7bcb`), `depth:`
+redesign committed (`e8f3633`), independent verification by a genuinely
+separate `compat-differential-tester` dispatch completed (no mismatches;
+`LK-COMPAT-QUERY-DEPTH-001`/`LK-COMPAT-QUERY-DEPTH-STATS-001`/
+`LK-COMPAT-QUERY-PRINT-INTEGRATION-001` promoted `self-verified` →
+`verified`). Retro written: `dev-docs/retros/STAGE-C-PHASE-5.md`.
+`ROADMAP.md`/`CHANGELOG.md` updated. 746 tests passing. Next: final
+commit (this closeout: retro, ROADMAP, CHANGELOG, CONTEXT,
+hledger-compatibility.md citation fix) + push.
 
 ## Decisions In Flight
-- None yet — every substantive call in this phase is one of the six
-  named gates, deliberately left open for the user, not decided by the
-  lead. Do not pre-resolve any of them unilaterally when implementation
-  starts, even if one answer seems obviously preferable.
+- None — all six gates from the plan were resolved and recorded in
+  `knowledge/DECISIONS.md`; nothing left open from this phase.
 
 ## Files Currently Relevant
-- `dev-docs/planning/core-redefinition/
-  21-stage-c-phase-5-depth-and-verification-plan.md` — the plan; read
-  §9 first for the open gates, §8 for phase sequencing once gates are
-  resolved.
-- `dev-docs/retros/STAGE-C-PHASE-5-PLAN.md` — this planning pass's retro.
-- `ledgerkit/reports.py` (lines ~241-410) — contains the existing,
-  correct `Query.depth` truncation logic the plan's design unifies with,
-  and the self-diagnosing docstrings that flagged the inconsistency.
-- `ledgerkit/query/ast.py`, `eval.py`, `parser.py` — where `Depth`
-  currently lives and will change per G-DEPTH-1/3.
+- `ledgerkit/query/depth.py` — the new `DepthSpec` module.
 - `dev-docs/compat-register/LK-COMPAT-QUERY-DEPTH-001.yaml`,
-  `dev-docs/compat-register/schema.md`,
-  `dev-docs/planning/core-redefinition/09-compatibility-system.md` §9.4
-  — the entry to be reclassified, and the process docs §2's amendment
-  targets (not yet edited — proposed only).
+  `LK-COMPAT-QUERY-DEPTH-STATS-001.yaml`,
+  `LK-COMPAT-QUERY-PRINT-INTEGRATION-001.yaml` — all now `status:
+  verified` (independently).
+- `tests/fixtures/depth.journal` — new fixture, added by the independent
+  verification dispatch, now a permanent part of the test suite's
+  fixture set.
+- `dev-docs/retros/STAGE-C-PHASE-5.md` — this phase's retro.
 
 ## Blockers / Open Questions
-All six are open, none pre-resolved by this session (plan §9):
-- G-DEPTH-1: approve the `DepthSpec` report-option model (vs. keeping
-  Depth as a QueryNode).
-- G-DEPTH-2: `Query.depth`/`ReportSection.depth`'s public shape — stay
-  flat-only, or retype to the richer `DepthSpec` (breaking change).
-- G-DEPTH-3: fate of the current boolean-exclusion `ast.Depth` node —
-  remove / rename-and-keep-Python-API-only (recommended) / new
-  non-colliding string token.
-- G-DEPTH-4: standalone `--depth`/`-N` CLI flag in this phase or deferred.
-- G-PROCESS-1: approve the tiered verification-independence rule
-  (four-value `status` enum incl. `self-verified`) as specified.
-- G-PROCESS-2: relabel the 11 existing lead-self-verified entries to
-  `self-verified` now (cheap) vs. real `compat-differential-tester`
-  re-dispatch on all 11 immediately (thorough, costlier).
+- Named, unscoped candidates for a future phase: `tag:` query-term
+  matching (deferred since end of Phase 4), `cur:`, `PythonRegex`
+  extension syntax, the larger `Query`-as-compatibility-shim migration,
+  and a standalone `--depth`/`-N` CLI flag (this phase's own G-DEPTH-4
+  deferral — `-q "depth:N"` already gives full access to the corrected
+  semantics, so this is a convenience addition, not a defect fix).
+  None started; next phase needs its own explicit scoping.
+- `check` remains the only report/display command without `-q` — by
+  design, unrelated to this phase.
 
 ## What NOT To Revisit
-- Stage A, Stage B, and Stage C Phases 1-4 are closed/committed. This
-  Phase 5 planning pass has NOT been committed yet (see Recent Git State
-  below) — still pending in this response.
-- Don't re-derive the `depth:` behavioural findings — 14 scenarios were
-  differentially tested this session against the pinned 1.52.4 binary
-  and cross-checked against `hledger-lib` source directly (every
-  command's `Query` consumption traced, not just the `Depth` constructor
-  itself); the plan's §1.3/§6 are primary evidence, not a summary to
-  re-verify from scratch next session.
-- Don't assume `tag:` query-term work (deferred at end of Phase 4) is
-  what Phase 5 is about — Phase 5 is verification-process + `depth:`
-  only; `tag:` remains separately unscoped.
-- Don't mark any compat-register entry `status: verified` directly from
-  the lead session once implementation starts — that is now explicitly
-  the point of this whole phase; use `self-verified` if independent
-  dispatch is deferred, and say so honestly.
+- Stage A, Stage B, and Stage C Phases 1-5 are all closed/committed
+  (Phase 5's final commit about to be, this response).
+- Don't re-litigate the `depth:` semantic model (`DepthSpec` as a report
+  option, never a `QueryNode`) — explicitly user-approved via all six
+  gates, then independently verified against the pinned binary on a new
+  fixture. Two full rounds of executable evidence exist.
+- Don't re-run this phase's differential verification — done twice
+  (self-verified during implementation, then independently by a separate
+  `compat-differential-tester` dispatch), both committed with full
+  evidence in the register entries themselves.
+- Don't treat `stats`' depth-EXCLUSION behaviour (unlike every other
+  depth-aware command, which clips) as a bug to "fix" toward consistency
+  — it's a deliberate, source-confirmed, independently-verified
+  replication of a genuine hledger quirk (`Ledger.hs:ledgerFromJournal`).
+- Don't write `status: verified` into a compat-register entry directly
+  from a lead session again — that is now the entire point of this
+  phase's own process amendment (`09-compatibility-system.md` §9.6). Use
+  `self-verified` if a dispatch is deferred, and say so honestly.
 
 ## Recent Git State (before this response's commit, if any)
+e8f3633 feat: Stage C Phase 5, commit 2/N -- redesign depth: as a report option
+17d7bcb docs: Stage C Phase 5, commit 1/N -- verification independence process
 fd144ed feat: Stage C Phase 4 -- tag data model (parsing/storage)
 d362bbb feat: Stage C Phase 3 -- wire -q/--query into print
 b7d5d32 docs: Stage C Phase 2, commit 3/3 -- context evaluation + closeout
-27c410d feat: Stage C Phase 2, commit 2/3 -- query/report/CLI integration
-0f4465d docs: Stage C Phase 2, commit 1/3 -- CodeCompass baseline

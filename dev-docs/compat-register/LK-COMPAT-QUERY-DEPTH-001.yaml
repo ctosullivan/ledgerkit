@@ -10,6 +10,11 @@
 # self-verified pending independent compat-differential-tester dispatch
 # per the new verification-independence process (09-compatibility-
 # system.md §9.6) -- this entry is itself that process's first real test.
+# INDEPENDENTLY VERIFIED 2026-09-17 (compat-differential-tester, separate
+# dispatch from the implementing session): reproduced every scenario
+# below against the pinned 1.52.4 binary on a newly-constructed fixture
+# (tests/fixtures/depth.journal); every claim in this entry held. See the
+# new `executable` evidence item and updated `status`.
 
 id: LK-COMPAT-QUERY-DEPTH-001
 area: query.depth
@@ -94,6 +99,23 @@ reason: >
   formatting only (a pre-existing, unrelated, already-accepted
   formatting difference throughout this project).
 
+  INDEPENDENT VERIFICATION (compat-differential-tester, 2026-09-17,
+  separate dispatch from the Stage C Phase 5 implementing session): all
+  of the above reproduced from scratch on a newly-constructed fixture
+  (tests/fixtures/depth.journal, not the prior session's uncommitted
+  scratch fixture) -- general depth clip at depth 1 and 0 (ellipsis row
+  confirmed, never empty/excluded), the assets/savings regex-collision
+  specificity-precedence case, MIN-combination of multiple depth: terms
+  confirmed order-independent (both `depth:3 depth:1` and `depth:1
+  depth:3` gave the depth-1 result, matching hledger's own `depth:3
+  depth:1` / `depth:1 depth:3` as separate positional args -- the
+  Semigroup/MIN rule, not "last wins"), register clipping without row
+  exclusion, print's unconditional depth-blindness (byte-identical
+  filtered vs. unfiltered print on each binary separately), and accounts
+  clipping/deduplication (byte-identical output both general and custom
+  regex depth). No mismatches found; see evidence entry below for exact
+  commands.
+
 implementation:
   - ledgerkit/query/ast.py:MaxAccountLevel (renamed from Depth)
   - ledgerkit/query/ast.py:QueryPlan
@@ -140,7 +162,55 @@ evidence:
       register depth:1 and --depth assets=2 acct:assets; print depth:1;
       accounts --depth 2 and depth:assets=1. Stage C Phase 5.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+  - kind: executable
+    ref: >
+      Independent re-verification by compat-differential-tester (separate
+      dispatch from the Stage C Phase 5 implementing session), per
+      09-compatibility-system.md §9.6 Tier 2. New fixture
+      tests/fixtures/depth.journal (7 accounts, depth 2-4, a deliberate
+      assets/savings regex-collision pair where "assets" matches both
+      assets:bank:checking and assets:savings:main but "savings" matches
+      only assets:savings:main). Exact commands (all against
+      tests/fixtures/depth.journal):
+      `hledger balance --depth 1` vs `ledgerkit balance -q "depth:1"`
+      (matched: clip not exclude);
+      `hledger balance --depth 0` vs `ledgerkit balance -q "depth:0"`
+      (matched: single "0  ..." ellipsis row, no commodity symbol, never
+      empty/excluded);
+      `hledger balance --depth assets=1 --depth savings=2` vs
+      `ledgerkit balance -q "depth:assets=1 depth:savings=2"` (matched:
+      assets:savings:main clipped to "assets:savings" via the deeper/
+      more-specific "savings" match, assets:bank:checking clipped to
+      "assets" -- the manual's own specificity-precedence rule
+      confirmed);
+      `hledger balance depth:3 depth:1` and `hledger balance depth:1
+      depth:3` (separate positional args) vs `ledgerkit balance -q
+      "depth:3 depth:1"` and `ledgerkit balance -q "depth:1 depth:3"`
+      (all four gave the depth-1 result -- MIN-combination,
+      order-independent, confirmed, not "last wins");
+      `hledger register depth:1` vs `ledgerkit register -q "depth:1"`
+      (matched: 12 rows both sides, same accounts clipped to depth 1,
+      same running-balance progression);
+      `hledger print` (unfiltered) vs `hledger print depth:1`, and
+      `ledgerkit print` (unfiltered) vs `ledgerkit print -q "depth:1"`
+      (each pair byte-identical on its own binary -- print is
+      unconditionally depth-blind on both sides); cross-binary
+      unfiltered print also compared (same transactions/postings/
+      amounts; column-alignment-only difference, pre-existing and
+      already accepted, unrelated to depth:);
+      `hledger accounts --depth 2` vs `ledgerkit accounts -q "depth:2"`
+      (byte-identical output);
+      `hledger accounts depth:assets=1` vs `ledgerkit accounts -q
+      "depth:assets=1"` (byte-identical output).
+      Remaining diffs throughout (balance/register) were ANSI-colour
+      escape codes on negative amounts (ledgerkit colours negative
+      amounts even when piped to a non-tty, where hledger suppresses
+      colour) and column-width/thousand-separator formatting only --
+      pre-existing, unrelated to depth: semantics, already accepted
+      project-wide; noted here for completeness, not filed as a new
+      mismatch since it is out of this entry's scope.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: self-verified
-verified_by: "Claude (lead session, Stage C Phase 5 implementation) -- pending independent compat-differential-tester dispatch per 09-compatibility-system.md §9.6; this entry is that process's first real application, not yet completed"
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, separate session from the Stage C Phase 5 implementation), per 09-compatibility-system.md §9.6 Tier 2"
 verified_date: "2026-09-17"

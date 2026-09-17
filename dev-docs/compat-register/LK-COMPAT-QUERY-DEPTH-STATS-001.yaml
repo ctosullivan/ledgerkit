@@ -4,6 +4,10 @@
 # entry from LK-COMPAT-QUERY-DEPTH-001 because it documents an EXCEPTION
 # to that entry's own general rule ("depth: clips, never excludes"),
 # specific to one command, not the general depth: redesign itself.
+# INDEPENDENTLY VERIFIED 2026-09-17 (compat-differential-tester, separate
+# dispatch from the implementing session): reproduced the exclusion
+# behaviour on a newly-constructed fixture (tests/fixtures/depth.journal)
+# against the pinned 1.52.4 binary; the claimed exception held.
 
 id: LK-COMPAT-QUERY-DEPTH-STATS-001
 area: query.depth.stats_exclusion
@@ -52,6 +56,26 @@ reason: >
   now executable-verified -- not speculative or an edge case too obscure
   to bother with.
 
+  INDEPENDENT VERIFICATION (compat-differential-tester, 2026-09-17,
+  separate dispatch from the Stage C Phase 5 implementing session):
+  reproduced from scratch on tests/fixtures/depth.journal (7 accounts,
+  depth 2-4). `hledger stats --depth 2` vs `ledgerkit stats -q "depth:2"`
+  both reported "Accounts : 3 (depth 2)"; `hledger stats
+  depth:assets=1` vs `ledgerkit stats -q "depth:assets=1"` both reported
+  "Accounts : 5 (depth 4)" (confirming the AND-combination / non-matching-
+  regex-never-excludes rule: only the two assets accounts below depth 1
+  were excluded, everything else, regardless of its own depth, survived
+  because the "assets" regex doesn't match it); `hledger stats
+  depth:assets=1 depth:3` vs `ledgerkit stats -q "depth:assets=1
+  depth:3"` both reported "Accounts : 4 (depth 3)" (AND-combination of a
+  custom and a general depth term); `hledger stats depth:0` vs
+  `ledgerkit stats -q "depth:0"` both reported "Accounts : 0 (depth 0)".
+  All four Accounts:-line comparisons matched exactly, byte-for-byte, on
+  the specific line under test; unrelated stats fields (main file path
+  display, transaction-span end-date-exclusive formatting, runtime
+  stats) differed for reasons unconnected to depth: and out of this
+  entry's scope, already known/pre-existing.
+
 implementation:
   - ledgerkit/query/depth.py:account_excluded_by_depth
   - ledgerkit/reports.py:stats
@@ -76,7 +100,26 @@ evidence:
       "depth:0" -- Accounts count and reported depth matched exactly on
       all four scenarios (3/5/4/0 accounts respectively). Stage C Phase 5.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+  - kind: executable
+    ref: >
+      Independent re-verification by compat-differential-tester (separate
+      dispatch from the Stage C Phase 5 implementing session), per
+      09-compatibility-system.md §9.6 Tier 2, against new fixture
+      tests/fixtures/depth.journal. Exact commands:
+      `hledger -f tests/fixtures/depth.journal stats --depth 2 | grep -i
+      account` vs `ledgerkit -f tests/fixtures/depth.journal stats -q
+      "depth:2" | grep -i account` (both "Accounts : 3 (depth 2)");
+      `hledger ... stats depth:assets=1 | grep -i account` vs `ledgerkit
+      ... stats -q "depth:assets=1" | grep -i account` (both "Accounts :
+      5 (depth 4)");
+      `hledger ... stats "depth:assets=1" depth:3 | grep -i account` vs
+      `ledgerkit ... stats -q "depth:assets=1 depth:3" | grep -i
+      account` (both "Accounts : 4 (depth 3)");
+      `hledger ... stats depth:0 | grep -i account` vs `ledgerkit ...
+      stats -q "depth:0" | grep -i account` (both "Accounts : 0 (depth
+      0)"). All four matched exactly. No mismatches found.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: self-verified
-verified_by: "Claude (lead session, Stage C Phase 5 implementation) -- pending independent compat-differential-tester dispatch per 09-compatibility-system.md §9.6"
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, separate session from the Stage C Phase 5 implementation), per 09-compatibility-system.md §9.6 Tier 2"
 verified_date: "2026-09-17"

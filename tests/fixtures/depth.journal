@@ -1,0 +1,45 @@
+; depth.journal — fixture for LK-COMPAT-QUERY-DEPTH-001 /
+; LK-COMPAT-QUERY-DEPTH-STATS-001 / LK-COMPAT-QUERY-PRINT-INTEGRATION-001
+; (Stage C Phase 5 addendum) independent re-verification, added by
+; compat-differential-tester, 2026-09-17.
+;
+; Deliberately includes:
+;   - accounts at depth 2 through 4 (equity:opening-balances /
+;     expenses:transport / income:salary = 2; assets:bank:checking /
+;     assets:savings:main / expenses:food:groceries = 3;
+;     expenses:food:takeaway:delivery = 4)
+;   - a regex-collision pair under the same "assets" parent:
+;     "assets" matches both assets:bank:checking and assets:savings:main
+;     (parent-level match), while "savings" matches ONLY
+;     assets:savings:main, at a deeper/more specific component, and does
+;     NOT match any strict ancestor of it (i.e. "assets" alone does not
+;     contain "savings") -- exercises depth:assets=1 depth:savings=2
+;     specificity precedence
+;   - a branch (expenses:food:*) where a custom depth on "expenses" and
+;     the general depth can meaningfully differ from a shallower branch
+;     (expenses:transport)
+
+2024-01-01 Opening balances
+    assets:bank:checking       $1000.00
+    assets:savings:main         $500.00
+    equity:opening-balances  $-1500.00
+
+2024-01-05 Grocery shopping
+    expenses:food:groceries      $50.00
+    assets:bank:checking        $-50.00
+
+2024-01-10 Takeaway delivery
+    expenses:food:takeaway:delivery   $20.00
+    assets:bank:checking             $-20.00
+
+2024-01-15 Bus fare
+    expenses:transport           $15.00
+    assets:bank:checking        $-15.00
+
+2024-01-20 Salary
+    assets:bank:checking       $2000.00
+    income:salary             $-2000.00
+
+2024-01-25 Transfer to savings
+    assets:savings:main         $300.00
+    assets:bank:checking       $-300.00

@@ -1,6 +1,12 @@
 # Proposed and verified same-session, Stage C Phase 3 (print -q
 # integration) — differential-tested directly against the pinned hledger
 # 1.52.4 binary as part of implementation, not proposed-then-deferred.
+# INDEPENDENTLY VERIFIED 2026-09-17 (compat-differential-tester, separate
+# dispatch from the Stage C Phase 5 implementing session): re-ran both
+# the original Phase 3 whole-transaction-display scenarios (on
+# tests/fixtures/filtered.journal, the same fixture already cited) and
+# the Phase 5 addendum's depth:-blindness claim (on the newly-constructed
+# tests/fixtures/depth.journal) from scratch. Both held.
 
 id: LK-COMPAT-QUERY-PRINT-INTEGRATION-001
 area: query.print_integration
@@ -51,6 +57,20 @@ reason: >
   of them) -- a confirmed defect this phase fixed, not merely the "open
   question" this entry originally described.
 
+  INDEPENDENT VERIFICATION (compat-differential-tester, 2026-09-17,
+  separate dispatch from the Stage C Phase 5 implementing session):
+  re-ran the original Phase 3 acct:food / not:acct:food / status:*
+  scenarios on tests/fixtures/filtered.journal -- diffs were
+  column-alignment/thousand-separator formatting only, same
+  transactions/postings/amounts shown in every case, whole-transaction
+  display confirmed for all three query types. Separately, on the new
+  tests/fixtures/depth.journal fixture: `hledger print` (unfiltered) vs
+  `hledger print depth:1` byte-identical; `ledgerkit print` (unfiltered)
+  vs `ledgerkit print -q "depth:1"` byte-identical -- print is
+  unconditionally depth-blind on both binaries, confirming the Phase 5
+  addendum's claim directly rather than by inference from
+  LK-COMPAT-QUERY-DEPTH-001 alone. No mismatches found.
+
 implementation:
   - ledgerkit/cli.py (print command branch)
   - ledgerkit/query/eval.py:matches_transaction
@@ -73,7 +93,25 @@ evidence:
       transactions/postings shown (formatting differences only). Stage C
       Phase 3.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+  - kind: executable
+    ref: >
+      Independent re-verification by compat-differential-tester (separate
+      dispatch from the Stage C Phase 5 implementing session), per
+      09-compatibility-system.md §9.6 Tier 2. Exact commands:
+      `diff <(hledger -f tests/fixtures/filtered.journal print "$q")
+      <(ledgerkit -f tests/fixtures/filtered.journal print -q "$q")` for
+      $q in "acct:food", "not:acct:food", "status:*" -- diffs were
+      column-alignment/thousand-separator formatting only in every case,
+      whole-transaction display confirmed for all three query types.
+      Additionally, on the new tests/fixtures/depth.journal fixture:
+      `diff <(hledger -f tests/fixtures/depth.journal print)
+      <(hledger -f tests/fixtures/depth.journal print depth:1)` and
+      `diff <(ledgerkit -f tests/fixtures/depth.journal print)
+      <(ledgerkit -f tests/fixtures/depth.journal print -q "depth:1")`
+      -- both diffs empty (byte-identical), confirming print is
+      unconditionally depth-blind on both binaries. No mismatches found.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: self-verified
-verified_by: "Claude (lead session, Stage C Phase 3 implementation). Relabelled `verified` → `self-verified`, Stage C Phase 5 (2026-09-17): this session's own original executable check, real evidence, but not independent of the implementing session — see dev-docs/planning/core-redefinition/21-stage-c-phase-5-depth-and-verification-plan.md §1.1 and 09-compatibility-system.md §9.6"
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, separate session from the Stage C Phase 5 implementation), per 09-compatibility-system.md §9.6 Tier 2"
 verified_date: "2026-09-17"
