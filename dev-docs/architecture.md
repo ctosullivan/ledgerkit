@@ -49,6 +49,22 @@ imports only from modules
 below it" principle still holds with `query/` sitting at the same layer
 as `models.py`.
 
+**`ledgerkit/tags.py`** (Stage C Phase 4) is a small, pure-function module
+that also sits alongside the main pipeline rather than in its linear flow.
+`parser.py` calls `tags.parse_tags(comment)` at the point a transaction's,
+posting's, or account-directive's `inline_comment` text has already been
+fully assembled (same-line plus any follow-on indented `;` lines), and
+stores the resulting `list[tuple[str, str]]` on the relevant model field
+itself (`Transaction.tags`, `Posting.tags`, `Journal.declared_account_tags`)
+— `tags.py` never mutates a model object directly. It also provides
+`effective_date`/`effective_date2`, pure functions over a `(Transaction,
+Posting)` pair that resolve a posting's `date:`/`date2:` comment-tag
+overrides against the transaction's own dates, matching ledgerkit's
+existing no-back-reference design (`Posting` has no reference back to its
+owning `Transaction`). `tags.py` imports only from `models.py` (under
+`TYPE_CHECKING`, for type hints only), so it sits at the same layer as
+`models.py` and `query/`.
+
 ---
 
 ## Module Responsibilities
@@ -85,6 +101,10 @@ multi-file merging.
   performs no file I/O
 - Reads journal text line by line via a state machine
 - Recognises transaction headers, postings, comments, and directives
+- Delegates inline-comment tag extraction (`name:value` pairs) to
+  `tags.parse_tags()` once a transaction's/posting's/account-directive's
+  comment text is fully assembled, and applies posting-level `date:`/
+  `date2:` tag overrides via `tags`-adjacent helpers
 - Raises `ParseError` with line number on malformed input
 - Does **not** perform any balance validation, file loading, or reporting logic
 - `include` directive lines encountered in raw text are silently skipped
@@ -97,11 +117,16 @@ journal entries.
 
 Core types:
 - `Amount` — a numeric value paired with a commodity symbol
-- `Posting` — an account name plus an optional `Amount`
-- `Transaction` — a date, optional cleared/pending flag, description, and list of `Posting`s
+- `Posting` — an account name plus an optional `Amount`, inline comment
+  `tags`, and optional `date_override`/`date2_override` (from `date:`/
+  `date2:` comment tags; see `ledgerkit/tags.py`)
+- `Transaction` — a date, optional cleared/pending flag, description, list
+  of `Posting`s, and inline comment `tags` (no date-override field —
+  `date:`/`date2:` tags only take effect at posting scope)
 - `Journal` — top-level container: a list of `Transaction`s, a list of
-  `PriceDirective`s, `declared_accounts`, `declared_commodities`,
-  `declared_payees`, `source_file`, and `included_files` count
+  `PriceDirective`s, `declared_accounts`, `declared_account_tags`,
+  `declared_commodities`, `declared_payees`, `source_file`, and
+  `included_files` count
 
 Models are plain dataclasses. They contain no parsing or reporting logic.
 

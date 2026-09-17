@@ -158,6 +158,59 @@ silently consumes the rest of the file.
 
 ---
 
+## Tags
+
+A `name:value` pair inside a `;` comment is a **tag**. Tags can appear in a
+transaction's inline comment, a posting's inline comment, or an `account`
+directive's inline comment (same-line or indented follow-on lines, exactly
+like ordinary comment text):
+
+```
+2024-01-15 Coffee  ; category:food, business:yes
+    expenses:food  £4.50  ; splitwith:Alex
+    assets:bank
+
+account expenses:food  ; type:E
+```
+
+**Tag name**: the last whitespace-delimited word immediately before the
+`:`. A space between that word and the `:` voids the tag entirely (it is
+not extracted at all, not even with an empty name) — `foo bar:baz` has no
+tag, but `foo bar:baz` written as `foobar:baz` has tag `foobar`. A bare
+`name:` with nothing after the colon is a legal tag with an empty value.
+
+**Tag value**: everything after the `:` up to the next `,` or end of line,
+with leading/trailing whitespace trimmed. There is no escape mechanism —
+a value can never contain a literal comma. A colon is fine inside a value.
+
+**Repeated names**: the same tag name may appear more than once in a
+comment (or across a transaction and its own postings); all occurrences
+are kept — tags are stored as an ordered list of `(name, value)` pairs,
+never collapsed into a dict.
+
+**`date:` / `date2:` posting-comment tags**: when a *posting's own*
+comment (not the transaction's, not an account directive's) contains a
+`date:` or `date2:` tag, it sets a real per-posting date override for that
+posting, in addition to being stored as an ordinary tag. If more than one
+`date:` (or `date2:`) tag appears on the same posting, the first one wins.
+The same tag name in a transaction-level or `account`-directive comment
+has no such effect — it is stored as a plain tag only.
+
+```
+2024-01-15 Coffee
+    expenses:food  £4.50  ; date:2024-01-20
+    assets:bank
+```
+
+Here, the `expenses:food` posting's effective date is `2024-01-20` for
+reporting purposes, while the transaction's own date remains `2024-01-15`.
+
+> Querying journal data by tag (a `tag:NAME[=REGEX]` query term) is not
+> yet implemented — tags are currently parsed and stored, but not usable
+> as a filter. See `ROADMAP.md`.
+
+---
+
 ## P Directive (Market Prices)
 
 Declares a commodity price on a given date.

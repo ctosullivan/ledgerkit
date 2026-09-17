@@ -1,0 +1,57 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 20-tag-parsing-syntax-brief.md §5, implemented and differential-tested
+# same-session, Stage C Phase 4 (tag data model).
+
+id: LK-COMPAT-PARSER-TAG-SCOPE-001
+area: parser.tags.scope
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger scans every qualifying comment line independently for tags:
+  same-line plus every indented follow-on `;` line (`followingcommentpWith`),
+  at transaction scope, posting scope, and `account`-directive scope alike.
+  Column-0 comments and `#`-led lines never reach tag extraction — this is
+  structural (they are discarded before comment text is even assembled).
+  Ledgerkit's `parser.py` calls `tags.parse_tags` once per fully-assembled
+  `inline_comment` (which already only contains `;`-led same-line and
+  follow-on text, per the pre-existing two-space/column-0 comment rules —
+  see knowledge/DOMAIN_RULES.md's comment-indentation-rule entry), applied
+  identically for `Transaction.tags`, `Posting.tags`, and
+  `Journal.declared_account_tags`. Confirmed via differential testing that
+  `#`-led follow-on lines contribute no tags and column-0 comments never
+  attach to the preceding entry at all.
+
+implementation:
+  - ledgerkit/parser.py (_flush_txn; account-directive comment-line handling)
+
+tests:
+  - tests/test_tags.py::TestParseTags::test_multiline_comment
+  - tests/test_directives/test_directives.py::TestAccountDirectiveTags
+
+evidence:
+  - kind: manual
+    ref: "hledger-lib/Hledger/Read/Common.hs (followingcommentpWith)"
+    pinned_at: "1.52.4"
+  - kind: executable
+    ref: >
+      Ad hoc fixture with `#`-led and column-0 comment lines interleaved
+      with `;`-led tag comments at transaction, posting, and account-
+      directive scope; hledger tags output vs. ledgerkit parsed tags —
+      exact match (only `;`-introduced tags present in both). Stage C
+      Phase 4.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+status: verified
+verified_by: "Claude (lead session, Stage C Phase 4 implementation)"
+verified_date: "2026-09-17"

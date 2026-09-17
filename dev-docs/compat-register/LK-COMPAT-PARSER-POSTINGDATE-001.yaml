@@ -1,0 +1,67 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 20-tag-parsing-syntax-brief.md §6, implemented and differential-tested
+# same-session, Stage C Phase 4 (tag data model).
+
+id: LK-COMPAT-PARSER-POSTINGDATE-001
+area: parser.tags.posting_date_override
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  In hledger, a `date:`/`date2:` tag in a POSTING's own comment sets a
+  real per-posting date override (`postingDate`/`postingDate2` in
+  Posting.hs) in addition to being stored as an ordinary tag — but the
+  same tag name in a transaction-level or account-directive comment has
+  no such effect (confirmed via hledger's own `check-tags.test`, test 6).
+  Precedence chain for the effective secondary date: own date2_override →
+  txn.date2 → own date_override → txn.date. Ledgerkit implements this via
+  `ledgerkit/tags.py:effective_date`/`effective_date2` (pure functions
+  over a `(Transaction, Posting)` pair — see knowledge/DECISIONS.md,
+  2026-09-17, for why no back-reference field was added) plus
+  `parser.py:_apply_posting_date_override_tags`/`_try_set_date_tag`, which
+  parse the tag value via the existing `_parse_simple_date` helper
+  (transaction's own year as fallback) and raise/collect a `ParseError`
+  for an invalid date value depending on strict/lenient mode. First
+  occurrence wins when a posting has more than one `date:` (or `date2:`)
+  tag. Confirmed via differential testing (`hledger register` effective-
+  date grouping) that ledgerkit's override precedence matches hledger's
+  exactly, and that a transaction- or account-directive-level `date:` tag
+  has no override effect in either tool.
+
+implementation:
+  - ledgerkit/tags.py (effective_date, effective_date2)
+  - ledgerkit/parser.py (_apply_posting_date_override_tags, _try_set_date_tag)
+  - ledgerkit/models.py (Posting.date_override, Posting.date2_override)
+
+tests:
+  - tests/test_tags.py::TestEffectiveDate
+  - tests/test_tags.py::TestEffectiveDate2
+  - tests/test_parser/test_parser.py::TestPostingDateOverrideTags
+
+evidence:
+  - kind: manual
+    ref: "hledger-lib/Hledger/Data/Posting.hs (postingDate, postingDate2); hledger's check-tags.test (test 6)"
+    pinned_at: "1.52.4"
+  - kind: executable
+    ref: >
+      Ad hoc fixture with a posting-level `date:` override, a transaction-
+      level `date:` tag (no effect expected), and a posting with both
+      `date:` and `date2:` tags; `hledger register` effective-date
+      grouping compared against ledgerkit's `tags.effective_date`/
+      `effective_date2` output — exact match on all four precedence
+      levels. Stage C Phase 4.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+status: verified
+verified_by: "Claude (lead session, Stage C Phase 4 implementation)"
+verified_date: "2026-09-17"

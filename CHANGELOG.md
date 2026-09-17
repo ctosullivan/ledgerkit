@@ -9,6 +9,38 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 4 — Tag data model (parsing/storage)] — 2026-09-17
+
+Full detail: [dev-docs/retros/STAGE-C-PHASE-4.md](dev-docs/retros/STAGE-C-PHASE-4.md)
+
+**Human:** directed proceeding with the recommended next phase (`tag:`
+query term); when research revealed no tag data model existed at all,
+chose via `AskUserQuestion` to split the phase into data model first,
+`tag:` query later; then confirmed the exact proposed model-field
+additions before they were made (protected `dev-docs/api-spec.md`).
+
+**Claude:** implemented `name:value` inline-comment tag parsing and
+storage, scoped to the data model only — the `tag:` query term itself is
+deferred. New `ledgerkit/tags.py` module: `parse_tags` (grammar-accurate
+extraction, recorded as an adapted implementation, not directly
+translated material) and `effective_date`/`effective_date2` (posting
+`date:`/`date2:` override precedence, as pure functions over a
+`(Transaction, Posting)` pair — no back-reference field added). New
+model fields: `Posting.tags`/`date_override`/`date2_override`,
+`Transaction.tags`, `Journal.declared_account_tags`. Also fixed a real
+pre-existing gap where `account` directive comments (same-line and
+follow-on) were silently discarded — found and fixed a related
+unreachable-code bug in the same area. Two `hledger-researcher` briefs
+(`core-redefinition/19`, `20`); differential-tested against the pinned
+hledger 1.52.4 binary (`hledger tags`, `hledger register`) — exact
+matches. 4 new compat-register entries, all `status: verified`. 46 new
+tests — 728 total, all passing. Updated `dev-docs/api-spec.md`,
+`dev-docs/architecture.md`, `dev-docs/hledger-compatibility.md`,
+`docs/journal-format.md`, `knowledge/DOMAIN_RULES.md`,
+`knowledge/DECISIONS.md`.
+
+---
+
 ### [Stage C Phase 3 — Wire `-q`/`--query` into `print`] — 2026-09-17
 
 Full detail: [dev-docs/retros/STAGE-C-PHASE-3.md](dev-docs/retros/STAGE-C-PHASE-3.md)

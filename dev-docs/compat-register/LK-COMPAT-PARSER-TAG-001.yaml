@@ -1,0 +1,62 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 20-tag-parsing-syntax-brief.md §8, implemented and differential-tested
+# same-session, Stage C Phase 4 (tag data model).
+
+id: LK-COMPAT-PARSER-TAG-001
+area: parser.tags.extraction
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger extracts `name:value` tags from comment text via
+  `commentlinetagsp`/`commenttagsanddatesp` (hledger-lib/Hledger/Read/
+  Common.hs): tag name is the last whitespace-delimited token immediately
+  before `:` (a space right before the colon voids the tag entirely, not
+  just the name); value runs from after `:` to the next `,` or end of
+  line, trimmed, with no escape mechanism; a bare `name:` is a legal tag
+  with an empty value; repeated tag names are kept as a list, never
+  collapsed. Ledgerkit's `ledgerkit/tags.py:parse_tags` implements the
+  same observable grammar via an independent iterative scan (recorded as
+  an adapted implementation, not directly translated material — see
+  knowledge/DECISIONS.md, 2026-09-17). Confirmed identical on hledger's
+  own doctest input (`; name1: val1, name2:all this is value2`) and
+  hand-derived edge cases (space-before-colon voiding, comma-hard-
+  separator, colon-in-value, repeated-name list semantics), plus
+  differential testing against the pinned hledger binary (`hledger tags`
+  tag-name-set comparison).
+
+implementation:
+  - ledgerkit/tags.py (parse_tags, _parse_comment_line_tags, _tag_name_before_colon)
+  - ledgerkit/parser.py (_flush_txn — wires parse_tags onto Transaction.tags/Posting.tags)
+
+tests:
+  - tests/test_tags.py::TestParseTags
+  - tests/test_parser/test_parser.py::TestTransactionAndPostingTags
+
+evidence:
+  - kind: manual
+    ref: "hledger-lib/Hledger/Read/Common.hs (commentlinetagsp, commenttagsanddatesp); https://hledger.org/1.52/hledger.html#tags"
+    pinned_at: "1.52.4"
+  - kind: executable
+    ref: >
+      Ad hoc fixture (tags.journal, built under a scratch directory and
+      removed after verification) containing transaction- and
+      posting-level tags including repeated names, space-before-colon,
+      and comma-separated multi-value comments; `hledger tags` tag-name
+      output compared against ledgerkit's own parsed
+      Transaction.tags/Posting.tags — exact match. Stage C Phase 4.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+status: verified
+verified_by: "Claude (lead session, Stage C Phase 4 implementation)"
+verified_date: "2026-09-17"

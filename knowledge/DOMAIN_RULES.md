@@ -163,3 +163,50 @@ ledgerkit accepts both forms. The effective sign is the logical OR of the leadin
 minus and the mid-minus captured by the `_AMOUNT`/`_AMOUNT_COMMA` regex groups.
 
 This means `$-300` parses as quantity `-300`, commodity `$` — identical to `-$300`.
+
+---
+
+## Inline comment tags (`name:value`): grammar edge cases
+
+Tags are `name:value` pairs extracted from comment text (transaction,
+posting, or `account`-directive inline comments — same-line or follow-on).
+See `ledgerkit/tags.py`. Non-obvious rules, all confirmed against hledger
+1.52.4's own grammar and doctests:
+
+- **Space before the colon voids the whole tag, not just the name.**
+  `foo bar :baz` extracts **no** tag at all — it does not fall back to an
+  empty name. The tag name is "the last whitespace-delimited token
+  immediately before `:`"; if that token is empty (because whitespace sits
+  right before the colon), there is no candidate name and the `:` is not a
+  tag delimiter at all.
+- **Comma is a hard separator with no escaping.** A tag value runs from
+  just after `:` to the next `,` or end of line. There is no way to put a
+  literal comma inside a tag value in hledger's own grammar. A colon
+  inside a value is fine (only the *first* unvoided `:` per candidate
+  starts a tag).
+- **Tags are `list[tuple[str, str]]`, never a dict.** The same tag name
+  may legitimately repeat with different values in one comment (hledger's
+  own manual example: `tag1:value 1, tag1:value 2`). Collapsing to a dict
+  would silently drop all but the last occurrence.
+- **`date:`/`date2:` tags only override at posting scope.** The same tag
+  name in a transaction-level or `account`-directive comment is stored as
+  an ordinary tag and has **no** date-override effect — only a *posting's
+  own* comment tag sets `Posting.date_override`/`date2_override`. This was
+  confirmed by direct reference to hledger's `check-tags.test` (test 6).
+- **First-occurrence-wins for repeated date-override tag names.** If a
+  posting's comment has two `date:` tags, the first is used to set
+  `date_override`; the second is stored as a plain tag but does not
+  overwrite it.
+- **`account` directive follow-on `;` comment lines DO carry tags** —
+  confirmed against `hledger.1:2980-2992`. This is a real capability, not
+  a gap: `parser.py` must scan indented follow-on comment lines after an
+  `account` directive the same way it does for transactions/postings.
+
+**Why it matters:** every one of these was verified against either
+hledger's literal source grammar or its own test suite, not inferred from
+behavior — several are easy to get subtly wrong from casual reading (e.g.
+Python's `str.split()` silently drops trailing empty tokens the way
+Haskell's `Text.split isSpace` does not, which is exactly the
+space-before-colon case above).
+
+**Applies to:** `ledgerkit/tags.py`, `ledgerkit/parser.py`, `ledgerkit/models.py`

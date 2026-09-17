@@ -14,6 +14,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from ledgerkit.models import Amount, BalanceAssertion, Journal, Posting, PriceDirective, SourceSpan, Transaction
+from ledgerkit.tags import parse_tags
 
 
 @dataclass
@@ -51,6 +52,28 @@ class _ParseContext:
 #   - Only the FIRST match is used (re.split with maxsplit=1)
 #   - Lines with no such pattern return the original body unchanged
 _TWO_SPACE_SEP = re.compile(r"\s{2,}[;#]")
+
+# Extracts the text of a directive's same-line inline comment, but only
+# when introduced by ';' — never '#'. Used specifically for tag-scanning
+# an `account NAME ; tag:value` directive comment: tags are only ever
+# extracted from ';'-led comments (per hledger's own grammar; a '#'-led
+# comment never reaches the tag-extraction function at all — see
+# ledgerkit/tags.py's module docstring and 20-tag-parsing-syntax-brief.md
+# §1), whereas _TWO_SPACE_SEP above (used for isolating the account NAME
+# itself) deliberately treats ';' and '#' the same since both equally end
+# the name.
+#
+# Purpose: capture the comment text after a same-line "  ;" on a directive
+#          line, for tag extraction only — not used for name-isolation.
+#
+# Group breakdown:
+#   (1) (.*)$  — everything after the semicolon to end of line
+#
+# Edge cases:
+#   - "  # note" (hash, not semicolon) does not match at all — no group,
+#     no tags — matching hledger's own #-lines-never-carry-tags rule
+#   - Only the FIRST "  ;" is used (re.search finds the leftmost match)
+_TWO_SPACE_SEMICOLON_COMMENT = re.compile(r"\s{2,};(.*)$")
 
 
 class ParseError(ValueError):
@@ -851,11 +874,66 @@ def _flush_txn(
     end: int,
     all_lines: list[str],
     source_file: str,
+    errors_out: list[ParseError] | None = None,
 ) -> None:
-    """Attach SourceSpan and raw_text to a transaction that is about to be finalised."""
+    """Attach SourceSpan/raw_text and extract tags/date-overrides for a
+    transaction that is about to be finalised.
+
+    Tag extraction runs here (not incrementally as each comment line is
+    seen) because a transaction's/posting's inline_comment is only fully
+    assembled — same-line plus every follow-on indented comment line —
+    by the time the block is about to be flushed.
+    """
     start = txn.source_line or 1
     txn.source_span = SourceSpan(file=source_file, start_line=start, end_line=end)
     txn.raw_text = "\n".join(all_lines[start - 1 : end]) + "\n"
+
+    # Transaction-level tags: "date"/"date2" have NO override effect here
+    # (hledger: only a posting's own comment triggers the date-override
+    # special case) — an ordinary tag entry, nothing more.
+    txn.tags = parse_tags(txn.inline_comment)
+    for posting in txn.postings:
+        posting.tags = parse_tags(posting.inline_comment)
+        _apply_posting_date_override_tags(posting, txn, errors_out)
+
+
+def _apply_posting_date_override_tags(
+    posting: Posting,
+    txn: Transaction,
+    errors_out: list[ParseError] | None,
+) -> None:
+    """Set Posting.date_override/date2_override from "date"/"date2" tags.
+
+    Only the FIRST occurrence of each name wins (matching hledger's own
+    `find`-based lookup) — later same-named tags are ignored for the
+    override, though they remain present in `posting.tags` regardless.
+    An unparseable date value is a hard error in hledger ("we throw parse
+    errors on invalid dates") — raised immediately in strict mode,
+    collected in `errors_out` (override left unset) in lenient mode.
+    """
+    for name, value in posting.tags:
+        if name == "date" and posting.date_override is None:
+            _try_set_date_tag(posting, "date_override", value, txn, errors_out)
+        elif name == "date2" and posting.date2_override is None:
+            _try_set_date_tag(posting, "date2_override", value, txn, errors_out)
+
+
+def _try_set_date_tag(
+    posting: Posting,
+    field_name: str,
+    value: str,
+    txn: Transaction,
+    errors_out: list[ParseError] | None,
+) -> None:
+    lineno = posting.source_line or txn.source_line or 1
+    try:
+        parsed = _parse_simple_date(value, lineno, txn.date.year)
+    except ParseError as exc:
+        if errors_out is None:
+            raise
+        errors_out.append(exc)
+        return
+    setattr(posting, field_name, parsed)
 
 
 def _parse_string_impl(
@@ -877,6 +955,7 @@ def _parse_string_impl(
     declared_commodities: list[str] = []
     declared_payees: list[str] = []
     declared_tags: list[str] = []
+    declared_account_tags: dict[str, list[tuple[str, str]]] = {}
     commodity_directive_raws: dict = {}  # symbol → raw amount string from directive
     aliases: list[tuple[str, str, bool]] = []  # (old_or_pattern, replacement, is_regex)
     ctx = _ParseContext(default_year=default_year, decimal_mark=".")
@@ -885,6 +964,13 @@ def _parse_string_impl(
     last_posting_in_txn: Posting | None = None  # for standalone comment attribution
     in_block_comment = False
     in_subdirective = False  # True while consuming indented subdirective lines
+    # Set to the just-declared account name while in_subdirective is True
+    # *because* of an account directive specifically (not commodity/payee/
+    # tag) — indented ';'-led lines under it are tag-scanned into
+    # declared_account_tags; any other directive's subdirective lines
+    # never are. None whenever in_subdirective is False or was set by a
+    # non-account directive.
+    account_comment_target: str | None = None
     skip_until_blank = False  # lenient mode: True while skipping a malformed transaction
 
     for lineno, raw in enumerate(all_lines, start=1):
@@ -923,6 +1009,7 @@ def _parse_string_impl(
             if not line.strip():
                 skip_until_blank = False
                 in_subdirective = False
+                account_comment_target = None
                 continue
             if not re.match(r"^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(=]|$)", line):
                 continue
@@ -933,12 +1020,13 @@ def _parse_string_impl(
         if not line.strip():
             if current_txn is not None:
                 end = current_txn_last_lineno or (current_txn.source_line or 1)
-                _flush_txn(current_txn, end, all_lines, source_file)
+                _flush_txn(current_txn, end, all_lines, source_file, errors_out)
                 transactions.append(current_txn)
                 current_txn = None
                 current_txn_last_lineno = None
                 last_posting_in_txn = None
             in_subdirective = False
+            account_comment_target = None
             continue
 
         # --- Comment-only line (whole-line or indented follow-on `;` / `#`) ---
@@ -968,6 +1056,20 @@ def _parse_string_impl(
         is_indented = line[0:1].isspace()
         stripped = line.lstrip()
         if stripped.startswith(";") or stripped.startswith("#"):
+            if current_txn is None and is_indented and account_comment_target is not None:
+                # Follow-on ';'-led comment line under an `account`
+                # directive (outside any transaction) — tag-scanned into
+                # declared_account_tags. '#'-led lines never carry tags
+                # (matches hledger; see ledgerkit/tags.py). This must be
+                # handled here, before the `continue` below, since this
+                # block unconditionally consumes every ';'/'#'-led line —
+                # the in_subdirective check further down the loop body is
+                # never reached for comment lines.
+                if stripped.startswith(";"):
+                    new_tags = parse_tags(stripped[1:].strip())
+                    if new_tags:
+                        declared_account_tags.setdefault(account_comment_target, []).extend(new_tags)
+                continue
             if current_txn is not None and is_indented:
                 current_txn_last_lineno = lineno
                 if stripped.startswith(";"):
@@ -1001,7 +1103,7 @@ def _parse_string_impl(
         if not line[0:1].isspace() and line.startswith("~"):
             if current_txn is not None:
                 end = current_txn_last_lineno or (current_txn.source_line or 1)
-                _flush_txn(current_txn, end, all_lines, source_file)
+                _flush_txn(current_txn, end, all_lines, source_file, errors_out)
                 transactions.append(current_txn)
                 current_txn = None
                 current_txn_last_lineno = None
@@ -1030,7 +1132,7 @@ def _parse_string_impl(
         if not line[0:1].isspace() and re.match(r"^=\s+\S", line):
             if current_txn is not None:
                 end = current_txn_last_lineno or (current_txn.source_line or 1)
-                _flush_txn(current_txn, end, all_lines, source_file)
+                _flush_txn(current_txn, end, all_lines, source_file, errors_out)
                 transactions.append(current_txn)
                 current_txn = None
                 current_txn_last_lineno = None
@@ -1070,9 +1172,10 @@ def _parse_string_impl(
             if current_txn is not None:
                 # No blank line between transactions — flush previous block
                 end = current_txn_last_lineno or (current_txn.source_line or 1)
-                _flush_txn(current_txn, end, all_lines, source_file)
+                _flush_txn(current_txn, end, all_lines, source_file, errors_out)
                 transactions.append(current_txn)
             in_subdirective = False
+            account_comment_target = None
             current_txn_last_lineno = None
             last_posting_in_txn = None
             try:
@@ -1098,6 +1201,7 @@ def _parse_string_impl(
                 transactions.append(current_txn)
                 current_txn = None
             in_subdirective = False
+            account_comment_target = None
             in_block_comment = True
             continue
 
@@ -1120,8 +1224,16 @@ def _parse_string_impl(
         #     expected to be well-formed per hledger conventions
         if in_subdirective:
             if line[0:1].isspace():
+                # NOTE: a ';'/'#'-led indented line never reaches here — the
+                # comment-detection block earlier in this loop (which
+                # handles `account` follow-on ';' tag-scanning, among other
+                # things) unconditionally consumes and `continue`s past
+                # every such line first. Only a non-comment indented
+                # subdirective line (e.g. a Ledger-style "format"/other
+                # bare subdirective) reaches this point.
                 continue  # consume indented subdirective silently
             in_subdirective = False
+            account_comment_target = None
             # fall through to process this non-indented line normally
 
         # --- account directive ---
@@ -1144,7 +1256,18 @@ def _parse_string_impl(
             if ctx.account_prefix:
                 account_name = f"{ctx.account_prefix}:{account_name}"
             if account_name:
-                declared_accounts.append(_apply_aliases(account_name, aliases))
+                resolved_name = _apply_aliases(account_name, aliases)
+                declared_accounts.append(resolved_name)
+                # Same-line "  ; tag:value" comment (';' only — '#' never
+                # carries tags, per parse_tags/ledgerkit/tags.py).
+                same_line_match = _TWO_SPACE_SEMICOLON_COMMENT.search(body)
+                if same_line_match:
+                    same_line_tags = parse_tags(same_line_match.group(1).strip())
+                    if same_line_tags:
+                        declared_account_tags.setdefault(resolved_name, []).extend(same_line_tags)
+                account_comment_target = resolved_name
+            else:
+                account_comment_target = None
             in_subdirective = True
             continue
 
@@ -1171,6 +1294,7 @@ def _parse_string_impl(
             # a sample amount (contains at least one digit).
             if symbol and any(ch.isdigit() for ch in body):
                 commodity_directive_raws[symbol] = body
+            account_comment_target = None
             in_subdirective = True
             continue
 
@@ -1192,6 +1316,7 @@ def _parse_string_impl(
             if payee_name.startswith('"') and payee_name.endswith('"'):
                 payee_name = payee_name[1:-1]
             declared_payees.append(payee_name)
+            account_comment_target = None
             in_subdirective = True
             continue
 
@@ -1211,6 +1336,7 @@ def _parse_string_impl(
             tag_name = _strip_directive_comment(body)
             if tag_name:
                 declared_tags.append(tag_name)
+            account_comment_target = None
             in_subdirective = True
             continue
 
@@ -1477,7 +1603,7 @@ def _parse_string_impl(
     # Flush final block if file ends without a trailing blank line
     if current_txn is not None:
         end = current_txn_last_lineno or (current_txn.source_line or 1)
-        _flush_txn(current_txn, end, all_lines, source_file)
+        _flush_txn(current_txn, end, all_lines, source_file, errors_out)
         transactions.append(current_txn)
 
     return Journal(
@@ -1487,6 +1613,7 @@ def _parse_string_impl(
         declared_commodities=declared_commodities,
         declared_payees=declared_payees,
         declared_tags=declared_tags,
+        declared_account_tags=declared_account_tags,
         _commodity_directive_raws=commodity_directive_raws,
     )
 

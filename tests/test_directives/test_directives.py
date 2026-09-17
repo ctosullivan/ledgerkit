@@ -60,6 +60,55 @@ class TestAccountDirective(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# account directive tags (Stage C Phase 4 — declared_account_tags)
+# ---------------------------------------------------------------------------
+
+class TestAccountDirectiveTags(unittest.TestCase):
+    def test_same_line_tags_captured(self):
+        j = parse_string("account assets:bank  ; type:A, acctnum:12345\n")
+        self.assertEqual(
+            j.declared_account_tags,
+            {"assets:bank": [("type", "A"), ("acctnum", "12345")]},
+        )
+
+    def test_hash_comment_not_tag_scanned(self):
+        # '#' never carries tags, even though it does end the account name.
+        j = parse_string("account assets:bank  # type:A\n")
+        self.assertEqual(j.declared_account_tags, {})
+
+    def test_followon_semicolon_line_captured(self):
+        text = "account assets:bank:savings\n  ; more tags - type:B\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_account_tags, {"assets:bank:savings": [("type", "B")]})
+
+    def test_followon_hash_line_not_tag_scanned(self):
+        text = "account assets:bank\n  # type:A\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_account_tags, {})
+
+    def test_no_colon_followon_comment_produces_no_tags(self):
+        # test_account_subdirectives_skipped's own fixture -- confirms
+        # "a note" (no colon) yields no tags, only declared_accounts changes.
+        text = "account assets:bank\n    format something\n    ; a note\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_account_tags, {})
+
+    def test_multiple_followon_lines_all_captured(self):
+        text = "account a\n  ; tag1:v1\n  ; tag2:v2\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_account_tags, {"a": [("tag1", "v1"), ("tag2", "v2")]})
+
+    def test_tags_do_not_leak_to_a_later_account_with_no_comment(self):
+        text = "account a  ; type:X\naccount b\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_account_tags, {"a": [("type", "X")]})
+
+    def test_untagged_account_has_no_entry(self):
+        j = parse_string("account assets:bank\n")
+        self.assertEqual(j.declared_account_tags, {})
+
+
+# ---------------------------------------------------------------------------
 # commodity directive
 # ---------------------------------------------------------------------------
 

@@ -458,3 +458,87 @@ still supporting Python 3.8".
 **Rejected alternative:** Raising a `ParseError` when a balance assignment is encountered (too strict — valid hledger files should load without error even if the assignment isn't validated).
 
 **Applies to:** `ledgerkit/parser.py`, `ledgerkit/checks.py`
+
+---
+
+## 2026-09-17 — Tag/date-override resolution as pure functions, not a `Posting.transaction` back-reference
+
+**Decision:** `Posting.date_override`/`date2_override` resolve against their
+owning `Transaction`'s dates via free functions, `tags.effective_date(txn,
+posting)` and `tags.effective_date2(txn, posting)`, taking both objects as
+arguments. No `Posting.transaction` back-reference field was added.
+
+**Why:** Ledgerkit's existing model design has no back-references anywhere
+(`Posting` doesn't point to its `Transaction`; `Journal` doesn't get
+pointed to by anything it contains). Adding one back-reference for this
+one feature would be an inconsistent one-off, would break `Posting`
+equality/hashing (a cycle, or a field that would need `compare=False` and
+`repr=False` special-casing), and isn't needed — every call site that has
+a `Posting` also has the `Transaction` it came from (transactions are
+always iterated as `(txn, posting)` pairs in `parser.py`, `checks.py`,
+`reports.py`).
+
+**Rejected alternative:** `Posting.transaction: Transaction` back-reference
+field, proposed in `dev-docs/planning/core-redefinition/
+20-tag-parsing-syntax-brief.md` §7 as an open question for the lead to
+decide; rejected by the user via `AskUserQuestion` in favour of the
+pure-function form.
+
+**Applies to:** `ledgerkit/tags.py`, `ledgerkit/models.py`
+
+---
+
+## 2026-09-17 — New `ledgerkit/tags.py` module rather than adding to `parser.py`
+
+**Decision:** Tag-extraction logic (`parse_tags`, `_parse_comment_line_tags`,
+`_tag_name_before_colon`) and date-override resolution
+(`effective_date`/`effective_date2`) live in a new `ledgerkit/tags.py`
+module. `parser.py` imports and calls into it; it contains no
+tag-extraction logic of its own beyond wiring the results onto model
+fields at the point a comment is fully assembled.
+
+**Why:** `parser.py` was already 1547+ lines, over the 300–500 line
+module-size signal in `CLAUDE.md`. Adding a self-contained, independently
+testable unit of logic (pure functions, no shared state with the parser's
+state machine) as a new module avoids growing the already-oversized file
+further, without requiring the user-approval-gated "split `parser.py`"
+refactor that the size signal would otherwise call for.
+
+**Rejected alternative:** Adding the functions directly to `parser.py` as
+private helpers (would have pushed the file further over threshold for no
+structural benefit, since the logic doesn't share state with the parser's
+line-by-line state machine).
+
+**Applies to:** `ledgerkit/tags.py`, `ledgerkit/parser.py`
+
+---
+
+## 2026-09-17 — `tags.parse_tags` is an adapted implementation, not directly translated material
+
+**Decision:** `ledgerkit/tags.py`'s `parse_tags`/`_parse_comment_line_tags`
+is recorded as an **adapted implementation** of hledger's tag-extraction
+grammar (`commentlinetagsp`/`commenttagsanddatesp` in
+`hledger-lib/Hledger/Read/Common.hs`), not directly translated material,
+per the categories in `dev-docs/planning/core-redefinition/
+10-source-assisted-development.md` §10.3.
+
+**Why:** The Python implementation is an independent iterative
+scan-and-split loop over a comment line, verified against hledger's
+*observable* grammar (its manual, doctests, and `check-tags.test`) rather
+than transcribed from the Haskell parser-combinator source. It does not
+mirror `commentlinetagsp`'s recursive combinator structure, uses no
+Haskell-specific idioms, and was written by reasoning about output
+behaviour on test cases (e.g. the `Data.Text.split isSpace` vs Python
+`str.split()` trailing-empty-token difference was reasoned through
+explicitly, not copied). This determination was required by the brief
+itself (`20-tag-parsing-syntax-brief.md`, "directly-translated-material
+assessment"), which flagged the risk and asked the lead to make and record
+the call rather than leaving it implicit.
+
+**Rejected alternative:** Recording it as directly translated material
+(would require a `THIRD-PARTY-NOTICES.md` entry and `directly_translated:
+true` in the relevant compat-register entries) — rejected because the
+implementation shape genuinely differs, per the reasoning above.
+
+**Applies to:** `ledgerkit/tags.py`, `dev-docs/compat-register/
+LK-COMPAT-PARSER-TAG-001.yaml`

@@ -75,6 +75,9 @@ class Posting:
     cost_raw: str | None = None                     # raw cost annotation text (e.g. "$180.00" from "@ $180.00") [ADDED IN v0.2.0]
     source_line: int | None = None                  # 1-based line number; None for programmatic objects
     inferred: bool = False                          # True for postings synthesised by resolve_elision()
+    tags: list[tuple[str, str]] = field(default_factory=list)          # [NEW — Stage C Phase 4]
+    date_override: datetime.date | None = None      # [NEW — Stage C Phase 4]
+    date2_override: datetime.date | None = None     # [NEW — Stage C Phase 4]
 ```
 
 One line within a transaction, mapping an account to an amount.
@@ -87,6 +90,25 @@ no amount (`amount=None` — elided).
 `inferred` is set to `True` on postings synthesised by `resolve_elision()` and is
 `False` for all postings parsed directly from journal text. `repr=False` keeps the
 dataclass repr clean.
+
+**`tags`** `[NEW — Stage C Phase 4]`: this posting's own inline-comment tags
+(same-line plus its own follow-on comment lines), as an ordered list of
+`(name, value)` pairs — **not** a dict; a name may legitimately repeat with
+different values (see `ledgerkit/tags.py`). Does **not** include tags
+inherited from the posting's account or its transaction (that inheritance
+is deliberately not computed by this layer — see `knowledge/DECISIONS.md`,
+2026-09-17).
+
+**`date_override`/`date2_override`** `[NEW — Stage C Phase 4]`: set only
+when this posting's own comment contains a `date:`/`date2:` tag whose value
+parses as a simple date (using the transaction's own year as the fallback
+default). A distinct mechanism from `Transaction.date2` — a journal may use
+both simultaneously; the posting-level override takes precedence for that
+one posting's *effective* date (`ledgerkit.tags.effective_date`/
+`effective_date2`), computed on read, never mutating `Transaction.date`/
+`date2`. An unparseable `date:`/`date2:` value is a `ParseError` (raised
+immediately in strict mode; collected in lenient mode, override left
+unset).
 
 ---
 
@@ -104,9 +126,18 @@ class Transaction:
     code: str = ""                 # Optional transaction code in parentheses
     comment: str = ""              # Inline or trailing comment text
     source_line: int | None = None # 1-based line number of the header in source file
+    tags: list[tuple[str, str]] = field(default_factory=list)  # [NEW — Stage C Phase 4]
 ```
 
 Represents a complete journal transaction entry.
+
+**`tags`** `[NEW — Stage C Phase 4]`: this transaction's own inline-comment
+tags, same shape as `Posting.tags`. Deliberately has **no**
+`date_override`-equivalent field: hledger's `date:`/`date2:` tags have an
+overriding effect only in a *posting's* own comment — at the transaction
+level they are ordinary tags with no special meaning at all (verified
+against hledger source and its own `check-tags.test` fixture; see
+`knowledge/DOMAIN_RULES.md`).
 
 **Wire → model mapping** (see `dev-docs/hledger-compatibility.md` for block delimiters):
 
@@ -155,9 +186,22 @@ class Journal:
     declared_commodities: list[str] = field(default_factory=list)
     declared_payees: list[str] = field(default_factory=list)
     declared_tags: list[str] = field(default_factory=list)
+    declared_account_tags: dict[str, list[tuple[str, str]]] = field(default_factory=dict)  # [NEW — Stage C Phase 4]
     source_file: str | None = None
     included_files: int = 0   # count of distinct files pulled in via include
 ```
+
+**`declared_account_tags`** `[NEW — Stage C Phase 4]`: directly-declared
+tags per account, from `account NAME ; tag:value` directive comments
+(including its own follow-on indented `;` comment lines — confirmed by
+hledger's manual as a real, documented feature, not inferred). Keyed by
+the exact declared account name. **Directly-declared tags only — does
+not include tags inherited from a parent account** (that inheritance
+computation is a separate, not-yet-built concern; see
+`dev-docs/planning/core-redefinition/19-tag-query-semantics-brief.md` §2).
+Additive alongside `declared_accounts`, whose `list[str]` shape is
+unchanged, per the existing 2026-09-13 guardrail in `knowledge/
+DECISIONS.md`.
 
 Top-level container for all parsed journal data.
 
@@ -302,6 +346,40 @@ class ReportSectionResult:
 Mutable result object returned per section by `balance_from_spec()`.
 
 Re-exported from `ledgerkit.__init__` as `ledgerkit.ReportSectionResult`.
+
+---
+
+## `ledgerkit/tags.py` `[NEW — Stage C Phase 4]`
+
+**Not re-exported from `ledgerkit/__init__.py`.** Pure functions only — no
+file I/O, no model mutation; `parser.py` calls into this module and stores
+the results on `Posting`/`Transaction`/`Journal` itself. An independent
+Python implementation of hledger 1.52.4's inline-tag grammar (not a
+line-for-line port — see `knowledge/DECISIONS.md`, 2026-09-17).
+
+```python
+def parse_tags(comment: str | None) -> list[tuple[str, str]]:
+    """Extract name:value tags from already-assembled comment text.
+    Ordered list, never a dict — a name may legitimately repeat with a
+    different value. A space immediately before the colon voids that
+    candidate tag entirely. A value runs to the next ',' or end of line
+    (no escaping — a value cannot contain a literal comma); a colon
+    inside a value is fine."""
+
+def effective_date(txn: Transaction, posting: Posting) -> datetime.date:
+    """posting.date_override if set, else txn.date."""
+
+def effective_date2(txn: Transaction, posting: Posting) -> datetime.date:
+    """posting.date2_override, else txn.date2, else posting.date_override,
+    else txn.date — hledger's own four-level fallback chain exactly."""
+```
+
+Grounded in `dev-docs/planning/core-redefinition/19-tag-query-semantics-
+brief.md` and `20-tag-parsing-syntax-brief.md`. This module implements
+**parsing and storage only** — the `tag:` query term itself (matching,
+inheritance-rule computation, same-prefix-AND-not-OR combination) is not
+yet implemented; see `dev-docs/hledger-compatibility.md`'s Query Language
+section.
 
 ---
 

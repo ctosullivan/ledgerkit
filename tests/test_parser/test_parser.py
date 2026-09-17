@@ -1487,6 +1487,139 @@ class TestAutoPostingRuleSkip(unittest.TestCase):
         self.assertTrue(any("auto-posting" in str(w).lower() for w in warnings))
 
 
+class TestTransactionAndPostingTags(unittest.TestCase):
+    """Stage C Phase 4 -- Transaction.tags/Posting.tags extraction, wired
+    via ledgerkit.tags.parse_tags at transaction-flush time."""
+
+    def test_transaction_level_tag(self):
+        j = parse_string(
+            "2024-01-01 Test  ; category:food\n"
+            "    assets:bank  £10.00\n"
+            "    income:x  -£10.00\n"
+        )
+        self.assertEqual(j.transactions[0].tags, [("category", "food")])
+
+    def test_posting_level_tag(self):
+        j = parse_string(
+            "2024-01-01 Test\n"
+            "    assets:bank  £10.00  ; priority:high\n"
+            "    income:x  -£10.00\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].tags, [("priority", "high")])
+        self.assertEqual(j.transactions[0].postings[1].tags, [])
+
+    def test_followon_comment_line_tags_captured_on_transaction(self):
+        j = parse_string(
+            "2024-01-01 Test\n"
+            "  ; a:1\n"
+            "    assets:bank  £10.00\n"
+            "    income:x  -£10.00\n"
+        )
+        self.assertEqual(j.transactions[0].tags, [("a", "1")])
+
+    def test_followon_comment_line_tags_captured_on_posting(self):
+        j = parse_string(
+            "2024-01-01 Test\n"
+            "    assets:bank  £10.00\n"
+            "    ; a:1\n"
+            "    income:x  -£10.00\n"
+        )
+        self.assertEqual(j.transactions[0].postings[0].tags, [("a", "1")])
+        self.assertEqual(j.transactions[0].postings[1].tags, [])
+
+    def test_hash_comment_never_yields_tags(self):
+        j = parse_string(
+            "2024-01-01 Test  # category:food\n"
+            "    assets:bank  £10.00\n"
+            "    income:x  -£10.00\n"
+        )
+        self.assertEqual(j.transactions[0].tags, [])
+
+    def test_no_tags_is_empty_list_not_none(self):
+        j = parse_string("2024-01-01 Test\n    assets:bank  £10.00\n    income:x  -£10.00\n")
+        self.assertEqual(j.transactions[0].tags, [])
+        self.assertEqual(j.transactions[0].postings[0].tags, [])
+
+
+class TestPostingDateOverrideTags(unittest.TestCase):
+    """Stage C Phase 4 -- "date"/"date2" posting-comment tags overriding
+    Posting.date_override/date2_override. Transaction-level "date"/"date2"
+    tags have NO override effect (ordinary tags only) -- confirmed against
+    hledger's own check-tags.test fixture shape."""
+
+    def test_posting_date_tag_sets_override(self):
+        j = parse_string(
+            "2024-01-01 Test\n"
+            "    assets:bank  £10.00  ; date:2024-01-15\n"
+            "    income:x  -£10.00\n"
+        )
+        p = j.transactions[0].postings[0]
+        self.assertEqual(p.date_override, datetime.date(2024, 1, 15))
+        self.assertEqual(p.date2_override, None)
+        # Still present as an ordinary tag too -- both effects happen.
+        self.assertIn(("date", "2024-01-15"), p.tags)
+
+    def test_posting_date2_tag_sets_override(self):
+        j = parse_string(
+            "2024-01-01 Test\n"
+            "    assets:bank  £10.00  ; date2:2024-02-01\n"
+            "    income:x  -£10.00\n"
+        )
+        p = j.transactions[0].postings[0]
+        self.assertEqual(p.date2_override, datetime.date(2024, 2, 1))
+
+    def test_year_omitted_date_tag_uses_transaction_year(self):
+        j = parse_string(
+            "2024-06-01 Test\n"
+            "    assets:bank  £10.00  ; date:1/2\n"
+            "    income:x  -£10.00\n"
+        )
+        p = j.transactions[0].postings[0]
+        self.assertEqual(p.date_override, datetime.date(2024, 1, 2))
+
+    def test_transaction_level_date_tag_has_no_override_effect(self):
+        # A "date:"/"date2:" tag in a TRANSACTION-level comment (not a
+        # posting's own) is an ordinary tag only -- no Posting field is
+        # touched, since Posting has no date_override of its own set here.
+        j = parse_string(
+            "2024-01-01 Test  ; date:2024-06-01\n"
+            "    assets:bank  £10.00\n"
+            "    income:x  -£10.00\n"
+        )
+        txn = j.transactions[0]
+        self.assertEqual(txn.tags, [("date", "2024-06-01")])
+        self.assertEqual(txn.date, datetime.date(2024, 1, 1))  # unchanged
+        self.assertIsNone(txn.postings[0].date_override)
+
+    def test_invalid_date_tag_raises_parse_error_strict(self):
+        with self.assertRaises(ParseError):
+            parse_string(
+                "2024-01-01 Test\n"
+                "    assets:bank  £10.00  ; date:notadate\n"
+                "    income:x  -£10.00\n"
+            )
+
+    def test_invalid_date_tag_collected_in_lenient_mode(self):
+        journal, errors = parse_string_lenient(
+            "2024-01-01 Test\n"
+            "    assets:bank  £10.00  ; date:notadate\n"
+            "    income:x  -£10.00\n"
+        )
+        self.assertTrue(any("invalid date" in str(e) for e in errors))
+        self.assertIsNone(journal.transactions[0].postings[0].date_override)
+
+    def test_first_occurrence_wins_for_repeated_date_tag(self):
+        j = parse_string(
+            "2024-01-01 Test\n"
+            "    assets:bank  £10.00  ; date:2024-01-10, date:2024-01-20\n"
+            "    income:x  -£10.00\n"
+        )
+        self.assertEqual(
+            j.transactions[0].postings[0].date_override,
+            datetime.date(2024, 1, 10),
+        )
+
+
 class TestFixtureLoad(unittest.TestCase):
     """Milestone 4 gate: comprehensive fixture must load with zero hard errors."""
 

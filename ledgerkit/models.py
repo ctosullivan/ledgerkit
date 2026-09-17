@@ -77,6 +77,14 @@ class Posting:
     source_line: int | None = field(default=None, repr=False)
     inferred: bool = field(default=False, repr=False)
     inline_comment: str | None = field(default=None, repr=False, compare=False)
+    tags: list[tuple[str, str]] = field(default_factory=list)
+    # Set only when this posting's own comment contains a "date"/"date2"
+    # tag whose value parses as a simple date — a per-posting override,
+    # distinct from Transaction.date2 (a separate mechanism; see
+    # knowledge/DOMAIN_RULES.md). Deliberately compare=True (default):
+    # these change the posting's effective date, not just its provenance.
+    date_override: Optional[datetime.date] = None
+    date2_override: Optional[datetime.date] = None
 
 
 @dataclass
@@ -95,6 +103,12 @@ class Transaction:
     source_span: SourceSpan | None = field(default=None, repr=False, compare=False)
     raw_text: str | None = field(default=None, repr=False, compare=False)
     inline_comment: str | None = field(default=None, repr=False, compare=False)
+    # No date_override-equivalent field here, deliberately: hledger's
+    # "date"/"date2" tags have no date-overriding effect at the
+    # transaction level — only in a posting's own comment (see
+    # ledgerkit/tags.py, knowledge/DOMAIN_RULES.md). A transaction-level
+    # "date"/"date2" tag is an ordinary entry in `tags` below, nothing more.
+    tags: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -293,6 +307,14 @@ class Journal:
     declared_commodities: list[str] = field(default_factory=list)
     declared_payees: list[str] = field(default_factory=list)
     declared_tags: list[str] = field(default_factory=list)
+    # Directly-declared tags per account (from `account NAME ; tag:value`
+    # directive comments, including follow-on indented comment lines) —
+    # keyed by the exact declared account name, NOT including tags
+    # inherited from parent accounts (that's a separate, on-demand
+    # computation; see ledgerkit/tags.py). Additive alongside
+    # declared_accounts, per knowledge/DECISIONS.md's 2026-09-13 guardrail
+    # — declared_accounts's own list[str] shape is never changed.
+    declared_account_tags: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
     source_file: str | None = None
     included_files: int = 0
     # Maps commodity symbol → raw amount string from an explicit `commodity`

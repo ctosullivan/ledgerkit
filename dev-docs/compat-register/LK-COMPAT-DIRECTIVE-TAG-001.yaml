@@ -1,0 +1,66 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 20-tag-parsing-syntax-brief.md §4/§9 (account NAME directive comment
+# tags), implemented and differential-tested same-session, Stage C
+# Phase 4 (tag data model). Distinct from the pre-existing
+# LK-COMPAT-TAGDIR-001, which covers the `tag TAGNAME` directive itself.
+
+id: LK-COMPAT-DIRECTIVE-TAG-001
+area: parser.directives.account.tags
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `account NAME` directive supports a same-line and/or indented
+  follow-on `;` comment carrying `name:value` tags, which declare tags on
+  the account itself (confirmed via direct read of hledger.1:2980-2992).
+  Before this phase, ledgerkit's parser discarded `account` directive
+  comments entirely — a real gap, not a documented divergence. This phase
+  fixes that: `parser.py`'s `account` directive handling now captures a
+  same-line comment via `_TWO_SPACE_SEMICOLON_COMMENT` and tracks
+  `account_comment_target` so subsequent indented follow-on `;` lines are
+  also tag-scanned, storing results in
+  `Journal.declared_account_tags[account_name]` (additive alongside the
+  pre-existing `declared_accounts: list[str]`, never retyping it — see
+  knowledge/DECISIONS.md's 2026-09-13 guardrail). Confirmed identical to
+  hledger for same-line tags, multi-line follow-on tags, and non-leakage
+  to a subsequent unrelated `account` directive.
+
+implementation:
+  - ledgerkit/parser.py (account directive handling; account_comment_target state)
+  - ledgerkit/models.py (Journal.declared_account_tags)
+
+tests:
+  - tests/test_directives/test_directives.py::TestAccountDirectiveTags
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#account-directive (hledger.1:2980-2992)"
+    pinned_at: "1.52.4"
+  - kind: executable
+    ref: >
+      Ad hoc fixture with multiple `account` directives — one with a
+      same-line tag comment, one with multi-line indented follow-on tag
+      comments, one untagged — followed by a transaction; `hledger tags`
+      account-tag output compared against ledgerkit's
+      `Journal.declared_account_tags` — exact match, including confirming
+      tags do not leak from one account directive to the next. Stage C
+      Phase 4. (A real bug — the tag-scanning logic was initially placed
+      unreachably inside an `if in_subdirective:` block that a prior
+      unconditional comment-handling branch always short-circuited past —
+      was found and fixed during this verification; see
+      dev-docs/retros/STAGE-C-PHASE-4.md.)
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+status: verified
+verified_by: "Claude (lead session, Stage C Phase 4 implementation)"
+verified_date: "2026-09-17"
