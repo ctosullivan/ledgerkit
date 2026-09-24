@@ -9,6 +9,49 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 6 — Planning: `tag:` query-matching context curation + design document] — 2026-09-25
+
+Full detail: [dev-docs/planning/core-redefinition/23-tag-query-matching-design.md](dev-docs/planning/core-redefinition/23-tag-query-matching-design.md), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md)
+
+**Human:** directed the first use of a new, more rigorous development
+process for substantial feature phases (roadmap objective → independent
+context curation → design document → human approval → implementation
+plan → fresh coding agent → independent verification → doc sync → retro
+→ knowledge update), for `tag:NAME[=REGEX]` query-term matching — the
+genuine next Ledgerkit feature, already researched but not implemented.
+Directed stopping after the design document for explicit approval before
+any implementation.
+
+**Claude:** dispatched a fresh, independent `context-curator` agent (no
+access to this conversation's prior turns) to re-verify `tag:`'s
+semantics directly against the pinned hledger binary/source, explicitly
+told not to trust the existing Phase 5A context packet or brief 19 on
+faith. It ran CodeCompass's real workflow first (Skill/`/discovery`/
+`query`), then nine live differential runs against the pinned binary,
+confirming the four propagation/inheritance rules and newly executable-
+confirming the always-AND-never-OR combination rule (previously
+source-only evidence in brief 19). Found a genuinely new architectural
+fact: `accounts`' own posting-tag-stripping matching mode (source-
+confirmed to exactly one hledger call site), not named in brief 19. Found
+Ledgerkit currently has no tag-inheritance computation at all —
+`Journal.declared_account_tags` is parsed and stored but never consumed
+— the real remaining implementation gap, not just a missing AST node.
+Checked CodeCompass's own gap register before concluding no new finding
+was warranted (everything reproduced already-filed, already-diagnosed
+gaps). The lead independently spot-checked the report's two most
+significant claims against source directly, and found one further fact
+the report hadn't explicitly flagged: `matches_transaction`/`matches_
+posting` receive no `Journal` parameter today, bearing on inheritance-
+implementation cost. Produced a 17-section design document distinguishing
+verified-external/existing-decision/proposed/unresolved throughout, with
+two explicit unresolved questions (inheritance scope: full vs. a
+disclosed own-tags-only subset; `accounts`' matching mode: mirror
+hledger's quirk vs. uniform matching), each with a stated recommendation
+but no silent decision. No `ledgerkit/`/`tests/` code touched — planning
+checkpoint only, stopped for human review as directed.
+
+---
+
 ### [Stage C Phase 5A — Implementation: CodeCompass workflow adopted] — 2026-09-25
 
 Full detail: [dev-docs/retros/STAGE-C-PHASE-5A.md](dev-docs/retros/STAGE-C-PHASE-5A.md)
