@@ -193,3 +193,72 @@ its most recent, dated-today section) was the single largest and most
 valuable piece of the work — it is what turned this plan from a generic
 "how to adopt a dev tool" document into one grounded in the specific,
 current, already-evidenced reality of this exact tool-project pairing.
+
+---
+
+## Addendum (2026-09-24, same day) — amendment round after user review
+
+The user reviewed the plan above and directed eight targeted amendments
+before implementation, all within this same planning-only activity (no
+implementation had started, so this is recorded as an addendum to this
+retro, not a new dated retro file, per this project's "never rewrite a
+past retro, only add" rule interpreted as: append, don't fork, while the
+underlying phase hasn't advanced past planning).
+
+**What changed:** §10 of the plan document itself carries the full,
+itemised list. In summary: real agent-facing entry points (Skill,
+`/discovery`) must be exercised before direct CLI queries; every
+context-packet finding must carry a four-category provenance tag;
+language predicting or normalising a repeat LOW-advantage result was
+removed from §§1.4/2/3/6, replaced with an explicit instruction to
+independently determine improvement/regression/unchanged; a lifecycle/
+staleness re-sync test was added (Step 9); enrichment was resequenced
+deterministic-first with both API-backed and `enrich apply` paths
+in scope, never manufactured; CodeCompass's release state was
+independently re-verified (a real, live disagreement was found between
+its `README.md` and its own tag/PyPI state — already self-corrected
+upstream one commit later, so no new finding was needed, but the
+re-check is now a standing part of Step 1); gate G-CC-2 was resolved to
+`tag:` query-term matching; G-CC-1/3/4/5 were retained with refined
+wording.
+
+**What this amendment round tested about the original plan:** whether
+its central finding (§1.4's LOW-advantage baseline) had been *reported*
+honestly versus *treated* as a foregone conclusion for this phase's own
+result. Re-reading the original draft under that lens found real
+anchoring language — "a repeat... outcome is the anticipated, not
+disappointing, result," "this phase is not expected to demonstrate..." —
+that, while not factually wrong (the baseline evidence is real and was
+accurately summarised), could have shaped how the actual Phase 5A
+evaluation gets read and conducted once implementation starts: an
+evaluator primed to expect LOW is less likely to notice a genuine
+improvement, and more likely to under-scrutinise a result that happens
+to match the prediction. This is the same class of risk the user's
+original brief warned against ("do not manufacture favourable results")
+applied in the opposite direction — an unfavourable-looking result can be
+just as manufactured, by expectation-setting, as a favourable one can be
+manufactured by convenient question selection.
+
+**Lesson, generalisable beyond this phase:** citing strong prior evidence
+accurately is not the same as staying neutral about what a *new*
+evaluation will find. The fix here was mechanical and checkable — remove
+every sentence that states or implies the outcome before the evidence
+exists, keep every sentence that states the *prior* evidence accurately
+as prior evidence — but it required a deliberate second pass looking
+specifically for that pattern, not something the first draft's own
+internal logic would have caught unprompted.
+
+**Consistency review, performed as directed:** confirmed and recorded in
+the plan document's own new §10 — Phase 5A remains integration/
+evaluation-only (no `ledgerkit/` behaviour change in any step, including
+the new Step 9); the `tag:` phase (G-CC-2, now resolved) remains the
+first genuine implementation test, not absorbed into Phase 5A itself;
+CodeCompass-derived claims remain subordinate to Ledgerkit's existing
+tests/compatibility research/`knowledge/DECISIONS.md`/review process,
+unchanged by the amendment round; negative/neutral findings remain an
+explicitly acceptable outcome, now stated more precisely (§6, G-CC-5)
+than the original draft's framing managed.
+
+No implementation performed this addendum — still planning only. Next:
+present the amended plan to the user; implementation awaits resolution
+of G-CC-1/3/4/5.

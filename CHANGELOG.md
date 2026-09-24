@@ -9,6 +9,53 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 5A — Plan amended after review] — 2026-09-24
+
+Full detail: [dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md](dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md) §10, [dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md](dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md)'s amendment addendum
+
+**Human:** reviewed the Phase 5A plan and directed eight targeted
+amendments before implementation: test the real agent-facing workflow
+(generated Skill/`/discovery`) before direct CLI queries, not CLI-only;
+record per-finding provenance in the context packet (four categories);
+avoid anchoring the evaluation to prior LOW results — record improvement/
+regression/unchanged independently; add a lifecycle/staleness re-sync
+test; sequence enrichment deterministic-sync-first with both API-backed
+and `enrich apply` paths, never manufactured; verify the authoritative
+CodeCompass release state and file any disagreement as a CodeCompass
+finding rather than resolve it silently; resolve G-CC-2 to `tag:`
+query-term matching absent stronger evidence; retain G-CC-1/3/4/5 unless
+evidence requires revision.
+
+**Claude:** amended the plan section by section, retaining its objective,
+scope, evaluation safeguards, exit criteria, and separation from the
+subsequent feature phase. Re-verified CodeCompass's release state live
+(found `README.md` briefly disagreed with its own tag/PyPI-published
+state at the original pin — already self-corrected by CodeCompass's own
+Phase 70 drift audit one commit later, so no new finding needed, but the
+re-check is now a standing part of Step 1). Removed language across
+§§1.4/2/3/6 that predicted or normalised a repeat LOW-advantage result,
+replacing it with an explicit instruction to independently determine
+improvement/regression/unchanged from this phase's own evidence, while
+retaining the historical baseline table as background context. Rewrote
+Step 4 to require the generated Skill/`/discovery` path before direct
+`codecompass query`; rewrote Step 5 to require a four-category provenance
+tag per context-packet finding; added Step 9 (lifecycle/staleness
+verification, reusing Step 8's own doc edits as the harmless change, no
+feature-behaviour change introduced for the test); rewrote Step 2 to
+sequence deterministic sync before enrichment and cover both enrichment
+paths; resolved gate G-CC-2 to `tag:` query-term matching; refined
+G-CC-4/G-CC-5's wording to the user's own restatement. Added a
+consistency-review section confirming Phase 5A remains integration/
+evaluation-only, the subsequent `tag:` phase remains the first genuine
+implementation test, CodeCompass claims stay subordinate to existing
+verification controls, and negative/neutral findings remain an acceptable
+outcome. Updated `ROADMAP.md`'s Phase 5A summary and appended a dated
+addendum to the existing plan retro (not rewritten). No `ledgerkit/`/
+`tests/` code touched, no CodeCompass installed/configured — still
+planning only.
+
+---
+
 ### [Stage C Phase 5A — Planning: CodeCompass development workflow adoption] — 2026-09-24
 
 Full detail: [dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md](dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md), [dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md](dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md)
