@@ -9,6 +9,59 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 6 — Design document amended after review] — 2026-09-25
+
+Full detail: [dev-docs/planning/core-redefinition/23-tag-query-matching-design.md](dev-docs/planning/core-redefinition/23-tag-query-matching-design.md), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md)'s addendum
+
+**Human:** reviewed the design document and found it not yet ready for
+approval — its claim that the four A-D propagation rules were complete
+hledger 1.52.4 effective-tag semantics was incomplete, omitting
+commodity-directive tag propagation. Directed a targeted correction pass
+(re-check the manual/source/tests for commodity tags; determine the
+Ledgerkit substrate gap explicitly; resolve same-name/different-value
+precedence via a required executable differential matrix, not
+interpretation; revisit the `accounts`-command and evaluator-API
+recommendations; keep new helpers private by default; update the
+planning-checkpoint artefacts recording this as a design-review
+correction, not an implementation defect) — explicitly not a redesign,
+preserving the existing process structure and human-approval gate.
+
+**Claude:** confirmed the gap directly against the hledger 1.52.4 manual
+(`hledger.1:3550-3556`, "Commodity tags") and traced the full source
+mechanism (`Journal.jdeclaredcommoditytags`, `journalPostingsAddCommodityTags`,
+both gated by `auto_posting_tags_`, traced precisely to
+`CliOptions.hs:642`: `True` for every CLI command except `print
+--output-format=beancount` — resolving exactly why the original
+document's own live tests had already observed account-tag inheritance
+working despite the library's own `False` default). Built a five-
+transaction precedence fixture and ran it directly against the pinned
+binary rather than resolve by interpretation: found **no shadowing**
+between posting/account/commodity-sourced same-named tags — all remain
+simultaneously, independently matchable, directly contradicting a literal
+reading of the manual's "posting tags override account tags override
+commodity tags" wording. Made the executable result, not the manual's
+prose, the documented basis. Confirmed Ledgerkit has no commodity-tag
+storage/parsing substrate at all (`ledgerkit/parser.py`'s `commodity`
+directive handling actively discards its own comment text) — a second,
+distinct gap alongside the already-known missing account-inheritance
+computation. Redefined §9.1's Option A as genuinely complete (four
+sources, not three); softened the evaluator-API recommendation from a
+required positional `Journal` parameter to backward-compatible
+alternatives (keyword-only parameter, context object, or pre-evaluation
+materialization), with "fail loudly, never silently narrow" as a binding
+constraint; reversed the `accounts`-command recommendation (now:
+replicate hledger's account-inherited-only mode, not diverge) after
+re-weighing that general internal-consistency preference wasn't a strong
+enough reason against a confirmed, narrow, cheap-to-implement quirk;
+changed new-helper visibility default to private. Expanded the proposed
+differential-test matrix to cover all five source-pair precedence
+combinations. Appended a dated addendum to the existing planning retro
+(not rewritten) explicitly recording this as a design-review correction
+caught before implementation. No `ledgerkit/`/`tests/` code touched —
+still planning only, still stopped for human review as directed.
+
+---
+
 ### [Stage C Phase 6 — Planning: `tag:` query-matching context curation + design document] — 2026-09-25
 
 Full detail: [dev-docs/planning/core-redefinition/23-tag-query-matching-design.md](dev-docs/planning/core-redefinition/23-tag-query-matching-design.md), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md)

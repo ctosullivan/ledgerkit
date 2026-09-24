@@ -164,3 +164,77 @@ The dispatch's own cost dwarfs everything else in this checkpoint — see
 "What didn't work" above for the open question of whether that's
 proportionate for a phase of this size, to be judged with evidence once
 the full phase (including implementation) is complete.
+
+---
+
+## Addendum (2026-09-25, same day) — design-review correction, caught before implementation
+
+The user reviewed the design document and found it **not yet ready for
+approval**: its claim that the four A-D propagation rules constituted
+*complete* hledger 1.52.4 effective-tag semantics was incomplete — it
+omitted commodity-directive tag propagation entirely, a real, separately-
+documented (`hledger.1:3550-3556`, "Commodity tags") fifth source. This
+is recorded explicitly, per the user's own instruction, as **a
+design-review correction caught before any code was written — not an
+implementation defect**. No `ledgerkit/`/`tests/` code existed to have a
+defect in; what was wrong was the design document's own claim of
+completeness, caught by review at exactly the stage this process's own
+mandatory gate (Step 3) exists to catch it.
+
+**What the correction pass found, verified executable rather than
+resolved by interpretation** (the review's own explicit instruction,
+since the manual's "posting tags override account tags override
+commodity tags" wording is ambiguous between "shadowing" and "union"
+readings): built a five-transaction fixture and ran it directly against
+the pinned hledger 1.52.4 binary. Result: **no shadowing occurs at all**
+for `tag:` query matching — a posting with its own `rate:1`, whose
+account declares `rate:3` and whose commodity declares `rate:2`, matches
+`tag:rate=1`, `tag:rate=2`, **and** `tag:rate=3` simultaneously. The
+manual's "override" language, taken literally, would have predicted
+exclusion; the source (`Tag = (TagName, TagValue)`, a plain tuple with
+structural equality, combined via `Data.List.union`) predicted no
+exclusion for differently-valued same-named tags; the executable result
+confirmed the source's prediction over the manual's prose — exactly the
+resolution order the review instructed ("make the executable result the
+basis... where they differ"). This also resolved, precisely, *why* the
+original document's own live tests had already observed account-tag
+inheritance working "by default" without the correction pass needing to
+re-derive it from scratch: `auto_posting_tags_` (the flag gating both
+account- and commodity-tag materialization) defaults to `False` in the
+bare library, but is set `True` for every CLI command except `print
+--output-format=beancount` (`hledger/Hledger/Cli/CliOptions.hs:642`) —
+found by tracing the actual value used, not assumed from the library
+default alone.
+
+**Substantive amendments made** (full detail in the design document's
+own body, not restated here): §2 gained two new subsections (§2.6
+commodity-tag propagation, §2.7 the executable precedence matrix); §2.5's
+`accounts`-mode finding was corrected to be broader (commodity tags are
+stripped too, not just the posting's own); §3/§4 now name a second,
+distinct substrate gap (Ledgerkit's `commodity` directive parsing
+actively discards its own comment text, confirmed by direct read of
+`ledgerkit/parser.py:1290`, `body = _strip_directive_comment(rest)`); §9.1
+was rewritten to define Option A as genuinely complete (four sources, not
+three) and to soften the evaluator-API recommendation away from a
+required positional `Journal` parameter toward backward-compatible
+alternatives, per explicit instruction not to assume that shape; §9.2's
+`accounts`-mode recommendation was **reversed** (from "diverge, uniform
+matching" to "replicate hledger's mode") after re-weighing the review's
+own point that the wrinkle is real, confirmed, and narrow enough to
+implement cheaply — general internal-consistency preference alone was
+not, on reflection, a strong enough reason to prefer a known, avoidable
+divergence; §9.3's default changed to keeping new helpers private; §10/
+§12/§16/§17 were updated throughout to match.
+
+**Process observation**: this is the second time in two consecutive
+checkpoints (the original design document's own §1 already recorded one
+lead-vs-curator-report cross-check; this is now a lead-vs-user-review
+cross-check) that an explicit "verify, don't assume completeness" pass
+caught something a prior pass had stated with more confidence than the
+evidence supported. Both corrections were caught by the same discipline
+— checking a specific, falsifiable claim against primary sources rather
+than accepting a well-organised document's own internal consistency as
+proof of external accuracy.
+
+Still stopped for human review, as before — the amended design's §17 is
+the updated approval list. No implementation started.
