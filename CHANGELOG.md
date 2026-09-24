@@ -9,6 +9,43 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 5A — Planning: CodeCompass development workflow adoption] — 2026-09-24
+
+Full detail: [dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md](dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md), [dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md](dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md)
+
+**Human:** provided a fully-specified phase brief for adopting CodeCompass
+v1 into Ledgerkit's normal development process, with an explicit
+instruction to insert it into the roadmap immediately before the
+currently-planned next Ledgerkit phase and to follow the project's normal
+planning/implementation/verification/review/retro process, including a
+direct instruction not to manufacture favourable evaluation results.
+
+**Claude:** inserted the `ROADMAP.md` phase row as directly requested,
+then produced a planning pass (matching the Stage C Phase 2/Phase 5
+precedent for a request this size). Found CodeCompass v1.0.0 has
+genuinely shipped (tag `v1.0.0`) and, contrary to the brief's implicit
+framing, has already extensively evaluated itself against Ledgerkit as
+its principal external reference project across roughly ten phases,
+including a live re-confirmation dated the same day this plan was
+written — consistently `PASS WITH GAPS`/`LOW` context advantage, a
+disclosed structural ceiling (Ledgerkit's own zero-runtime-dependency
+design, plus one still-open CodeCompass-side relation-detection gap,
+independently re-confirmed against current source), not a defect
+Ledgerkit's side can fix. Reframed the phase's objective accordingly:
+establish the routine adoption workflow and its own honest evaluation,
+not chase a high-context-advantage result the evidence already shows is
+unlikely. Also found: no CodeCompass configuration actually exists for
+Ledgerkit yet (a stub skill file on disk, unconfigured, not committed);
+Ledgerkit's existing 7-agent roster already matches CodeCompass's own
+5-role recommended minimum with no gap; and no already-scoped "next
+Ledgerkit phase" exists to use as the genuine task (recommended:
+`tag:` query-term matching, the most-prepared deferred candidate).
+Five human-decision gates recorded, none resolved. No `ledgerkit/`/
+`tests/` code touched, no CodeCompass installed/configured — planning
+only, as directed.
+
+---
+
 ### [Stage C Phase 5, commit 3/3 — independent verification + closeout] — 2026-09-17
 
 Full detail: [dev-docs/retros/STAGE-C-PHASE-5.md](dev-docs/retros/STAGE-C-PHASE-5.md)
