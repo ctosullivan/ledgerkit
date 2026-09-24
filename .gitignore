@@ -102,6 +102,16 @@ site/
 logs/
 
 # ----------------------------------------------------------------------------
+# CodeCompass-generated state (Stage C Phase 5A, G-CC-1: gitignore, not
+# committed — matches CodeCompass's own convention for its own repo,
+# decisions/0004). context-graph.db already matches *.db above; .claude/
+# skills|commands already covered by .claude/* above. vendor.toml/vendor/
+# are regenerable via `codecompass sync`, never hand-authored.
+# ----------------------------------------------------------------------------
+vendor.toml
+vendor/
+
+# ----------------------------------------------------------------------------
 # hledger / accounting files that may contain private financial data
 # ----------------------------------------------------------------------------
 personal.journal

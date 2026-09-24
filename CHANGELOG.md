@@ -9,6 +9,55 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 5A — Implementation: CodeCompass workflow adopted] — 2026-09-25
+
+Full detail: [dev-docs/retros/STAGE-C-PHASE-5A.md](dev-docs/retros/STAGE-C-PHASE-5A.md)
+
+**Human:** approved all five remaining gates ("proceed as recommended"):
+G-CC-1 gitignore generated state, G-CC-3 no new agent role, G-CC-4 add
+the `CLAUDE.md` pointer, G-CC-5 judge success on workflow usefulness/
+evidence quality/provenance/repeatability/maintenance burden.
+
+**Claude:** installed CodeCompass v1.0.0 (`pipx install -e`, editable
+local clone) and configured it against Ledgerkit's real repository for
+the first time. Found and corrected a real error in this phase's own
+planning pass: `CG-004` (spec-doc-to-spec-doc relation detection) was
+already fixed upstream (Phase 55b, 2026-09-17) — the plan's claim that it
+was "still open" was wrong, caught by re-verifying rather than trusting
+prior research forward. Confirmed the fix works on real content (18
+genuine relation edges now exist, zero at every prior evaluation) while
+also confirming, precisely, that it does not close a narrower, already-
+independently-filed CodeCompass gap (`CG-006`, title-vs-filename
+matching) — filed as `CC-LK-002`, a third independent corroboration, not
+a new discovery. Used `codecompass enrich apply` (the agent-facing path,
+no `ANTHROPIC_API_KEY` configured) to enrich one real relation for the
+first time this project has exercised that code path. Followed the real
+agent-facing entry points (generated Skill, `/discovery`'s own defined
+procedure) before direct `codecompass query` calls, per the amended
+plan's Step 4. Built a context packet for the genuine next phase (`tag:`
+query-term matching) with every finding tagged to one of four provenance
+categories (`validation/codecompass/context-packets/
+tag-query-matching.md`) — researched and prepared, not implemented.
+Filed `CC-LK-003` (the generated Skill/discovery text names the
+`sqlite3` CLI as its only documented graph-query fallback, which isn't
+installed in this environment). Exercised a real edit→re-sync→refresh
+cycle (Step 9), confirming staleness detection and content refresh work
+end to end. Documented the routine workflow
+(`dev-docs/planning/core-redefinition/04-codecompass-integration.md`
+§4.7) and added a real `CLAUDE.md` pointer section around the
+mechanically-generated routing table. `.gitignore` updated for
+`vendor.toml`/`vendor/` (`context-graph.db` already covered by an
+existing rule). Evaluation verdict, independently determined per the
+amended plan's own instruction (not assumed from the historical
+baseline): mixed, not a flat repeat — vendor/symbol tracking unchanged
+(LOW, 0 dependencies), doc-relation detection genuinely improved.
+Recommendation: keep as a routine, low-cost per-phase check. No
+`ledgerkit/`/`tests/` behaviour changed — 746 tests still passing;
+`tag:` query-term matching itself needs its own scoping/plan pass before
+implementation begins.
+
+---
+
 ### [Stage C Phase 5A — Plan amended after review] — 2026-09-24
 
 Full detail: [dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md](dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md) §10, [dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md](dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md)'s amendment addendum

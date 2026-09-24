@@ -1,82 +1,76 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C Phase 5A remains a **planning-only** pass (no code touched). The
-plan was amended after user review (eight targeted amendments) before
-implementation. `ROADMAP.md` row updated to reflect the amendment;
-G-CC-2 (the genuine next task) is now resolved to `tag:` query-term
-matching. Four gates remain open.
+Stage C Phase 5A (CodeCompass development workflow adoption) is **done**
+— installed, configured against the real repo, exercised end to end, and
+evaluated. About to commit and push.
 
 ## Where We Are
-Amended plan complete: `dev-docs/planning/core-redefinition/
-22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md` (§10 has the
-full amendment summary + consistency review). A dated addendum was
-appended to the existing `dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md`
-(original content untouched, per "never rewrite a retro, only add").
-`ROADMAP.md`/`CHANGELOG.md` updated. Not yet committed/pushed this
-response — that's the immediate next step. Nothing further until the
-user resolves gates G-CC-1/3/4/5 (plan §8).
+All nine steps of the amended plan executed. CodeCompass v1.0.0 installed
+via `pipx`; real repo configured (`context-graph.db`/`vendor.toml`
+gitignored, per G-CC-1). Context packet for the genuine next phase
+(`tag:` query-term matching) written with per-finding provenance tags.
+Three `CC-LK-NNN` findings filed (`CC-LK-002`: `CG-004` confirmed fixed
+and working, the residual gap is already-filed `CG-006`, not new;
+`CC-LK-003`: a real `sqlite3`-CLI environment-assumption gap). Staleness/
+re-sync cycle exercised and confirmed working. Routine workflow
+documented (`04-codecompass-integration.md` §4.7); `CLAUDE.md` pointer
+section added. Retro written: `dev-docs/retros/STAGE-C-PHASE-5A.md`.
+`ROADMAP.md`/`CHANGELOG.md` updated. 746 tests still passing (unaffected
+— no `ledgerkit/`/`tests/` code touched). Next: final commit + push.
 
 ## Decisions In Flight
-- **G-CC-2 is resolved**: `tag:` query-term matching is the genuine next
-  Ledgerkit development task (researched/context-prepared by Phase 5A,
-  implemented in a separate, later, separately-approved phase).
-- The other four gates (G-CC-1, G-CC-3, G-CC-4, G-CC-5) remain open,
-  each with a stated recommendation the plan itself already argues for
-  — do not treat "recommended" as "approved" for any of them.
+- None — every gate (G-CC-1..5) was resolved before this phase started;
+  nothing new was decided during implementation that isn't already
+  recorded in the plan/retro.
 
 ## Files Currently Relevant
-- `dev-docs/planning/core-redefinition/
-  22-stage-c-phase-5a-codecompass-workflow-adoption-plan.md` — the
-  amended plan; §5 Steps 1-9 for the implementation sequence once gates
-  clear, §8 for the four still-open gates, §10 for what changed this
-  round and why.
-- `dev-docs/retros/STAGE-C-PHASE-5A-PLAN.md` — original planning-pass
-  retro (unedited) plus a dated addendum covering this amendment round.
-- CodeCompass repo state re-verified twice now (original pass, this
-  amendment round) — currently pinned `9ce200f`; re-verify again at
-  whatever commit implementation actually runs against, don't assume
-  it's still current.
+- `dev-docs/planning/core-redefinition/22-stage-c-phase-5a-codecompass-
+  workflow-adoption-plan.md` — the plan (now executed).
+- `dev-docs/retros/STAGE-C-PHASE-5A.md` — the implementation retro, with
+  the full evaluation verdict (mixed, not a flat repeat of the historical
+  baseline — see its own "Evaluation verdict" section).
+- `validation/codecompass/context-packets/tag-query-matching.md` — the
+  real deliverable for whoever next scopes/plans the `tag:` phase.
+- `validation/codecompass/findings/CC-LK-002.{yaml,md}`,
+  `CC-LK-003.{yaml,md}` — new findings this phase.
+- `dev-docs/planning/core-redefinition/04-codecompass-integration.md`
+  §4.7 — the routine workflow, now written from real use.
+- `/home/cormac/projects/codecompass/planning/context-gaps/inbox.md` —
+  where `CG-006` (the still-open, already-diagnosed title-vs-filename
+  gap) lives, on CodeCompass's own side — don't re-diagnose it, it's
+  already precisely root-caused there.
 
 ## Blockers / Open Questions
-Four gates open (plan §8):
-- G-CC-1: commit `context-graph.db`/`vendor/` to the repo, or gitignore
-  (plan recommends gitignore).
-- G-CC-3: confirm no new agent role is added (plan's finding: no gap
-  exists against CodeCompass's own 5-role minimum).
-- G-CC-4: approve the `CLAUDE.md`-or-equivalent pointer-section addition.
-- G-CC-5: approve judging adoption success on workflow usefulness,
-  evidence quality, provenance, repeatability, and maintenance burden —
-  never a required HIGH context-advantage result.
+- **`tag:` query-term matching** (G-CC-2) is the genuine next Ledgerkit
+  development phase — researched and context-packaged, but needs its own
+  explicit scoping/plan pass before implementation, per this project's
+  standing process. Not started.
+- Nothing else open from Phase 5A itself — all five gates resolved and
+  executed.
 
 ## What NOT To Revisit
-- Stage A, Stage B, and Stage C Phases 1-5 are closed/committed. Phase 5A
-  is planning-only so far (amended once), not yet committed this
-  response.
-- Don't re-anchor the Phase 5A evaluation to the historical LOW-advantage
-  baseline (`findings.md`'s ~10-phase history) — that table is
-  background evidence only; the amended plan explicitly requires
-  independently determining improvement/regression/unchanged from this
-  phase's own evidence once it actually runs. Do not reintroduce language
-  predicting the outcome — that was the specific thing this amendment
-  round corrected.
-- Don't skip the real agent-facing entry points (generated Skill,
-  `/discovery`) in favour of jumping straight to `codecompass query` —
-  amended Step 4 explicitly requires the former first.
-- Don't record a context-packet finding without one of the four
-  provenance categories (surfaced by CodeCompass / independently found /
-  CodeCompass-pointed-but-investigation-required / already known) —
-  amended Step 5's explicit requirement, feeding §6's contribution-vs-
-  evidence distinction in the eventual retro.
-- Don't re-litigate G-CC-2 — resolved to `tag:` query-term matching,
-  absent stronger repository evidence (none surfaced this round).
-- Don't propose new agent roles for CodeCompass adoption without a
-  demonstrated gap — checked directly, none exists against the
-  blueprint's own 5-role minimum (G-CC-3's own finding, retained).
+- Stage A, Stage B, Stage C Phases 1-5, and Phase 5A are all closed
+  (Phase 5A's final commit about to be, this response).
+- Don't re-litigate whether `CG-004` is fixed — independently verified
+  this session (18 real edges, correct title population, correct
+  disambiguation), and cross-checked against CodeCompass's own
+  `CHANGELOG.md`/Phase 55b retro directly, not assumed.
+- Don't re-file the 07/17 title-vs-filename gap as a new discovery — it's
+  already `CG-006` on CodeCompass's own side, filed 2026-09-17, precisely
+  diagnosed with a sketched fix; `CC-LK-002` is a third corroboration,
+  not a first report.
+- Don't assume the historical LOW-advantage baseline still fully applies
+  without qualification — this phase's own evidence shows a mixed
+  picture (vendor/symbol axis unchanged, doc-relation axis improved);
+  don't round either direction.
+- Don't propose a new agent role for CodeCompass adoption — checked
+  twice now (planning pass, this implementation), no gap exists against
+  the blueprint's 5-role minimum.
 
 ## Recent Git State (before this response's commit, if any)
+eecb8a9 docs: amend Stage C Phase 5A plan per review findings
 c6e4b1e docs: plan Stage C Phase 5A -- CodeCompass workflow adoption
 c6168b2 docs: Stage C Phase 5, commit 3/3 -- independent verification + closeout
 e8f3633 feat: Stage C Phase 5, commit 2/N -- redesign depth: as a report option
 17d7bcb docs: Stage C Phase 5, commit 1/N -- verification independence process
-fd144ed feat: Stage C Phase 4 -- tag data model (parsing/storage)

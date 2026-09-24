@@ -1,0 +1,79 @@
+id: CC-LK-003
+ledgerkit_revision: eecb8a9
+codecompass_revision: 4bc7c1d
+task_or_session: >
+  Stage C Phase 5A — CodeCompass development workflow adoption, following
+  the generated `.claude/skills/codecompass/SKILL.md`'s own documented
+  fallback procedure for an ad hoc graph query.
+date: "2026-09-25"
+
+problem_statement: >
+  The generated Skill and `/discovery` slash command both document the
+  same fallback for a question that doesn't fit a canned `query`
+  subcommand: "query `context-graph.db` directly with `sqlite3`". Does
+  this fallback actually work in a representative agent environment?
+
+context_supplied:
+  what_codecompass_returned: >
+    Both `.claude/skills/codecompass/SKILL.md` and `.claude/commands/
+    discovery.md` name the `sqlite3` CLI specifically and only ("a plain
+    SQLite file at the project root... query context-graph.db directly
+    with sqlite3"). This environment (a standard Claude Code session, not
+    an unusual or minimal one) has no `sqlite3` binary installed
+    (`command -v sqlite3` -> not found). The fallback as documented
+    cannot be followed literally here.
+  edges_or_relations_involved: []
+  suggested_edges_involved: false
+
+independent_evaluation:
+  accuracy: adequate
+  relevance: weak
+  completeness: weak
+  freshness: n/a
+  grounding: n/a
+  noise: weak
+  misleading: false
+  outcome: "PASS WITH GAPS"
+
+context_advantage: LOW
+context_advantage_rationale: >
+  Not a wrong answer or a graph-quality problem — `context-graph.db` is a
+  real, valid SQLite file the whole time; the gap is purely in the
+  generated instructions' own assumed toolchain. Low advantage because
+  the workaround (Python's built-in `sqlite3` module, used this session)
+  is trivial for an agent that already knows to reach for it, but the
+  Skill/discovery text doesn't mention it as an alternative, so a fresh
+  agent following the documented instructions literally would stall
+  rather than substitute it unprompted.
+
+missing_or_manually_rediscovered:
+  - "That Python's own sqlite3 module is a drop-in substitute for the documented sqlite3 CLI when the CLI isn't on PATH -- not mentioned anywhere in the generated Skill/discovery text; found by the agent's own general knowledge, not from anything CodeCompass surfaced."
+
+impact:
+  - retrieval_ux_friction
+
+proposed_generalised_improvement: >
+  Generated Skill/discovery text could name a language-agnostic
+  alternative alongside the `sqlite3` CLI instruction (e.g. "or any
+  SQLite client/library — the file is plain, portable SQLite") rather
+  than naming exactly one specific binary as the only documented path,
+  so an environment without that one binary doesn't strand an agent
+  following the instructions literally. Low-cost, generated-text-only
+  change; not investigated whether this is already tracked as a known
+  gap in CodeCompass's own inbox.
+
+evidence:
+  - session_evidence: "This conversation session, Stage C Phase 5A implementation, 2026-09-25"
+    ledgerkit_files:
+      - ".claude/skills/codecompass/SKILL.md"
+      - ".claude/commands/discovery.md"
+    hledger_evidence: []
+    codecompass_output: "command -v sqlite3 (not found); .claude/skills/codecompass/SKILL.md and .claude/commands/discovery.md, both read in full this session"
+    related_findings: []
+
+recommendation: collect_more_evidence
+priority_proposed: low
+priority_note: >
+  Minor documentation/tooling-assumption friction, not a graph-quality or
+  correctness defect. Worth CodeCompass's own review checking whether
+  this is already known before treating it as new.

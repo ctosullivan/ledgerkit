@@ -1,0 +1,132 @@
+id: CC-LK-002
+ledgerkit_revision: eecb8a9
+codecompass_revision: 4bc7c1d
+task_or_session: >
+  Stage C Phase 5A — CodeCompass development workflow adoption. Real-repo
+  install (pipx, editable, from the local clone) and a genuine research
+  task (context for the `tag:` query-term matching phase, G-CC-2).
+date: "2026-09-25"
+
+problem_statement: >
+  CC-LK-001 (2026-09-16) reported that `query relations` on three real,
+  topically-connected dev-docs files returned zero relations for every
+  one, including no relation between 07-query-regex.md and
+  17-query-semantics-brief.md despite 17 being the direct research output
+  of 07's own plan — attributed to CG-004 (`doc_artifacts.name` never
+  populated for `spec_doc` rows, so mechanical mention-detection has
+  nothing to match against). CodeCompass's own records show CG-004 was
+  closed in Phase 55b (2026-09-17) — the day after CC-LK-001 was filed.
+  Question: does that fix change CC-LK-001's own finding when re-tested
+  live, on the real repo, nine days later?
+
+context_supplied:
+  what_codecompass_returned: >
+    A full `codecompass sync` against the real repo (not a pinned/scratch
+    copy) now populates real, non-NULL `name` values for `spec_doc` rows
+    (e.g. `dev-docs/hledger-compatibility.md` -> "Hledger Compatibility"),
+    and 18 real `mentions_artifact` edges exist project-wide — a
+    structural change from CC-LK-001's own observation of zero such edges
+    anywhere. Re-testing CC-LK-001's own exact pairing directly:
+    `codecompass query relations dev-docs/planning/core-redefinition/
+    07-query-regex.md` and the reverse `...17-query-semantics-brief.md`
+    both still return "(none)" -- CONFIRMED via direct inspection this
+    session: 17's registered title is the literal string "17. hledger
+    query-term semantics brief (Stage C Phase 1)"; `grep` confirms this
+    exact string does not appear anywhere in 07's text. Separately, two
+    *other* real pairs now DO show a relation that would previously have
+    been structurally impossible: `README.md` correctly mentions
+    `dev-docs/hledger-compatibility.md` (title "Hledger Compatibility"
+    appears in README's own text), and
+    `19-tag-query-semantics-brief.md` correctly mentions
+    `.claude/skills/codecompass/SKILL.md` (the brief's prose names
+    "CodeCompass" while citing a specific documented extraction error in
+    CodeCompass's own Phase 54 evaluation of Ledgerkit).
+  edges_or_relations_involved:
+    - "README.md -mentions_artifact-> dev-docs/hledger-compatibility.md"
+    - "dev-docs/planning/core-redefinition/19-tag-query-semantics-brief.md -mentions_artifact-> .claude/skills/codecompass/SKILL.md (enriched this session via `codecompass enrich apply`, agent-facing path, no ANTHROPIC_API_KEY configured)"
+  suggested_edges_involved: false
+
+independent_evaluation:
+  accuracy: adequate
+  relevance: adequate
+  completeness: weak
+  freshness: n/a
+  grounding: strong
+  noise: moderate
+  misleading: false
+  outcome: "PASS WITH GAPS"
+
+context_advantage: LOW
+context_advantage_rationale: >
+  Genuinely mixed, not a flat repeat of CC-LK-001's own LOW-negative-leaning
+  result. The fix is real and correctly scoped: it enables exact-title
+  mention-detection where it didn't exist before at all (0 -> 18 edges
+  project-wide), and one of those 18 (brief 19 -> the codecompass Skill)
+  is a real, correct, non-trivial finding — it flags that this specific
+  brief documents a cross-project accuracy correction, which a fresh
+  agent scanning `codecompass check`'s coverage report would plausibly
+  notice faster than by cold-reading every brief looking for
+  CodeCompass-adjacent content. But CC-LK-001's own original complaint —
+  two docs that are *causally* related (one implements the other's plan)
+  without literally citing each other's title string — is UNCHANGED:
+  re-tested on the exact same pair, still zero relations, for a precise,
+  verified reason (no literal title-string overlap). CG-004's fix closes
+  "spec docs can never relate to each other, structurally, regardless of
+  content" (its own stated scope); it does not, and was never claimed to,
+  close "topically/causally related docs that don't cite each other by
+  exact title" — a materially different, harder problem CC-LK-001's own
+  language conflated somewhat by citing that specific pair as the
+  motivating example. Recording this distinction precisely rather than
+  either "the gap is fixed" (overclaims) or "nothing changed" (misses the
+  real, verified improvement).
+
+missing_or_manually_rediscovered:
+  - "The actual content/meaning of the brief-19-to-codecompass-Skill relation (a cross-project accuracy correction, not a general tool reference) — the mechanical edge only signals *that* a mention exists; understanding *what it means* required reading the brief directly, then writing the enrichment by hand via `enrich apply`."
+  - "That 07-query-regex.md and 17-query-semantics-brief.md are causally connected (17 is 07's own commissioned research output) — this remains entirely unavailable from the graph; found only from having read both documents' own prose directly, exactly as in CC-LK-001."
+
+impact:
+  - missing_relationship
+
+proposed_generalised_improvement: >
+  Not proposing a new mechanism. CG-004's own scope (populate `name` for
+  `spec_doc` rows, enable exact-title mention-detection) was correctly
+  implemented and is confirmed working on real, previously-untested
+  Ledgerkit content, closing that specific, filed gap. The remaining gap
+  on the exact 07/17 pair is **already filed and already precisely
+  diagnosed** — checked directly against `planning/context-gaps/
+  inbox.md` rather than left speculative: `CG-006` (filed 2026-09-17, the
+  day after CC-LK-001), same pair, same root cause independently
+  confirmed here — `17-query-semantics-brief.md` cites `07-query-regex.md`
+  by **filename** in prose, never by its registered **title** ("7. Query
+  language and regex extension plan"), and `mentions_artifact` only
+  matches on title text, with no filename-matching mode. This finding is
+  a **third** independent confirmation of the same gap (CC-LK-001 →
+  CG-006 → this), not a new discovery — recorded as corroboration, not
+  claimed as novel.
+
+evidence:
+  - session_evidence: "This conversation session, Stage C Phase 5A implementation, 2026-09-25"
+    ledgerkit_files:
+      - "validation/codecompass/context-packets/tag-query-matching.md"
+      - "dev-docs/planning/core-redefinition/19-tag-query-semantics-brief.md"
+      - "dev-docs/planning/core-redefinition/07-query-regex.md"
+      - "dev-docs/planning/core-redefinition/17-query-semantics-brief.md"
+      - "README.md"
+      - "dev-docs/hledger-compatibility.md"
+    hledger_evidence: []
+    codecompass_output: "context-graph.db (this repo, this session); direct query/enrich apply transcripts in validation/codecompass/context-packets/tag-query-matching.md §2"
+    related_findings:
+      - "CC-LK-001 (this finding's own starting point, re-tested rather than assumed still valid)"
+      - "CG-006 (CodeCompass's own, filed 2026-09-17 — the exact 07/17 pair, already diagnosed as title-vs-filename matching; confirmed still reproducing identically this session, no regression, no fix landed yet)"
+
+recommendation: collect_more_evidence
+priority_proposed: low
+priority_note: >
+  Confirms an already-shipped fix (Phase 55b/CG-004) works correctly on
+  new, real content — reassuring corroboration, not a new actionable gap.
+  The one open thread (title-vs-filename matching, `CG-006`) is already
+  filed, already precisely diagnosed by CodeCompass's own team, with a
+  concrete, low-cost fix already sketched there (a second, filename-based
+  matching mode, no schema change) — this session's contribution is a
+  third confirmation that it still reproduces, not a new proposal.
+  Prioritisation remains CodeCompass's own call.
