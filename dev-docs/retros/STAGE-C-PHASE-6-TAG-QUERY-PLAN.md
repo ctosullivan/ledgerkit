@@ -238,3 +238,64 @@ proof of external accuracy.
 
 Still stopped for human review, as before — the amended design's §17 is
 the updated approval list. No implementation started.
+
+---
+
+## Addendum 2 (2026-09-25, same day) — small final correction pass
+
+A third review pass, explicitly scoped as "a small final correction
+pass only, not a redesign, not a curator re-run, not implementation."
+Four corrections, each verified before being written down rather than
+taken on the review's own restatement alone:
+
+1. **Plain `accounts tag:X` visibility was still wrong after the prior
+   amendment.** That amendment correctly added that commodity-propagated
+   tags are stripped alongside posting-own ones, but stated the result
+   as "shows only account-inherited tags" — missing that
+   `postingAllTags` (the function query matching actually reads)
+   unconditionally re-adds the transaction's own tags on top of whatever
+   `journalPostingsKeepAccountTagsOnly` did to a posting's own tags.
+   **Verified live before writing this correction down**: `accounts
+   tag:rate=4` (a transaction-header-only tag) matches, confirming
+   transaction-level tags survive the stripping. The correct rule is a
+   four-way split (transaction-level and account-inherited visible;
+   posting-own and commodity-propagated not), not the three-way split
+   the prior amendment stated.
+2. **Transaction-level matching's conceptual rule was stated too
+   narrowly.** Corrected to "a transaction's own tags match directly, OR
+   any posting's effective tags match" — sourced precisely to
+   `transactionAllTags t = ttags t ++ concatMap ptags (tpostings t)`
+   (`Posting.hs:443-444`), which unions the transaction's own tags in
+   directly rather than solely via its postings.
+3. **The evaluator-API recommendation contained a real Python error.**
+   "A keyword-only `journal` parameter with no default... existing
+   callers unaffected" is not correct — a keyword-only parameter with no
+   default is still mandatory on every call. Corrected to name
+   `journal: Journal | None = None` (a genuine default) as the leading
+   backward-compatible candidate, with explicit-failure-not-silent-
+   degradation restated as the binding constraint regardless of which
+   shape implementation planning ultimately picks.
+4. **The commodity-tag substrate's scope question is now resolved** (not
+   left open): in scope for this same Phase 6, not split into a
+   prerequisite sub-phase, on the reasoning that — unlike Phase 4's own
+   account-tag work, a genuinely separate parsing/storage feature — the
+   commodity substrate is a bounded completion of this phase's own
+   `tag:` semantics, not a separate capability. Design-approved scope
+   only; nothing implemented.
+
+**Process observation, worth naming plainly**: this is the third
+successive pass in which a stated finding needed correcting on review —
+first the curator-report-vs-lead cross-check (original document), then
+the manual-vs-executable-evidence correction (first amendment, which
+also *introduced* the incomplete `accounts` claim this pass fixes), now
+this. None of the three corrections were caught by the pass that
+introduced them; each was caught by the *next* pass's fresh scrutiny.
+That pattern is itself a data point worth carrying into Step 9's
+eventual process evaluation: multiple review passes on the same
+artifact are finding real, distinct, materially-different errors each
+time — not diminishing returns yet, three passes in.
+
+Still stopped for human review. Amended §17 is the current, and
+materially shorter, approval list (two open items instead of the
+previous five, three having been resolved with recommendations
+implementation planning may still override).

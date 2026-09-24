@@ -174,20 +174,37 @@ non-`--declared` mode) builds its list via
 to be called from **exactly one place**,
 `hledger/Hledger/Cli/Commands/Accounts.hs:73`.
 
-**Revised finding (this amendment, executable-confirmed, broader than
-originally reported)**: `journalPostingsKeepAccountTagsOnly`'s
+**Revised finding, twice now — this pass corrects the immediately prior
+amendment, which was itself incomplete.** `journalPostingsKeepAccountTagsOnly`'s
 implementation is `keepaccounttags p = p{ptags=[]} \`postingAddTags\`
 (journalInheritedAccountTags j $ paccount p)` (`Journal.hs:669`) — it
-**replaces** a posting's entire tag list with only its account-inherited
-tags. Since commodity-propagated tags are, by §2.6, already merged into
-`ptags` earlier in the pipeline, `ptags=[]` discards them too, **not just
-the posting's own literal comment tags** as the original document
-reported. Executable confirmation, same precedence fixture as §2.7:
-`accounts tag:rate=1` (posting's own) → empty; `accounts tag:rate=2`
-(commodity-propagated) → **also empty**; `accounts tag:rate=3`
-(account-inherited) → both accounts, correctly. Plain `accounts tag:X`
-shows **only** account-inherited tags — posting-own and commodity-
-propagated tags are both invisible to it, not just the former.
+**replaces** a posting's own tag list (`ptags`) with only its account-
+inherited tags. Since commodity-propagated tags are, by §2.6, already
+merged into `ptags` earlier in the pipeline, `ptags=[]` discards them
+too, alongside the posting's own literal comment tags. **But this is not
+the whole story**: query matching (`matchesPosting (Tag ...) p =
+patternsMatchTags n mv $ postingAllTags p`) reads `postingAllTags p =
+ptags p ++ maybe [] ttags (ptransaction p)` — and that **unconditionally
+adds the transaction's own tags (`ttags`) back in**, regardless of
+whatever `keepaccounttags` did to `ptags`. The previous amendment's
+"shows only account-inherited tags" claim missed this — transaction-level
+tags are **also** visible to plain `accounts tag:X`, not stripped.
+
+**Four-way visibility, now executable-confirmed precisely** (same
+precedence fixture as §2.7, plus a targeted re-test this pass):
+
+| Source | Visible to plain `accounts tag:X`? | Confirmed |
+|---|---|---|
+| Transaction-level (own header tag) | **Yes** | `accounts tag:rate=4` → matches (transaction 4's own `rate:4`) |
+| Account-inherited (declared/parent) | **Yes** | `accounts tag:rate=3` → matches both `assets:bank` and `assets:bank:sub` |
+| Posting-own (literal comment tag) | **No** | `accounts tag:rate=1` → empty |
+| Commodity-propagated | **No** | `accounts tag:rate=2` → empty |
+
+Plain `accounts tag:X` therefore shows **transaction-level and
+account-inherited** tags, and hides **posting-own and commodity-
+propagated** tags — a real, source-confirmed, now fully four-way-tested
+hledger behaviour, not the simpler "account-only" rule either amendment
+round previously stated.
 
 **This means `accounts` has a real, `tag:`-specific behavioural wrinkle
 — a different shape from `depth:`'s wrinkle** (`depth:` needed a
@@ -443,12 +460,22 @@ Export `Tag` from `ledgerkit.query`'s `__all__`, alongside the existing
   "own tags only" (Option B) or the full four-source union — own,
   transaction's own, inherited-account's, and commodity-propagated
   (Option A, §2.2/§2.6/§2.7).
-- **Transaction-level** (`matches_transaction`, used by `print`): a
-  transaction matches `tag:X` if **any** of its postings' effective tag
-  sets contain `X` (rule D) — this part is not contingent on §9's
-  inheritance-scope question; it's the same "any posting matches" pattern
-  `Acct`/`MaxAccountLevel` already use in `matches_transaction`
-  (`eval.py`, confirmed).
+- **Transaction-level** (`matches_transaction`, used by `print`) —
+  **[VERIFIED-EXTERNAL, precise wording corrected this pass]**: a
+  transaction matches `tag:X` if **its own tags directly match, OR any
+  of its postings' effective tags match** — not "only through its
+  postings," which would misstate the rule even though in practice a
+  transaction's own tags also propagate onto every one of its postings
+  (rule C) and so are *usually* reachable the second way too. Confirmed
+  precisely from source: `transactionAllTags t = ttags t ++ concatMap
+  ptags (tpostings t)` (`Posting.hs:443-444`) — the transaction's own
+  `ttags` are unioned in **directly**, not solely via its postings' own
+  `ptags` (which is deliberately used here, not `postingAllTags`, to
+  avoid double-counting `ttags` once directly and again through every
+  posting). Both halves of the OR are real, independent inputs to the
+  same match — stated explicitly here so an implementation doesn't
+  accidentally special-case away the direct half on the assumption that
+  posting-level propagation already covers it.
 
 ## 7. Affected CLI commands and report paths
 
@@ -525,28 +552,42 @@ Requires, closing **both** gaps §4 names:
   existing fields or as a per-call computation).
 
 **Evaluator API shape — revised, softer than the original document's
-recommendation (per explicit review instruction)**: the original text
-proposed a new **required positional** `journal` parameter on
-`matches_transaction`/`matches_posting`. **Do not assume that shape.**
-Backward-compatible alternatives to evaluate during implementation
-planning, before choosing:
-- a **keyword-only** `journal` parameter with no default, required only
-  when a `Tag` node is actually present in the query being evaluated
-  (existing callers that never construct a `Tag` node are unaffected);
+recommendation (per explicit review instruction, and corrected again
+this pass)**: the original text proposed a new **required positional**
+`journal` parameter on `matches_transaction`/`matches_posting` — the
+first correction round replaced that with "a keyword-only `journal`
+parameter with no default," describing it as leaving existing callers
+unaffected. **That description was itself wrong**: in Python, a
+keyword-only parameter with no default is still mandatory on every
+call — `def f(*, journal): ...` raises `TypeError` for any caller that
+doesn't pass `journal`, keyword-only or not. Making it keyword-only
+changes *how* a caller must supply it, not *whether* every caller must.
+**Do not assume any specific shape.** Backward-compatible candidates
+for implementation planning to evaluate, none chosen here:
+- `journal: Journal | None = None` (a real default, so existing callers
+  that pass no `journal` keep compiling and running unchanged) — but
+  `Tag` evaluation must then **fail explicitly** (raise, not silently
+  degrade) if a `Tag` node is actually present in the query being
+  evaluated and `journal` is `None`, per the loud-failure constraint
+  below; this is not "the parameter is optional," it's "the parameter
+  has a default, and its absence is only tolerated when nothing needs it";
 - an evaluation-context object bundling `journal` (and any future
   cross-cutting need) behind one parameter, added once rather than
-  per-need;
-- the "materialize into new storage before evaluation" option above,
-  which could avoid touching `matches_transaction`/`matches_posting`'s
-  signatures at all.
+  per-need — same "callers not using `Tag` need not change" property,
+  differently shaped;
+- pre-materialised effective-tag storage (§5.3's "materialize into new
+  storage before evaluation" option), which could avoid touching
+  `matches_transaction`/`matches_posting`'s signatures at all.
 
 If a `Tag` query is ever evaluated without the context it needs (e.g. a
 direct `matches_posting(Tag(...), txn, posting)` call with no journal
-available), **prefer an explicit, loud failure over silently degrading
-to own-tags-only matching** — a silent narrowing would be a correctness
-bug disguised as a working answer, worse than an error. This is a design
-constraint for whichever shape is ultimately chosen, not itself a
-decision to make now.
+available, under whichever of the above shapes is chosen), **prefer an
+explicit, loud failure over silently degrading to own-tags-only
+matching** — a silent narrowing would be a correctness bug disguised as
+a working answer, worse than an error. This is a design constraint for
+whichever shape is ultimately chosen, not itself a decision to make now
+— implementation planning chooses the shape; this document only
+constrains what any chosen shape must not do (silently narrow).
 
 **Option B — literal-own-tags-only, disclosed Ledgerkit-native subset
 first (mirroring the `MaxAccountLevel` precedent), unchanged from the
@@ -576,35 +617,53 @@ individually more tractable to defer than the other. **Still not a
 decision** — explicit approval required, including which evaluator-API
 shape (above) implementation planning should pursue first.
 
-**A related, newly-surfaced scoping question (§2 of the review
-instructions)**: is the commodity-tag substrate work reasonably part of
-this same phase, or should it split into a small prerequisite sub-phase
-(mirroring how Stage C Phase 4 itself was split from this `tag:`-matching
-phase)? **Lead's observation, not a recommendation either way**: the
-account-tag precedent (Phase 4) was a self-contained, cleanly-scoped
-prerequisite phase; the commodity-tag work is structurally identical in
-shape (new dict field, new directive-comment capture, no new query
-concepts) and small in absolute size — but doing it inside this phase
-keeps one design document covering the complete feature rather than
-fragmenting the four-source model across two designs. Both are
-defensible; this is included in §17's approval list rather than resolved
-here.
+**Commodity-tag substrate scope — resolved this pass, per explicit
+instruction (design approval only; nothing implemented here)**: the
+missing commodity-tag substrate (§3/§4) is **in scope for this same
+Phase 6**, not split into a prerequisite sub-phase. Rationale: unlike
+Phase 4's own account-tag work (which was a genuinely separate feature —
+tag *parsing/storage* — split from `tag:` *matching*, a different
+capability entirely), the commodity-tag substrate is not a separate
+feature relative to this phase's own scope; it is a bounded completion
+of `tag:` matching itself — §2.6/§2.7 already establish it as one of the
+four sources this phase's own `tag:` semantics require to be correct.
+Proposed, not yet implemented:
+
+- `Journal.declared_commodity_tags: dict[str, list[tuple[str, str]]]`
+  (mirroring `declared_account_tags`'s exact existing shape) — a new
+  field, additive, same category of change as Phase 4's own addition
+  (§11).
+- `ledgerkit/parser.py`'s `commodity` directive handling captures
+  same-line and follow-on comment tags, mirroring Phase 4's own
+  `account`-directive tag-capture work structurally (§3's confirmed
+  parallel: `_strip_directive_comment` currently discards the comment
+  outright; the fix is the same shape as the `account`-directive fix
+  Phase 4 already shipped, not a novel parsing problem).
+- The lookup/propagation helper(s) this produces are **private
+  initially** (§9.3, unchanged) — no new public API surface without a
+  demonstrated external consumer.
+
+This resolves the scoping question §17 previously listed as open; it is
+no longer part of the approval list below.
 
 ### 9.2 [UNRESOLVED] `accounts` command's matching mode — recommendation reversed this amendment
 
 Per §2.5/§7: does Ledgerkit's `accounts -q "tag:X"` replicate hledger's
-account-inherited-tags-only mode (§2.5, revised: posting-own **and**
-commodity-propagated tags both stripped, only account-inherited tags
-visible), or use uniform matching (same effective-tag computation as
-every other command)?
+mode (§2.5, corrected: **transaction-level and account-inherited tags
+visible; posting-own and commodity-propagated tags not visible**), or
+use uniform matching (same effective-tag computation as every other
+command)?
 
 **The original document recommended uniform matching (divergence). Per
 explicit review instruction, that recommendation is reconsidered and
 reversed.** The review's own framing is correct: this design has already
 established the `accounts` quirk is real, source-confirmed
 (`Accounts.hs:73`, exactly one call site), and now executable-confirmed
-twice over (§2.5's original posting-own test, and this amendment's
-broader commodity-stripping re-test) — and, per §7, implementable as a
+across three successive verification passes (§2.5's original posting-own
+test; a broader commodity-stripping re-test; and this pass's four-way
+matrix, which corrected the second pass's own incomplete "account-only"
+claim by finding transaction-level tags are visible too) — and, per §7,
+implementable as a
 narrow, single-command behaviour substitution with **no side-channel**
 needed (unlike `depth:`'s `DepthSpec`, which needed one threaded through
 every report function). The original recommendation's stated reasons —
@@ -618,18 +677,19 @@ extra, well-understood matching logic.
 
 **Lead's recommendation, reversed**: **replicate hledger's `accounts`
 semantics** — a dedicated `accounts`-only effective-tags computation
-(account-inherited tags only, mirroring `journalPostingsKeepAccountTagsOnly`'s
-`ptags=[] + inherited` shape at the Ledgerkit-query-evaluation level, not
-by mutating `Posting.tags` — consistent with §9.1's own materialize-vs-
-compute-on-demand framing) — unless implementation planning finds a
-concrete technical reason (not general preference) that this is
-disproportionately complex relative to §9.1's already-required
-account-inheritance computation, which this would reuse directly (the
-`accounts`-mode computation is a strict subset: the same account-
-inheritance lookup §9.1 already needs, applied alone rather than unioned
-with posting/transaction/commodity tags). Still not a decision — the
-reversal is the lead's own re-assessment under explicit instruction to
-reconsider, not a resolved fact.
+unioning **only** transaction-own tags and account-inherited tags
+(explicitly excluding posting-own and commodity-propagated), mirroring
+`journalPostingsKeepAccountTagsOnly` + `postingAllTags`'s combined shape
+at the Ledgerkit-query-evaluation level, not by mutating `Posting.tags`
+— consistent with §9.1's own materialize-vs-compute-on-demand framing —
+unless implementation planning finds a concrete technical reason (not
+general preference) that this is disproportionately complex relative to
+§9.1's already-required account-inheritance computation, which this
+would reuse directly (the `accounts`-mode computation unions two of the
+same four inputs §9.1's full computation already needs — transaction-own
+and account-inherited — rather than all four). Still not a decision —
+the reversal is the lead's own re-assessment under explicit instruction
+to reconsider, not a resolved fact.
 
 ### 9.3 [UNRESOLVED] Effective-tags helper API shape — default changed to private this amendment
 
@@ -705,16 +765,19 @@ day one.
   pattern).
 - **If Option A (§9.1) is approved and a `journal` parameter is the
   chosen shape** (not the only option under consideration — see §9.1's
-  revised evaluator-API framing): a keyword-only, no-default parameter
-  is the leading candidate for minimising breakage to existing callers
-  that never construct a `Tag` node — full sign-off under the
-  Unauthorised Change Rule is still required regardless of which shape
-  is chosen, since any new parameter on a documented public function is
-  itself a signature change. **Explicit constraint, not yet a chosen
-  shape**: no silent degradation — a `Tag` query evaluated without
-  required context must fail loudly, never silently narrow to a subset
-  of the four sources. This whole question is deferred to implementation
-  planning (§9.1), not resolved here.
+  evaluator-API framing, corrected this pass): a `journal: Journal |
+  None = None` **default** (not a keyword-only-with-no-default
+  parameter, which would still be mandatory on every call — a Python
+  fact the previous wording here got wrong) is the leading candidate for
+  minimising breakage to existing callers that never construct a `Tag`
+  node — full sign-off under the Unauthorised Change Rule is still
+  required regardless of which shape is chosen, since any new parameter
+  on a documented public function is itself a signature change.
+  **Explicit constraint, not yet a chosen shape**: no silent
+  degradation — a `Tag` query evaluated without required context must
+  fail loudly, never silently narrow to a subset of the four sources.
+  This whole question is deferred to implementation planning (§9.1), not
+  resolved here.
 - **New this amendment**: if the commodity-tag substrate (§3/§4) is
   built, `Journal` gains a new field (`declared_commodity_tags`,
   mirroring `declared_account_tags`'s exact shape) — additive, not a
@@ -857,9 +920,14 @@ day one.
   - parent-account tag + commodity tag composing on the same posting
     (no existing test scenario covers two non-posting-own sources
     together);
-  - exact hledger `accounts` semantics per §9.2's resolution (account-
-    inherited-only visibility, both posting-own and commodity-propagated
-    tags invisible to plain `accounts tag:X`).
+  - exact hledger `accounts` semantics per §9.2's resolution and §2.5's
+    corrected four-way finding — **four explicit, individually-named
+    differential cases, not one combined assertion**: a transaction-
+    level tag is **visible** to plain `accounts tag:X`; an account-
+    inherited tag is **visible**; a posting-own tag is **not visible**;
+    a commodity-propagated tag is **not visible**. All four on the same
+    shared fixture, so a regression in any one is individually
+    attributable.
 - **Differential** (against the pinned hledger binary, via a genuinely
   separate `compat-differential-tester` dispatch per §10 — **mandatory
   before any of these compatibility claims are first promoted to
@@ -872,47 +940,42 @@ day one.
   committed) are good starting points for what a committed `tests/
   fixtures/` equivalent should cover.
 
-## 17. Summary of what needs explicit approval (Step 3 gate) — revised this amendment
+## 17. Summary of what needs explicit approval (Step 3 gate) — revised this pass
 
 1. **§9.1** — inheritance scope: Option A (**complete** four-source
    compatibility — posting, transaction, account-inherited, **and
-   commodity-propagated** — revised this amendment from the original
-   document's three-source framing) vs. Option B (own-tags-only,
-   disclosed divergence, now covering two missing sources instead of
-   one). Lead recommends A, unchanged in direction, materially larger in
-   scope.
+   commodity-propagated**) vs. Option B (own-tags-only, disclosed
+   divergence, now covering two missing sources instead of one). Lead
+   recommends A.
 2. **§9.1** — evaluator API shape for whatever context `tag:` matching
-   needs (keyword-only parameter / context object / materialize-before-
-   evaluation) — **no longer pre-committed to a required positional
-   `journal` parameter**, per explicit review instruction; left as an
-   implementation-planning-stage choice among backward-compatible
-   options, with "fail loudly, never silently narrow" as a binding
-   constraint on whichever shape is chosen.
-3. **§9.1** — whether the commodity-tag substrate work (a new `Journal.
-   declared_commodity_tags` field, `commodity`-directive comment capture
-   in `ledgerkit/parser.py`) is in scope for this same phase, or should
-   split into its own small prerequisite sub-phase (mirroring Stage C
-   Phase 4's own precedent). Not recommended either way — a genuine open
-   scoping question.
-4. **§9.2** — `accounts` command mode: **recommendation reversed this
-   amendment** — lead now recommends *replicating* hledger's account-
-   inherited-only matching mode (previously recommended uniform/
-   disclosed-divergence), unless implementation planning finds a
-   concrete technical reason not to.
-5. **§9.3** — effective-tags helper API shape: **default changed to
-   private** this amendment (previously open); not a blocking gate,
-   flagged as the starting assumption implementation planning should
-   follow unless it finds a reason to deviate.
-6. **§16** — the expanded differential-test matrix (five same-name/
+   needs. **Wording corrected this pass**: not "keyword-only with no
+   default" (that would still be mandatory on every call, a Python
+   fact the prior wording got wrong) — the real candidates are
+   `journal: Journal | None = None` (a genuine default, with `Tag`
+   evaluation failing explicitly, not silently, when `journal` is
+   absent and actually needed), a context object, or pre-materialised
+   storage. Left as an implementation-planning-stage choice; "fail
+   loudly, never silently narrow" remains a binding constraint on
+   whichever shape is chosen.
+3. **§9.2** — `accounts` command mode: replicate hledger's mode
+   (transaction-level and account-inherited tags visible; posting-own
+   and commodity-propagated tags not visible — the precise four-way
+   split corrected this pass) vs. uniform matching. Lead recommends
+   replication, unless implementation planning finds a concrete
+   technical reason not to.
+4. **§16** — the expanded differential-test matrix (five same-name/
    different-value precedence pairs, commodity-tag propagation, the
-   `accounts`-mode scenarios) is the proposed basis for the mandatory
-   independent `compat-differential-tester` verification (§10) — approval
-   of §9.1/§9.2 above implicitly approves this matrix as its verification
-   plan, not a separate decision.
-7. **General approval** to proceed to Step 4 (implementation planning)
-   once 1-3 are resolved (4-5 have stated defaults that don't block
-   proceeding, only invite override if implementation planning finds
-   reason to).
+   `accounts`-mode four-way split) is the proposed basis for the
+   mandatory independent `compat-differential-tester` verification
+   (§10) — approval of 1 and 3 above implicitly approves this matrix as
+   its verification plan, not a separate decision.
+5. **General approval** to proceed to Step 4 (implementation planning)
+   once 1 and 3 are resolved.
+
+**Resolved this pass, no longer part of the approval list**: the
+commodity-tag substrate's scope (§9.1) — decided **in scope for this
+phase**, design-approved but not implemented; the effective-tags helper
+API shape (§9.3) — **private by default**, not a blocking gate.
 
 No implementation begins until this section's items are explicitly
 decided.

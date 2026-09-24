@@ -1,91 +1,78 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C Phase 6 (`tag:` query-term matching) — the design document was
-amended after user review (a targeted correction, not a redesign): it
-was missing commodity-directive tag propagation, a real, separately-
-documented fifth source. **Still stopped for the mandatory human
-design-review gate.** No implementation has begun.
+Stage C Phase 6 (`tag:` query-term matching) — a small final correction
+pass on the design document (not a redesign): fixed `accounts tag:X`
+visibility (a four-way split, not the prior amendment's incomplete
+three-way one), clarified transaction-level matching's rule, fixed a
+real Python error in the evaluator-API wording, and resolved the
+commodity-tag substrate's scope as in-phase. **Still stopped for the
+mandatory human design-review gate.** No implementation has begun.
 
 ## Where We Are
-Amended design document complete: `dev-docs/planning/core-redefinition/
-23-tag-query-matching-design.md` — §17 is the current, updated approval
-list. A dated addendum was appended to the existing planning retro
-(`dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md`, original content
-untouched). `ROADMAP.md`/`CHANGELOG.md` updated. About to commit + push
-this correction, then present the amended design's material changes and
-wait — do NOT proceed to Step 4 or any code change until explicit
-approval arrives.
+Corrected design document: `dev-docs/planning/core-redefinition/
+23-tag-query-matching-design.md` — §17 now lists **two** open items
+(down from five). A second dated addendum was appended to the existing
+planning retro (`dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md`,
+original content and first addendum both untouched). `ROADMAP.md`/
+`CHANGELOG.md` updated. About to commit + push, then present a concise
+summary and wait — do NOT proceed to Step 4 or any code change until
+explicit approval arrives.
 
 ## Decisions In Flight
-- **§9.1: inheritance scope** — Option A (now correctly defined as
-  *complete*: posting + transaction + account-inherited + commodity-
-  propagated, all four verified sources) vs. Option B (own-tags-only,
-  now a bigger disclosed gap than originally framed). Lead still
-  recommends A. **Not decided.**
-- **§9.1: evaluator API shape** — no longer pre-committed to a required
-  positional `Journal` parameter; implementation planning should weigh
-  a keyword-only parameter, a context object, or pre-evaluation
-  materialization. "Fail loudly, never silently narrow" is a binding
-  constraint regardless of shape. **Not decided.**
-- **§9.1: is the commodity-tag substrate (new `Journal.
-  declared_commodity_tags` field + `commodity`-directive comment
-  capture in the parser) in scope for this phase, or a prerequisite
-  sub-phase** (mirroring how Phase 4 itself was split out)? No
-  recommendation given either way. **Not decided.**
-- **§9.2: `accounts` command mode** — recommendation **reversed** this
-  amendment: now recommends replicating hledger's account-inherited-
-  only matching mode (previously recommended diverging to uniform
-  matching). **Not decided.**
-- §9.3 (helper visibility) — default changed to **private**; not a
-  blocking gate, just the starting assumption.
+- **§9.1: inheritance scope** — Option A (complete, four sources) vs.
+  Option B (own-tags-only, disclosed divergence). Lead recommends A.
+  **Not decided.**
+- **§9.2: `accounts` command mode** — replicate hledger's mode
+  (transaction-level + account-inherited visible; posting-own +
+  commodity-propagated not — the corrected four-way split) vs. uniform
+  matching. Lead recommends replication. **Not decided.**
+- Resolved this pass, no longer open: §9.1's evaluator-API shape
+  (candidates named, none chosen — implementation-planning-stage
+  choice, not a blocking gate); commodity-tag substrate scope (in this
+  phase, not a prerequisite sub-phase); §9.3 helper visibility
+  (private by default).
 
 ## Files Currently Relevant
 - `dev-docs/planning/core-redefinition/23-tag-query-matching-design.md`
-  — the amended design; §2.6/§2.7 hold the new commodity-tag/precedence
-  evidence, §9 the (partly re-weighed) unresolved questions, §17 the
-  current approval list.
+  — §2.5 (corrected `accounts` four-way visibility), §6 (transaction-
+  matching rule), §9.1 (evaluator API + commodity scope, both
+  corrected/resolved), §9.2 (accounts recommendation), §17 (current,
+  shorter approval list).
 - `dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md` — original retro
-  plus a dated addendum covering this correction round.
-- `ledgerkit/parser.py:1288-1299` — confirmed, by direct read, that the
-  `commodity` directive's comment is actively discarded
-  (`_strip_directive_comment`) — the substrate gap's exact location.
-- `/home/cormac/projects/hledger/hledger/hledger.1:3550-3556` — the
-  "Commodity tags" manual section this amendment is grounded in.
-- `hledger/Hledger/Cli/CliOptions.hs:642` — `autopostingtags = not $
-  command == "print" && moutputformat == Just "beancount"` — resolves
-  why account-tag inheritance already worked in the original document's
-  tests despite the library's own `False` default.
+  plus two dated addenda (first: commodity-tag propagation; second:
+  this correction pass).
+- `hledger-lib/Hledger/Data/Posting.hs:443-444` —
+  `transactionAllTags t = ttags t ++ concatMap ptags (tpostings t)`,
+  the exact source for §6's corrected transaction-matching rule.
 
 ## Blockers / Open Questions
-All five items in the amended §17 — see "Decisions In Flight" above.
-Nothing else blocking.
+Two items in the amended §17 — see "Decisions In Flight" above. Nothing
+else blocking.
 
 ## What NOT To Revisit
-- Don't re-derive the commodity-tag propagation mechanism or the
-  same-name precedence finding — both are now executable-verified
-  (five-transaction fixture, pinned binary) and source-traced precisely
-  (exact file:line citations throughout §2.6/§2.7 of the design doc).
-- Don't assume "posting tags override account tags override commodity
-  tags" means exclusion/shadowing for query matching — executable
-  evidence directly contradicts that literal reading; all differently-
-  valued same-named tags from every source remain simultaneously
-  matchable. This was the single most counter-intuitive, and most
-  carefully verified, finding in this correction round.
-- Don't silently pick any of §17's items and proceed — all are explicit,
-  named human-decision gates, unchanged in kind from the original
-  document, some reversed or softened in their stated recommendation.
-- Don't treat this correction as an implementation defect — no
-  `ledgerkit/`/`tests/` code existed when the gap was found. It's a
-  design-review correction, caught exactly where this process's own
-  Step 3 gate exists to catch it.
-- Don't re-run the context-curator dispatch — its report stands; this
-  amendment extended it with a fixture-verified gap it hadn't covered,
-  not a re-run of what it already covered correctly.
+- Don't re-derive `accounts tag:X`'s visibility rule — now confirmed,
+  three verification passes deep, as: transaction-level and account-
+  inherited tags visible; posting-own and commodity-propagated tags
+  not. This took three passes to get right; treat it as settled unless
+  new evidence contradicts it.
+- Don't reintroduce "keyword-only parameter with no default" as a
+  backward-compatible evaluator-API shape — it is a real Python error
+  (such a parameter is still mandatory on every call). The corrected
+  candidates are `journal: Journal | None = None`, a context object, or
+  pre-materialized storage.
+- Don't re-open the commodity-tag substrate's scope question — resolved
+  this pass, in scope for this phase, not a prerequisite sub-phase.
+- Don't silently pick Option A/B (§9.1) or a mode for §9.2 and proceed —
+  both remain explicit, named human-decision gates.
+- Don't treat any of these corrections as implementation defects — no
+  `ledgerkit/`/`tests/` code exists yet; all three correction passes so
+  far have been design-review corrections, caught exactly where this
+  process's own gate exists to catch them.
 
 ## Recent Git State (before this response's commit, if any)
+2d2ebf6 docs: amend Stage C Phase 6 tag: design -- add commodity-tag semantics
 7a74056 docs: Stage C Phase 6 -- tag: query-matching context curation + design
 f397d85 docs: Stage C Phase 5A -- adopt CodeCompass v1 development workflow
 eecb8a9 docs: amend Stage C Phase 5A plan per review findings
 c6e4b1e docs: plan Stage C Phase 5A -- CodeCompass workflow adoption
-c6168b2 docs: Stage C Phase 5, commit 3/3 -- independent verification + closeout

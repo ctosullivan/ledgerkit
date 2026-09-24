@@ -9,6 +9,44 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 6 — Design document: small final correction pass] — 2026-09-25
+
+Full detail: [dev-docs/planning/core-redefinition/23-tag-query-matching-design.md](dev-docs/planning/core-redefinition/23-tag-query-matching-design.md), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md)'s second addendum
+
+**Human:** directed a small final correction pass (explicitly not a
+redesign, curator re-run, or implementation start): fix plain `accounts
+tag:X` semantics (the prior amendment's finding was still incomplete);
+clarify transaction-level matching's conceptual rule; fix a real error
+in the evaluator-API wording (a keyword-only parameter with no default
+is still mandatory, contrary to what was claimed); resolve the
+commodity-tag substrate's scope as in-phase, not a prerequisite
+sub-phase; preserve everything else already approved-in-direction.
+
+**Claude:** verified each correction live before writing it down, not on
+the review's restatement alone. Confirmed via a direct pinned-binary run
+(`accounts tag:rate=4`, a transaction-header-only tag) that transaction-
+level tags survive `accounts`' own posting/commodity-tag stripping —
+the prior amendment's "account-inherited tags only" claim was itself
+incomplete; the correct rule is a four-way split (transaction-level and
+account-inherited visible; posting-own and commodity-propagated not).
+Corrected transaction-level matching's stated rule to "own tags
+directly, OR any posting's effective tags," sourced precisely to
+`transactionAllTags t = ttags t ++ concatMap ptags (tpostings t)`.
+Fixed the evaluator-API recommendation's real Python error (keyword-
+only-with-no-default is still mandatory on every call) — corrected to
+`journal: Journal | None = None` as the leading backward-compatible
+candidate, with explicit-failure-not-silent-degradation restated as the
+binding constraint regardless of final shape. Resolved the commodity-tag
+substrate's scope as in-phase (design-approved, not implemented):
+proposed `Journal.declared_commodity_tags`, same-line/follow-on
+directive-comment capture, private helpers. Updated §§2.5, 6, 9.1, 9.2,
+11, 16, 17 accordingly; appended a second dated addendum to the existing
+planning retro (original content and first addendum both untouched).
+Approval list shortened from five items to two. No `ledgerkit/`/`tests/`
+code touched — still planning only, still stopped for human review.
+
+---
+
 ### [Stage C Phase 6 — Design document amended after review] — 2026-09-25
 
 Full detail: [dev-docs/planning/core-redefinition/23-tag-query-matching-design.md](dev-docs/planning/core-redefinition/23-tag-query-matching-design.md), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md)'s addendum
