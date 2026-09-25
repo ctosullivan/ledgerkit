@@ -146,3 +146,60 @@ self-corrected), one correctly-scoped `compat-differential-tester`
 dispatch (the real research), and direct lead-performed source auditing
 in parallel with it. Substantially smaller than Phase 6's own planning
 effort, proportionate to this fix's much narrower scope.
+
+## Addendum (2026-09-25, same day) — design-review correction pass
+
+The user reviewed the design document and found it not yet ready for
+approval on four specific points, none of which changed the fix's
+actual scope or mechanism — a design-review correction, exactly the
+same category as Phase 6's own two amendment rounds, not an
+implementation defect (no `ledgerkit/`/`tests/*.py` code existed yet).
+
+1. **The proposed exception message was `tag:`-specific advice inside
+   a prefix-agnostic shared function.** `validate_hledger_regex` serves
+   `acct:`/`desc:`/`depth:`/`tag:` alike and has no way to know which
+   one called it — the original message's "use a bare `tag:NAME`..."
+   advice was simply wrong for a caller reached via `acct:`. Corrected
+   to fully generic wording; tag-specific guidance relocated to
+   user-facing docs instead.
+2. **"No public API change" was an inaccurate framing.** Signatures and
+   the exception type genuinely are unchanged, so the Unauthorised
+   Change Rule's protected-surface sense doesn't trigger — but
+   documented *accepted-input behaviour* is changing (a call that used
+   to succeed now raises), which is a real `api-spec.md`-relevant fact.
+   Corrected to "backward-compatible compatibility/correctness change
+   to documented behaviour," with `api-spec.md` update now explicitly
+   listed as required, not skippable.
+3. **A separately-discovered divergence (empty-alternation-branch
+   regex syntax, `(|)` etc.) was left as an informal note in a research
+   document rather than actually filed.** Corrected by filing
+   `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`, deliberately scoped to only
+   what's independently verified on both sides (`(|)` confirmed
+   divergent; four sibling patterns confirmed only on hledger's side,
+   explicitly not asserted as divergences) — the same "don't claim more
+   than what's verified" discipline this project has applied
+   consistently since Phase 6.
+4. **The planned resolution mechanics for `LK-MISMATCH-QUERY-TAG-
+   EMPTYVALUE-001` would have left a contradiction**: the original
+   design said this entry "resolves from `unexplained_mismatch` to
+   `compatible`" in place, but the register's own filename convention
+   (`LK-<KIND>-<AREA>-<NNN>`, `KIND` tracking the `kind:` field) means a
+   `MISMATCH`-prefixed ID classified `compatible` would contradict
+   itself. Corrected to a rename-and-reclassify closeout process (new
+   `LK-COMPAT-QUERY-TAG-EMPTYVALUE-001` entry, old one retired and
+   removed from `UNEXPLAINED.md`) — a real process gap this phase's own
+   design would otherwise have introduced into the register.
+
+**Process observation**: this is the fourth successive instance across
+this project's last two phases (Phase 6's two amendment rounds, this
+phase's own correction) where a design document's stated claim needed a
+review pass to catch — three of the four points here were framing/
+process-mechanics errors rather than technical ones, a different flavor
+from Phase 6's substantive semantic corrections but the same underlying
+value: the human-approval gate keeps doing real work, not rubber-
+stamping.
+
+Approval list grew from four items to five (§11) — not because scope
+grew, but because item 4 (mismatch-entry closeout mechanics) is now an
+explicit, separate confirmation rather than folded silently into the
+original item 1.

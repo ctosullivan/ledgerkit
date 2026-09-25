@@ -9,6 +9,34 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 7 — design document: targeted correction pass] — 2026-09-25
+
+Full detail: [dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md](dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md), [dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml](dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml)
+
+**Human:** directed a targeted correction pass on the Phase 7 design
+(explicitly not a re-scope, not a re-run of the research matrix, not
+implementation): make the shared validator's proposed error message
+generic instead of `tag:`-specific; correct the "no public API change"
+framing to accurately describe a backward-compatible behavioural change
+requiring an `api-spec.md` update; actually file the separately-
+discovered empty-alternation-branch divergence as its own compat-
+register entry instead of an informal note; specify the correct
+rename-and-reclassify closeout mechanics for `LK-MISMATCH-QUERY-TAG-
+EMPTYVALUE-001` instead of an in-place `kind:` flip.
+
+**Claude:** corrected all four points in the design document (§5/§5.1,
+§7, §8, §11) and filed `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`
+(`kind: unexplained_mismatch`) for the empty-alternation-branch
+family, scoped strictly to what's independently verified on both
+sides — `(|)` confirmed as a real divergence (hledger rejects it,
+Ledgerkit's `re` accepts it); `a|`/`|a`/`(a|)`/`(|a)` recorded as
+hledger-side-only confirmed, not asserted as divergences. Added it to
+`dev-docs/compat-register/UNEXPLAINED.md`'s open-entries table. The
+narrow `pattern == ""` fix, its single chokepoint
+(`validate_hledger_regex`), its non-goals, and its test plan are all
+unchanged. No `ledgerkit/`/`tests/*.py` code touched — still stopped
+for human approval, now against the amended design §11 (five items).
+
 ### [Stage C Phase 7 — planning: empty-regex-pattern rejection] — 2026-09-25
 
 Full detail: [dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md](dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md), [dev-docs/planning/core-redefinition/25-query-regex-empty-pattern-matrix.md](dev-docs/planning/core-redefinition/25-query-regex-empty-pattern-matrix.md), [dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-PLAN.md](dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-PLAN.md)

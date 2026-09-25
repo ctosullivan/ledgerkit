@@ -8,6 +8,25 @@ this document. Same provenance-tagging discipline as `23-tag-query-
 matching-design.md`: **[VERIFIED-EXTERNAL]** / **[EXISTING-DECISION]**
 / **[PROPOSED]** / **[UNRESOLVED]**.
 
+**Amendment (this pass, same day): a targeted correction pass, not a
+re-scope.** Four corrections, none changing the fix's actual scope or
+mechanism: (1) the proposed error message was `tag:`-specific advice
+baked into a prefix-agnostic shared validator — made fully generic,
+tag-specific guidance moved to user-facing docs instead (§5); (2) "no
+public API change" was an inaccurate framing — signatures are
+unchanged, but documented accepted-input *behaviour* is changing, which
+is a real, `api-spec.md`-relevant fact, correctly framed as a
+backward-compatible compatibility/correctness fix (§5.1); (3) the
+separately-discovered empty-alternation-branch divergence (`(|)` etc.)
+is now actually filed as its own register entry
+(`LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`) rather than left as an
+informal note, scoped strictly to what's independently verified on both
+sides (§7/§8); (4) `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`'s eventual
+resolution is corrected from an in-place `kind:` flip to the register's
+own rename-and-reclassify convention (§8). The narrow `pattern == ""`
+fix itself, its single chokepoint, its non-goals, and its test plan are
+all unchanged from the original document.
+
 ## 0. Pinned revisions
 
 Ledgerkit: `a49ac50`. hledger: `1.52.4` /
@@ -122,23 +141,55 @@ def validate_hledger_regex(pattern: str) -> None:
     if pattern == "":
         raise UnsupportedRegexConstructError(
             "pattern must not be empty (hledger rejects an empty "
-            "regex at parse time; use a bare 'tag:NAME' to match any "
-            "value, including empty, instead of 'tag:NAME=')"
+            "regex at parse time)"
         )
     match = _EXCLUDED_CONSTRUCT.search(pattern)
     ...
 ```
 
-Reuses the existing exception class (§3) — **no new public API
-surface, no `dev-docs/api-spec.md` signature change** (`Unauthorised
-Change Rule` does not trigger; the class and its meaning are unchanged,
-only one new condition that raises it). The message is Ledgerkit's own
-wording, not a verbatim copy of hledger's ("This regular expression is
-invalid or unsupported, please correct it:") — consistent with every
-other `_CONSTRUCT_MESSAGES` entry in the same file, which explain the
-*why* in Ledgerkit's own voice rather than echoing hledger's generic
-text; the message also proactively tells the user the correct escape
-hatch (`tag:NAME` bare), which hledger's own error text doesn't offer.
+**Message wording, corrected this pass**: `validate_hledger_regex`/
+`compile_hledger_regex` are the single shared chokepoint for `acct:`,
+`desc:`, `depth:`, and `tag:` alike (§3) — the function itself has no
+way to know which prefix called it. The original proposal's message
+("use a bare `tag:NAME` to match any value...") was `tag:`-specific
+advice baked into a generic validator, wrong for a caller reached via
+`acct:`/`desc:`/`depth:`, where no such escape hatch exists at all.
+Corrected to fully generic wording with no per-prefix advice, matching
+the style of every other message in `_CONSTRUCT_MESSAGES` in the same
+file (which explain *why* a pattern is rejected, never *what a specific
+caller should do instead*, since the function doesn't know its caller).
+Tag-specific guidance (e.g. "use bare `tag:NAME` instead of `tag:NAME=`
+for an empty value") belongs in user-facing documentation (`docs/
+usage.md`) and/or a `tag:`-specific test's own comment, not in the
+shared validator's exception message — see §9/§10.
+
+Reuses the existing exception class (§3) — no new exception type, and
+`UnsupportedRegexConstructError`'s own signature is unchanged. **This
+is not "no public API impact," corrected this pass — it is a backward-
+compatible *behavioural* change to documented public functions'
+accepted input (§5.1 below), which `dev-docs/api-spec.md` must
+describe accurately once implemented, not silently.**
+
+### 5.1 Public API impact, precisely — [PROPOSED, corrected this pass]
+
+`validate_hledger_regex` and `compile_hledger_regex` are documented
+public API (`dev-docs/api-spec.md`), as is `UnsupportedRegexConstruct
+Error` (§3). Their **signatures and the exception type are unchanged**
+— this is genuinely not a protected-surface change in the Unauthorised
+Change Rule's sense of adding/removing/retyping a signature. But it is
+inaccurate to describe this as "no public API change" full stop, as the
+original version of this document did: **accepted input behaviour
+changes** — a call that previously succeeded (`compile_hledger_regex("")`)
+will now raise. That is a real, documented-behaviour change to a public
+function, correctly framed as a **backward-compatible compatibility/
+correctness fix** (bringing documented behaviour in line with hledger,
+not introducing new capability or new surface), not as "nothing about
+the public API is affected." `dev-docs/api-spec.md`'s entries for both
+functions must be updated during implementation to state the new
+empty-pattern-rejection behaviour explicitly (§9) — this is a required
+doc-sync item, not an optional one, precisely because the function's
+own documented contract is what's changing, even though its signature
+is not.
 
 No changes needed to `_build_acct`/`_build_desc`/`_build_depth_spec`/
 `_build_tag`, `ledgerkit/query/depth.py`, or `ledgerkit/query/eval.py`
@@ -182,14 +233,23 @@ query/`.
 - **The empty-alternation-branch family** (`(|)`, `a|`, `|a`, `(a|)`,
   `(|a)`) and malformed quantifier stacking (`a**`) — confirmed (§2) to
   be a separate, unrelated hledger rejection cause from the one this
-  fix addresses. Ledgerkit currently also diverges here (Python's `re`
-  compiles `(|)` without error) but this is **not** part of this
-  fix — flagged in `25-query-regex-empty-pattern-matrix.md` so it isn't
-  rediscovered as new, left as its own, separate, not-yet-filed
-  potential future item. Folding it in here would widen this fix from
-  a one-line, fully-characterised change into an open-ended regex-
-  semantics audit, contrary to the retro's own recommendation that this
-  be the smallest, most concretely-specified backlog item.
+  fix addresses. Ledgerkit currently also diverges here for at least
+  `(|)` (Python's `re` compiles it without error; hledger rejects it —
+  both sides independently verified) but this is **not** part of this
+  fix. **Filed this pass, not left as an informal note**:
+  `dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml`
+  (`kind: unexplained_mismatch`), so it is tracked in the register's
+  own north-star metric rather than only mentioned in a research
+  document. Per explicit instruction, the entry's own claims are scoped
+  to what's actually been verified on both sides — `(|)` is asserted as
+  a confirmed divergence; `a|`/`|a`/`(a|)`/`(|a)` are recorded as
+  hledger-confirmed-rejected but Ledgerkit-side-unverified, not claimed
+  as confirmed divergences. Folding any of this into the current fix
+  would widen it from a one-line, fully-characterised change into an
+  open-ended regex-semantics audit, contrary to the retro's own
+  recommendation that this be the smallest, most concretely-specified
+  backlog item — the new entry exists so this doesn't get lost or
+  rediscovered later, not so it gets implemented now.
 - **A broader "does this pattern's compiled semantics admit an empty
   match" check** — explicitly wrong per §2's own evidence (`.*`, `a*`,
   `^$`, `()` are all real, valid, accepted hledger patterns). Do not
@@ -206,19 +266,50 @@ query/`.
   empty value) is corrected to state the new, real behaviour
   (`QueryParseError` at parse time); entry can then be promoted to
   `status: verified` for the first time.
-- `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` — resolves from
-  `unexplained_mismatch` to `compatible` once fixed and independently
-  verified (its own `reason:` field already names this exact resolution
-  as the "candidate resolution, not adopted here").
+- `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` — **resolution mechanics
+  corrected this pass**. Per `09-compatibility-system.md`'s own filename
+  convention (`LK-<KIND>-<AREA>-<NNN>`, `KIND` ∈ `COMPAT`/`EXT`/`DIV`/
+  `UNSUP`/`MISMATCH`, tracking the `kind:` field directly) and its
+  description of `unexplained_mismatch` as "never a resting state, only
+  a to-do marker," simply flipping this entry's `kind:` field to
+  `compatible` while leaving its filename/`id:` as `LK-MISMATCH-*`
+  would leave the ID and its own classification contradicting each
+  other. The correct closeout process, once implementation lands and a
+  genuinely separate `compat-differential-tester` dispatch independently
+  confirms the fix (§10): **retire** `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-
+  001.yaml` and **create** a new `LK-COMPAT-QUERY-TAG-EMPTYVALUE-001.yaml`
+  (new `id:` matching the new filename, `kind: compatible`, its own
+  fresh `status: verified`/`verified_by`/`verified_date`, evidence
+  carried forward and extended with the new post-fix differential run) —
+  a rename-and-reclassify, not an in-place field edit. Remove the old
+  ID from `dev-docs/compat-register/UNEXPLAINED.md`'s open-entries table
+  (per that file's own stated rule: an entry appears there only while
+  its `kind` is `unexplained_mismatch`, and the register file must
+  change first). Update every cross-reference to the old ID (this
+  design document, `LK-COMPAT-QUERY-TAG-001`'s own `reason:` field,
+  `dev-docs/hledger-compatibility.md`, `ROADMAP.md`/`CHANGELOG.md`) to
+  the new one — an implementation-and-verification-time task, not
+  performed by this design-review pass itself.
 - `LK-COMPAT-QUERY-ACCT-001`/`LK-COMPAT-QUERY-DESC-001` — neither
   currently makes any claim about empty-pattern behaviour (confirmed
   by grep, §3-adjacent check) — both get a new evidence note added,
   not a correction of an existing false claim.
 - `LK-COMPAT-QUERY-DEPTH-001` — same: no existing empty-pattern claim,
   gets a new evidence note for `depth:=N`'s corrected behaviour.
-- No new compat-register entry needed beyond updating these four — this
-  is a correction/completion of existing entries' claims, not a new
-  feature needing its own `LK-COMPAT-*-NNN` identity.
+- **`LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` — new this pass, filed, not
+  part of this fix's implementation.** The empty-alternation-branch
+  divergence (§7) now has its own register entry
+  (`dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml`),
+  filed at design-review time rather than left only as a note in the
+  research matrix, so it isn't lost or rediscovered as new later. It is
+  **not** resolved, not promoted, and not touched by this fix's own
+  implementation — it stays open in `UNEXPLAINED.md` as its own,
+  separately-scoped backlog item.
+- No new compat-register entry needed for the fix itself beyond
+  updating the four above (and the `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-
+  001` rename-and-reclassify, above) — this fix is a correction/
+  completion of existing entries' claims, not a new feature needing its
+  own additional `LK-COMPAT-*-NNN` identity.
 - Per the standing process: first-time promotion of any of these to
   `status: verified` requires a genuinely separate `compat-
   differential-tester` dispatch (`09-compatibility-system.md` §9.6),
@@ -230,9 +321,19 @@ query/`.
   `depth:` rows' existing "empty pattern" caveats (added during Phase
   6's closeout) get updated from "known divergence" to "now matches
   hledger — rejects at parse time."
-- `dev-docs/api-spec.md` — `validate_hledger_regex`'s docstring gains
-  one line noting it now also rejects an empty pattern; no signature
-  change (§5).
+- `dev-docs/api-spec.md` — **corrected this pass (§5.1)**: `validate_
+  hledger_regex`'s and `compile_hledger_regex`'s documented behaviour
+  is updated to state the new empty-pattern rejection explicitly — a
+  required doc-sync item, not an optional docstring nicety, since their
+  documented accepted-input contract is genuinely changing even though
+  their signatures and `UnsupportedRegexConstructError`'s own shape are
+  not. Framed accurately as a backward-compatible compatibility/
+  correctness fix, not "no public API change."
+- `docs/usage.md` — **new this pass**: tag-specific guidance (bare
+  `tag:NAME` matches any value including empty, `tag:NAME=` no longer
+  does) belongs here, not in the shared validator's exception message
+  (§5) — a user-facing example showing the corrected behaviour and the
+  correct escape hatch.
 - `knowledge/DOMAIN_RULES.md` — one new entry: hledger rejects the
   literal empty regex string for every regex-taking query term, but
   *not* any pattern whose semantics merely admit an empty match — the
@@ -283,15 +384,30 @@ is short:
 1. **Approve the fix itself**: add a `pattern == ""` check to
    `validate_hledger_regex`, raising the existing, already-public
    `UnsupportedRegexConstructError` — no new exception class, no
-   `dev-docs/api-spec.md` signature change.
-2. **Approve the exact error message wording** proposed in §5 (or amend
-   it) — this is user-facing text, worth a specific look rather than
-   bundling into general approval.
+   `UnsupportedRegexConstructError`/`validate_hledger_regex`/`compile_
+   hledger_regex` signature change. **Corrected this pass**: this *is*
+   a real, documented-behaviour change to public functions (§5.1) —
+   `dev-docs/api-spec.md` must be updated at implementation time to
+   state it, not skipped as "no API change."
+2. **Approve the exact error message wording**, corrected this pass to
+   be fully generic (no `tag:`-specific advice in the shared
+   validator): *"pattern must not be empty (hledger rejects an empty
+   regex at parse time)"* — or amend it. Tag-specific guidance moves to
+   `docs/usage.md` (§9), not the exception message.
 3. **Confirm non-goals** (§7): the empty-alternation-branch family
    (`(|)` etc.) and any broader "semantically admits empty" check are
-   explicitly OUT of this fix, left as a separate, not-yet-filed future
-   item.
-4. **General approval** to proceed to an implementation plan/fresh
+   explicitly OUT of this fix. **Corrected this pass**: this family is
+   no longer just a note — it is now filed as `LK-MISMATCH-QUERY-REGEX-
+   EMPTYALT-001` (§7/§8), scoped strictly to what's actually verified
+   (`(|)` confirmed both sides; the other four patterns hledger-side
+   only). Confirm this filed-but-unimplemented status is the right
+   outcome, not scope creep.
+4. **Confirm the `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` closeout
+   mechanics** (§8, corrected this pass): rename-and-reclassify to a
+   new `LK-COMPAT-QUERY-TAG-EMPTYVALUE-001` entry once independently
+   verified, not an in-place `kind:` flip that would leave a
+   `MISMATCH`-prefixed ID classified `compatible`.
+5. **General approval** to proceed to an implementation plan/fresh
    coding-agent dispatch, mirroring Phase 6's process at a scale
    proportionate to this fix's actual size (likely no separate
    "implementation plan" document is needed beyond this design's own

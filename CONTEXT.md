@@ -2,77 +2,83 @@
 
 ## Current Task
 Stage C Phase 7 (empty-regex-pattern rejection, resolving `LK-MISMATCH-
-QUERY-TAG-EMPTYVALUE-001`) — **design document written, stopped for
-explicit human approval.** No `ledgerkit/`/`tests/` code touched. Phase
-6 is `[DONE]`; this is the next phase, per its own closeout
-recommendation.
+QUERY-TAG-EMPTYVALUE-001`) — design document amended after a targeted
+review-correction pass (four points, none re-scoping the fix). **Still
+stopped for explicit human approval** — no `ledgerkit/`/`tests/*.py`
+code touched.
 
 ## Where We Are
 Design document: `dev-docs/planning/core-redefinition/26-query-regex-
-empty-pattern-design.md`. Backing research: `25-query-regex-empty-
-pattern-matrix.md` (independent `compat-differential-tester` live-binary
-matrix). Planning retro: `dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-
-PLAN.md`. `ROADMAP.md`/`CHANGELOG.md` updated for the planning
-checkpoint. About to commit + push, then wait — do NOT proceed to
+empty-pattern-design.md`, now amended (§5/§5.1, §7, §8, §11 corrected).
+New compat-register entry filed this pass: `dev-docs/compat-register/
+LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml` (the empty-alternation-
+branch divergence, `(|)` etc. — separate from this phase's own fix,
+explicitly not implemented). Retro addendum, `ROADMAP.md`, `CHANGELOG.md`
+updated. About to commit + push, then wait — do NOT proceed to
 implementation until explicit approval arrives.
 
 ## Decisions In Flight
-Design §11's four-item approval gate, all open:
-1. Approve the fix: a `pattern == ""` check in `ledgerkit/query/
-   regex.py`'s `validate_hledger_regex`, raising the existing public
-   `UnsupportedRegexConstructError` (no new exception class, no
-   `api-spec.md` change).
-2. Approve the exact error-message wording proposed in design §5 (or
-   amend it).
-3. Confirm non-goals: the empty-alternation-branch family (`(|)`,
-   `a|`, `|a`, `(a|)`, `(|a)`) and any broader "semantically admits
-   empty" check are explicitly OUT of this fix.
-4. General approval to proceed — likely no separate implementation-plan
-   document needed given the fix's small size (design's own §5/§10
-   may suffice), implementer's call to flag if it disagrees.
+Design §11's five-item approval gate (grew from four after this pass),
+all open:
+1. Approve the fix: `pattern == ""` check in `validate_hledger_regex`,
+   raising the existing `UnsupportedRegexConstructError` — no new
+   exception class, no signature change. (Now correctly framed as a
+   real, documented-behaviour change requiring an `api-spec.md`
+   update, not "no API change.")
+2. Approve the corrected, fully generic error message: *"pattern must
+   not be empty (hledger rejects an empty regex at parse time)"* — no
+   `tag:`-specific advice in the shared validator.
+3. Confirm the empty-alternation-branch family stays filed
+   (`LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`) but unimplemented this
+   phase.
+4. Confirm the `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` closeout
+   mechanics: rename-and-reclassify to a new `LK-COMPAT-QUERY-TAG-
+   EMPTYVALUE-001` entry once independently verified, not an in-place
+   `kind:` flip.
+5. General approval to proceed — likely no separate implementation-plan
+   document needed given the fix's small size.
 
 ## Files Currently Relevant
 - `dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-
-  design.md` — the design document awaiting approval.
-- `dev-docs/planning/core-redefinition/25-query-regex-empty-pattern-
-  matrix.md` — the live-binary evidence backing it.
+  design.md` — the amended design document awaiting approval.
+- `dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml`
+  — newly filed this pass; `(|)` confirmed divergent both sides,
+  `a|`/`|a`/`(a|)`/`(|a)` hledger-side-only confirmed.
+- `dev-docs/compat-register/UNEXPLAINED.md` — now lists both open
+  entries.
 - `ledgerkit/query/regex.py` — `validate_hledger_regex`, the single
-  proposed change site.
-- `ledgerkit/query/parser.py:230-245` (`_build_tag`) — already
-  distinguishes bare `tag:NAME` from `tag:NAME=` via `partition("=")`'s
-  `sep` flag; no changes needed here, confirmed by direct read.
-- `tests/test_query/test_regex.py` — exists already, is where the new
-  unit test belongs (confirmed, matches the design's own proposal).
-- `tests/test_query/test_parser.py::test_empty_value_pattern_is_not_
-  none` — the one existing test that will need rewriting (currently
-  asserts the behaviour being corrected).
+  proposed change site (unchanged from before this correction pass).
+- `docs/usage.md` — will need the tag-specific escape-hatch guidance
+  (bare `tag:NAME`) once implemented; not the shared validator message.
 
 ## Blockers / Open Questions
-The four-item approval gate above. Nothing else blocking.
+The five-item approval gate above. Nothing else blocking.
 
 ## What NOT To Revisit
 - Don't re-derive the empty-string-vs-empty-matching scoping question —
-  settled executably: hledger rejects only the literal empty string;
-  `.*`/`a*`/`^$`/`()` are all accepted. Don't propose a broader
-  "does this pattern's semantics admit empty" check.
-- Don't propose per-call-site changes to `_build_acct`/`_build_desc`/
-  `_build_depth_spec`/`_build_tag` — confirmed unnecessary; one check
-  in the shared `validate_hledger_regex` covers all four automatically.
-- Don't propose a new exception class — `UnsupportedRegexConstructError`
-  already exists, is already public, and already fits.
-- Don't fold the empty-alternation-branch family (`(|)` etc.) into this
-  fix — confirmed as a separate, unrelated hledger rejection cause;
-  explicitly out of scope, noted for a possible future item instead.
-- Don't use `context-curator` for general hledger/source research again
-  — its actual charter (per `.claude/agents/context-curator.md`) is
-  narrowly "judge CodeCompass's usefulness." Route live-binary research
-  to `compat-differential-tester`, manual/source-only research to
-  `hledger-researcher`, and Ledgerkit-internal source auditing to the
-  lead directly.
+  settled executably in the prior planning pass, unchanged by this
+  correction pass.
+- Don't put `tag:`-specific advice back into `validate_hledger_regex`'s
+  exception message — it's a shared, prefix-agnostic chokepoint;
+  `acct:`/`desc:`/`depth:` callers would get wrong advice.
+- Don't describe this fix as "no public API change" — signatures are
+  unchanged but documented accepted-input behaviour changes; frame as
+  a backward-compatible compatibility/correctness fix, and update
+  `api-spec.md` accordingly at implementation time.
+- Don't fold the empty-alternation-branch family into this fix's
+  implementation — it's filed (`LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`)
+  but explicitly out of scope. Don't add unverified patterns to that
+  entry's confirmed-divergence claims either — only `(|)` has both
+  sides checked so far.
+- Don't resolve `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` by flipping its
+  `kind:` field in place — the register's own filename convention
+  requires a rename to a new `LK-COMPAT-*` ID when it's reclassified.
+- Don't use `context-curator` for general hledger/source research —
+  established in the prior planning pass, still holds.
 
 ## Recent Git State (before this response's commit)
+c4feb1d docs: Stage C Phase 7 -- empty-regex-pattern rejection design
 a49ac50 docs: close out Stage C Phase 6, mark [DONE]
 5887ea8 docs: close out Stage C Phase 6 independent verification
 fe9dfe5 test: independently verify Stage C Phase 6 tag: compat-register entries
 cb06d1f docs: update CONTEXT.md for Stage C Phase 6 implementation end state
-fa05bbc test: add tag: integration tests, compat-register entries, retro

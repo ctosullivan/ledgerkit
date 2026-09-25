@@ -1,0 +1,90 @@
+# Filed during Stage C Phase 7's design-review correction pass (empty-
+# regex-pattern rejection, dev-docs/planning/core-redefinition/26-query-
+# regex-empty-pattern-design.md), per explicit human instruction not to
+# let this separately-discovered divergence be lost or rediscovered
+# later, and not to broaden Phase 7 into a general regex-semantics
+# audit to resolve it now.
+#
+# Phase 7's own research matrix (25-query-regex-empty-pattern-matrix.md,
+# an independent compat-differential-tester dispatch) found, as a
+# related-but-separate observation while scoping the empty-pattern-
+# string fix (LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001): real hledger 1.52.4
+# rejects empty-alternation-branch regex syntax -- `(|)`, `a|`, `|a`,
+# `(a|)`, `(|a)` -- at parse time (exit 1, same generic error message
+# family as the empty-pattern-string case, but distinguishable because
+# the offending pattern text is echoed on a second stderr line). This is
+# a genuinely separate hledger rejection cause from the empty-pattern-
+# string case, not the same bug.
+#
+# Only `(|)` has BOTH sides independently verified as of this filing:
+# hledger rejects it (exit 1); Ledgerkit's `ledgerkit.query.regex`
+# accepts it (Python's `re` compiles `(|)` without error, so
+# `acct:(|)` currently exits 0 and matches everything). Per explicit
+# instruction, `a|`/`|a`/`(a|)`/`(|a)` are NOT asserted here as
+# confirmed divergences -- only hledger's own rejection of those four
+# is verified so far; Ledgerkit's actual behaviour on them has not been
+# independently checked. Whoever picks this entry up should verify
+# Ledgerkit's side of all four before broadening this entry's own
+# claims to cover them.
+
+id: LK-MISMATCH-QUERY-REGEX-EMPTYALT-001
+area: query.regex.emptyalternation
+kind: unexplained_mismatch
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: incomparable
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  Observed disagreement, not yet resolved into one of the four settled
+  states, and explicitly out of scope for Stage C Phase 7 (which
+  resolves only the literal-empty-pattern-string case, a different
+  rejection cause -- see LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001). Verified
+  so far: hledger rejects `(|)` (empty alternation, both branches
+  empty) at parse time; Ledgerkit's `ledgerkit.query.regex.
+  compile_hledger_regex` accepts it, since Python's `re` compiles `(|)`
+  without error -- a real, confirmed divergence for this one pattern.
+  hledger was also observed rejecting `a|`, `|a`, `(a|)`, and `(|a)`
+  (empty alternation on one side only), but Ledgerkit's own behaviour on
+  those four has NOT yet been independently verified -- do not assume
+  they diverge the same way as `(|)` without checking; regex-tdfa's
+  rejection rule for a *partial* empty alternative branch is not
+  necessarily the same code path as a *fully* empty one, and Python's
+  `re` may or may not compile each of the four without error. Candidate
+  resolution once fully scoped: extend `ledgerkit.query.regex`'s
+  `_EXCLUDED_CONSTRUCT` detection (or an equivalent explicit check) to
+  reject empty-alternation-branch syntax the way hledger's regex-tdfa
+  does -- not adopted or implemented here.
+
+implementation: []
+
+tests: []
+
+evidence:
+  - kind: executable
+    ref: >
+      From `dev-docs/planning/core-redefinition/25-query-regex-empty-
+      pattern-matrix.md` (independent compat-differential-tester
+      dispatch, 2026-09-25): `hledger -f tests/fixtures/
+      query_regex_empty_pattern_matrix.journal print 'acct:(|)'` ->
+      exit 1, `hledger: Error: This regular expression is invalid or
+      unsupported, please correct it:` followed by the echoed pattern
+      `(|)` on the next line. `a|`, `|a`, `(a|)`, `(|a)` produced the
+      same rejection shape against hledger (each with its own pattern
+      echoed). Ledgerkit-side check performed only for `(|)`: `python -m
+      ledgerkit -f tests/fixtures/query_regex_empty_pattern_matrix.journal
+      -q 'acct:(|)' print` -> exit 0, matches every transaction (Python's
+      `re.compile("(|)")` succeeds). Ledgerkit-side behaviour for `a|`,
+      `|a`, `(a|)`, `(|a)` was not run this session.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 7 empty-pattern-matrix research, cross-referenced during design-review correction)"
+verified_date: "2026-09-25"
