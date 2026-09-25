@@ -216,3 +216,44 @@ with the plan's own implied scope (five file-by-file sections, six
 compat-register entries, a full new test matrix); no rework was needed
 once the fixture's expected values were manually verified before the
 first test assertion was written.
+
+## Addendum (2026-09-25, same day) — independent verification results
+
+A genuinely separate `compat-differential-tester` dispatch (Step 7,
+`09-compatibility-system.md` §9.6) ran against the pinned hledger
+1.52.4 binary, on freshly constructed fixtures independent of the
+ones this implementation session left behind, exactly as this retro's
+own "Where we're going" section anticipated.
+
+**Five of six entries promoted to `status: verified`**:
+`LK-COMPAT-QUERY-TAG-COMBINE-001`, `LK-COMPAT-QUERY-TAG-INHERIT-001`
+(including a dedicated re-check of the no-shadowing/union finding at
+both posting and transaction level), `LK-COMPAT-QUERY-TAG-COMMODITY-
+001`, `LK-COMPAT-QUERY-TAG-ACCOUNTS-001` (the four-way visibility
+split confirmed on all four cells independently), and
+`LK-COMPAT-PARSER-TAG-COMMODITY-001`.
+
+**One real divergence found, not papered over**: `LK-COMPAT-QUERY-
+TAG-001`'s own claim that `tag:NAME=` (an empty value pattern)
+"correctly matches a tag with an empty value" is false against real
+hledger — hledger rejects an empty regex outright at parse time,
+while `ledgerkit.query.regex.compile_hledger_regex` compiles and
+matches it. Confirmed **not** `tag:`-specific — the same gap
+reproduces for `acct:`/`desc:` with an empty pattern, so this is a
+pre-existing latent divergence in the shared regex-compilation layer,
+newly surfaced by this phase's own more thorough differential testing
+of `tag:`, not something this phase's implementation introduced. Filed
+as `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` (`kind:
+unexplained_mismatch`); `LK-COMPAT-QUERY-TAG-001` itself correctly
+stays at `status: proposed` rather than being force-promoted, per
+§9.6's "do not paper over a failure" instruction — every other claim
+in that entry held up and is cited in its own updated `evidence:`
+block.
+
+`dev-docs/hledger-compatibility.md`'s `tag:` and `accounts tag:X` rows
+updated to cite `status: verified` and the new divergence. This phase
+is implementation-and-verification-complete; whether to fix the
+empty-regex divergence (and whether to also check it against `acct:`/
+`desc:`) is separate, unscoped follow-on work, not blocking this
+phase, and `[DONE]` remains the user's own call per the project's
+standing rule.

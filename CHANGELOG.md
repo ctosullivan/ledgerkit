@@ -9,6 +9,38 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 6 — independent verification] — 2026-09-25
+
+Full detail: [dev-docs/compat-register/](dev-docs/compat-register/) (six `LK-COMPAT-QUERY-TAG-*`/`LK-COMPAT-PARSER-TAG-COMMODITY-001` entries, plus `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md)'s addendum
+
+**Human:** approved the design (Option A, `accounts`-mode replication)
+and directed the implementation to proceed; the standing process
+requires a genuinely separate `compat-differential-tester` dispatch
+before any new compat-register entry is promoted to `verified` — that
+step was carried out this session.
+
+**Claude:** dispatched an independent `compat-differential-tester`
+(no access to the implementing session's own conversation) against the
+pinned hledger 1.52.4 binary, on freshly built fixtures. Five of six
+entries promoted to `status: verified`: `LK-COMPAT-QUERY-TAG-COMBINE-
+001`, `LK-COMPAT-QUERY-TAG-INHERIT-001` (re-confirming the no-
+shadowing/union precedence finding independently), `LK-COMPAT-QUERY-
+TAG-COMMODITY-001`, `LK-COMPAT-QUERY-TAG-ACCOUNTS-001` (all four
+visibility cells individually confirmed), and `LK-COMPAT-PARSER-TAG-
+COMMODITY-001`. Found one real divergence, not papered over: `tag:
+NAME=` (empty value pattern) is accepted and matches in Ledgerkit but
+rejected outright by real hledger at parse time — confirmed not `tag:`-
+specific (the same gap exists for `acct:`/`desc:`), root-caused to
+`ledgerkit.query.regex.compile_hledger_regex` not rejecting an empty
+pattern. Filed as `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`; `LK-COMPAT-
+QUERY-TAG-001` itself correctly left at `status: proposed` for this one
+false claim, with every other claim in it independently re-confirmed.
+Updated `dev-docs/hledger-compatibility.md`'s `tag:`/`accounts tag:X`
+rows and appended a dated addendum to the implementation retro. 827
+tests still passing (4 new fixtures added, no `ledgerkit/` source
+changed by this step). The empty-regex divergence is unscoped follow-on
+work, not blocking this phase.
+
 ### [Stage C Phase 6 — `tag:NAME[=REGEX]` query matching implemented] — 2026-09-25
 
 Full detail: [dev-docs/planning/core-redefinition/23-tag-query-matching-design.md](dev-docs/planning/core-redefinition/23-tag-query-matching-design.md), [dev-docs/planning/core-redefinition/24-tag-query-matching-implementation-plan.md](dev-docs/planning/core-redefinition/24-tag-query-matching-implementation-plan.md), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md)
