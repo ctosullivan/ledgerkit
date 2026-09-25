@@ -17,10 +17,9 @@ register file itself changing first; the two must always agree.
 
 ## Open entries
 
-_None currently open._ No `compat-differential-tester` differential run has
-taken place yet (Stage A closeout has produced `status: proposed` register
-entries only — see `README.md`) — this list will populate once Stage C
-onward starts running real fixtures against a pinned `hledger` binary.
+| ID | Area | Opened | Summary | Owner |
+|---|---|---|---|---|
+| `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` | query.tag.emptyvalue | 2026-09-25 | `tag:NAME=` (and any other empty-regex query value, e.g. `acct:`/`desc:`) errors (exit 1) on real hledger 1.52.4 but is accepted and matches "any value" on ledgerkit — found while independently re-verifying `LK-COMPAT-QUERY-TAG-001`, which incorrectly claimed the two were equivalent for this case | unassigned |
 
 ## Format, once entries exist
 

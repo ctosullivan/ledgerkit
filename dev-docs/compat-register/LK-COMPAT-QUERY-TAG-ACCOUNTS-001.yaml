@@ -63,7 +63,12 @@ reason: >
   either way, and `balance`/`register`/`print`/`stats` are completely
   unaffected by this wrapper's existence (confirmed by a named regression
   test asserting ordinary `matches_posting` still sees all four sources
-  on the exact same fixture).
+  on the exact same fixture). Independently re-confirmed this session
+  (compat-differential-tester) with a dedicated four-way fixture where
+  each of the four sources carries its own distinct tag name/value, and
+  additionally confirmed that `balance`/`register` (unlike `accounts`) DO
+  see posting-own and commodity-propagated tags on the identical fixture
+  -- see evidence.
 
 implementation:
   - ledgerkit/tags.py:_accounts_effective_tags
@@ -114,5 +119,31 @@ evidence:
       accounts()/CLI, not against the real hledger binary -- see status
       note below.
     pinned_at: "1.52.4-g33fa849e7-20260910"
+  - kind: executable
+    ref: >
+      compat-differential-tester independent re-check (2026-09-25), a
+      dispatch separate from the implementing session, on a freshly
+      constructed fixture (tests/fixtures/tags_verify_precedence.journal,
+      "owner" tag declared once per source with a distinct value: header
+      owner:txn, account owner:acct, posting owner:posting, commodity
+      owner:commodity). Ran `hledger -f
+      tests/fixtures/tags_verify_precedence.journal accounts tag:owner=X`
+      vs. `python -m ledgerkit -f tests/fixtures/tags_verify_precedence.journal
+      -q "tag:owner=X" accounts` for all four X values -- IDENTICAL
+      output in all four cases:
+        tag:owner=txn        -> assets:cash, equity:opening (VISIBLE, matches)
+        tag:owner=acct       -> assets:cash, assets:cash:till,
+                                 assets:cash:till:jar (VISIBLE, matches)
+        tag:owner=posting    -> empty on both (NOT VISIBLE, matches)
+        tag:owner=commodity  -> empty on both (NOT VISIBLE, matches)
+      Additionally confirmed the accounts-mode wrapper is NOT leaking
+      into other commands: `balance tag:owner=posting` (both tools)
+      correctly shows assets:cash $100.00, and `register
+      tag:owner=commodity` (both tools) correctly shows every $-commodity
+      posting -- i.e. `balance`/`register` see posting-own/commodity
+      tags that `accounts` alone hides.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 6 re-verification)"
+verified_date: "2026-09-25"

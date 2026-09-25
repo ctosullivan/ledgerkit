@@ -70,5 +70,29 @@ evidence:
       implementing session) did not itself re-run against the real
       hledger binary -- see status note below.
     pinned_at: "1.52.4-g33fa849e7-20260910"
+  - kind: executable
+    ref: >
+      compat-differential-tester independent re-check (2026-09-25), a
+      dispatch separate from the implementing session, on a freshly
+      constructed fixture (tests/fixtures/tags_verify_combine.journal:
+      txn 2024-03-01 has header tag alpha:x AND posting tag beta:y on
+      expenses:one; txn 2024-03-02 has only alpha:x; txn 2024-03-03 has
+      only beta:y on expenses:three). Ran as multi-argument hledger CLI
+      invocations (each query term its own argv item, matching hledger's
+      own positional-args convention) vs. ledgerkit's single `-q` string:
+      `hledger -f tests/fixtures/tags_verify_combine.journal print
+      tag:alpha tag:beta` -> only the 2024-03-01 transaction (AND
+      confirmed) -- identical to `python -m ledgerkit -f
+      tests/fixtures/tags_verify_combine.journal -q "tag:alpha tag:beta"
+      print`. Contrast: `acct:one acct:three` (both tools) correctly
+      OR-matched both the 2024-03-01 and 2024-03-03 transactions.
+      `not:tag:alpha` (both tools) correctly excluded both alpha-tagged
+      transactions, leaving only 2024-03-03. `tag:alpha acct:one`
+      (cross-prefix AND) and `not:tag:alpha tag:beta` (negated tag: AND'd
+      with a positive tag: term) also matched exactly between the two
+      tools. All five query shapes: exact match, no discrepancies.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 6 re-verification)"
+verified_date: "2026-09-25"

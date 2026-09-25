@@ -65,6 +65,8 @@ reason: >
   tag of the same name" describes something narrower than exclusion for
   query-matching purposes (per the design's own analysis, not
   investigated further since it doesn't change the matching contract).
+  Independently re-confirmed this session (compat-differential-tester)
+  on a from-scratch precedence fixture -- see evidence.
 
 implementation:
   - ledgerkit/tags.py:_commodity_tags, _posting_commodities, _effective_tags
@@ -115,5 +117,29 @@ evidence:
       implementing session) did not itself re-run against the real
       hledger binary -- see status note below.
     pinned_at: "1.52.4-g33fa849e7-20260910"
+  - kind: executable
+    ref: >
+      compat-differential-tester independent re-check (2026-09-25), a
+      dispatch separate from the implementing session, on
+      tests/fixtures/tags_verify_precedence.journal (see
+      LK-COMPAT-QUERY-TAG-INHERIT-001's evidence for the full fixture
+      description -- shared fixture, distinct query terms exercised
+      here). `tag:lvl=20` (commodity-propagated, declared once on
+      `commodity $`) matched EVERY posting in the journal at `balance`
+      level -- assets:cash, assets:cash:till, assets:cash:till:jar,
+      equity:opening, AND expenses:other (2024-04-15, an account with NO
+      declared account-level tag at all, isolating commodity propagation
+      from account inheritance) -- identically on both
+      `hledger -f tests/fixtures/tags_verify_precedence.journal balance
+      tag:lvl=20` and the ledgerkit equivalent. Also confirmed via
+      `tag:owner=commodity` (declared only on the commodity directive)
+      matching expenses:other identically on both tools. Non-shadowing
+      re-confirmed: the SAME 2024-04-01 assets:cash posting independently
+      matches tag:lvl=10 (its own), tag:lvl=20 (commodity), tag:lvl=30
+      (account), AND tag:lvl=40 (transaction header) on both tools -- no
+      value excludes any other.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 6 re-verification)"
+verified_date: "2026-09-25"

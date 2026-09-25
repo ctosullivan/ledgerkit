@@ -1,0 +1,17 @@
+; tags_verify_combine.journal
+; Independent compat-differential-tester fixture (LK-COMPAT-QUERY-TAG-COMBINE-001
+; re-verification). Two tag names ("alpha"/"beta") spread across postings and
+; headers so that a same-prefix tag: AND vs OR question is unambiguous, plus
+; an acct: contrast (which should OR) and a not:tag: negation.
+
+2024-03-01 Two tag posting  ; alpha:x
+    expenses:one               $10.00  ; beta:y
+    assets:checking           $-10.00
+
+2024-03-02 Only alpha  ; alpha:x
+    expenses:two                $5.00
+    assets:checking            $-5.00
+
+2024-03-03 Only beta
+    expenses:three               $7.00  ; beta:y
+    assets:checking             $-7.00

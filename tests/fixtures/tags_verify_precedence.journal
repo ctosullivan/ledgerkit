@@ -1,0 +1,50 @@
+; tags_verify_precedence.journal
+; Independent compat-differential-tester fixture (re-verifying
+; LK-COMPAT-QUERY-TAG-INHERIT-001, LK-COMPAT-QUERY-TAG-COMMODITY-001, and
+; LK-COMPAT-QUERY-TAG-ACCOUNTS-001) -- NOT derived from the implementing
+; session's own tests/fixtures/tags.journal (different account names, tag
+; names, and an added three-level grandchild-account case the original
+; fixture did not cover).
+;
+; "lvl" is declared with a DIFFERENT value at each of the four effective-tag
+; sources, on the SAME posting (2024-04-01's assets:cash posting), to test
+; the no-shadowing/union claim directly:
+;   posting-own (2024-04-01 assets:cash posting)         lvl:10
+;   commodity-propagated ($)                              lvl:20
+;   account-inherited (assets:cash, incl. all descendants) lvl:30
+;   transaction-header (2024-04-01's txn)                  lvl:40
+;   posting-own, sibling txn, same account                 lvl:50 (2024-04-05)
+;
+; "owner" is declared once per source (transaction/account/commodity) with a
+; distinct value, for the accounts four-way-visibility split.
+;
+; assets:cash:till:jar is a THREE-level-deep account, never itself declared
+; via an `account` directive, to test that account-tag inheritance walks the
+; full ancestor chain (not just the direct parent).
+
+account assets:cash  ; lvl:30, owner:acct
+    ; more:stuff
+
+account assets:cash:till
+
+commodity $  ; lvl:20, owner:commodity
+
+2024-04-01 Header transaction  ; lvl:40, owner:txn
+    assets:cash                $100.00  ; lvl:10, owner:posting
+    equity:opening             $-100.00
+
+2024-04-05 Sibling same account, different posting-own value, no header tag
+    assets:cash                 $15.00  ; lvl:50
+    equity:opening              $-15.00
+
+2024-04-10 Direct child account, no own tags at all
+    assets:cash:till              $7.00
+    equity:opening                $-7.00
+
+2024-04-15 Commodity-only posting, account with no declared account-level tag
+    expenses:other                $9.00
+    equity:opening                $-9.00
+
+2024-04-20 Grandchild account three levels down, never declared
+    assets:cash:till:jar           $3.00
+    equity:opening                 $-3.00

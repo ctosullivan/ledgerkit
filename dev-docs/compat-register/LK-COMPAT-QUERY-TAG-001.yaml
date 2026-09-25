@@ -5,6 +5,14 @@
 # name/value matching only -- inheritance/propagation/combination are
 # separate entries (LK-COMPAT-QUERY-TAG-INHERIT-001,
 # LK-COMPAT-QUERY-TAG-COMMODITY-001, LK-COMPAT-QUERY-TAG-COMBINE-001).
+#
+# NOT promoted to `verified` by compat-differential-tester's independent
+# re-check (2026-09-25): every claim held up EXCEPT the entry's own
+# `tag:NAME=` claim below, which live differential testing against the
+# pinned binary shows is FALSE -- see the added `executable` evidence
+# item and LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001 (filed this session).
+# Left at `status: proposed`, not reclassified or edited otherwise, per
+# 09-compatibility-system.md §9.6 ("do not paper over a failure").
 
 id: LK-COMPAT-QUERY-TAG-001
 area: query.tag
@@ -38,7 +46,9 @@ reason: >
   Value-containing-`=` is preserved correctly: `tag:rate==0.05` (a tag
   literally named "rate" with value "=0.05") keeps everything after the
   first `=` as the value pattern, since `str.partition` splits on only the
-  first occurrence -- confirmed by a named regression test.
+  first occurrence -- confirmed by a named regression test, and
+  independently re-confirmed live against the pinned binary this session
+  (see evidence).
 
   Empty-value matching is ordinary regex behaviour, not special-cased:
   `tag:NAME` (bare) produces `value_pattern=None` ("any value, including
@@ -46,6 +56,21 @@ reason: >
   which also matches via `.search()` since an empty regex matches
   anywhere) -- both correctly match a tag with an empty value, without
   any dedicated empty-value code path.
+
+  *** COMPAT-DIFFERENTIAL-TESTER CORRECTION (2026-09-25): the paragraph
+  above is WRONG for the `tag:NAME=` half. Live testing against the
+  pinned 1.52.4 binary shows hledger REJECTS an empty regex pattern
+  outright (`tag:blank=` -> parse-time error, exit 1) -- it does not
+  treat it as "matches any value including empty." Ledgerkit's
+  `compile_hledger_regex("")` compiles successfully and matches via
+  `.search()`, so Ledgerkit accepts and matches an input hledger itself
+  rejects. This is a real, confirmed behavioural divergence for this one
+  input shape, not merely an inaccurate description of otherwise-correct
+  behaviour -- see LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001 (filed this
+  session) and the added `executable` evidence item below. Every other
+  claim in this entry (bare `tag:NAME` any-value matching, value
+  discrimination, case-insensitivity, first-`=`-split preservation,
+  malformed-regex rejection) was independently re-confirmed and holds. ***
 
 implementation:
   - ledgerkit/query/ast.py:Tag
@@ -78,5 +103,29 @@ evidence:
       implementing session) did not itself re-run against the real
       hledger binary -- see status note below.
     pinned_at: "1.52.4-g33fa849e7-20260910"
+  - kind: executable
+    ref: >
+      compat-differential-tester independent re-check (2026-09-25), a
+      dispatch separate from the implementing session, on a freshly
+      constructed fixture (tests/fixtures/tags_verify_basic.journal, not
+      derived from any fixture the implementing session left behind):
+      `hledger -f tests/fixtures/tags_verify_basic.journal print
+      tag:type` / `tag:type=food` / `tag:type=auto` / `tag:nonexistent` /
+      `tag:project=kitchen` / `tag:blank` / `tag:notes` /
+      `tag:formula==0.05` / `tag:TYPE=FOOD` / `tag:TYPE=Food` vs.
+      `python -m ledgerkit -f tests/fixtures/tags_verify_basic.journal -q
+      "<same>" print` -- identical selected-transaction sets in every
+      case (case-insensitivity, first-'='-split-with-literal-'='-in-value,
+      and bare-name-any-value all confirmed equivalent). Malformed-regex
+      rejection also confirmed equivalent: `tag:(` and `tag:foo=(` both
+      exit 1 on both tools. BUT `tag:blank=` and `tag:type=` (empty value
+      pattern) diverge: hledger exits 1
+      ("Error: This regular expression is invalid or unsupported"), while
+      ledgerkit exits 0 and matches -- confirmed not tag:-specific (same
+      divergence reproduced with `acct:` and `desc:`, bare, on the same
+      fixture). See LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001 for the full
+      writeup. This is why this entry remains `status: proposed`, not
+      `verified`, despite every other claim holding up.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
 status: proposed

@@ -65,7 +65,11 @@ reason: >
   commodity-propagated, see the sibling entry) tags, with NO shadowing/
   exclusion logic whatsoever -- the executable result, not the manual's
   prose, is the basis for this classification, per the design's own
-  governing instruction.
+  governing instruction. Independently re-confirmed this session
+  (compat-differential-tester) on a from-scratch precedence fixture: all
+  four cells of the non-shadowing matrix matched hledger exactly, at both
+  posting level (`balance`) and transaction level (`print`) -- see
+  evidence.
 
 implementation:
   - ledgerkit/tags.py:_inherited_account_tags, _effective_tags
@@ -113,5 +117,39 @@ evidence:
       implementing session) did not itself re-run against the real
       hledger binary -- see status note below.
     pinned_at: "1.52.4-g33fa849e7-20260910"
+  - kind: executable
+    ref: >
+      compat-differential-tester independent re-check (2026-09-25), a
+      dispatch separate from the implementing session, on a freshly
+      constructed fixture (tests/fixtures/tags_verify_precedence.journal,
+      not derived from tests/fixtures/tags.journal -- different account
+      names (assets:cash/assets:cash:till/assets:cash:till:jar), tag
+      names ("lvl"/"owner"), and an added THREE-level grandchild account
+      (assets:cash:till:jar, never itself declared via an `account`
+      directive) to test ancestor-chain walking beyond the direct parent).
+      `lvl` is declared with a DIFFERENT value at each of five sources on
+      overlapping postings: posting-own lvl:10 (2024-04-01 assets:cash),
+      commodity-propagated lvl:20 ($), account-inherited lvl:30
+      (assets:cash + descendants), transaction-header lvl:40 (2024-04-01),
+      sibling posting-own lvl:50 (2024-04-05, same account). Ran
+      `hledger -f tests/fixtures/tags_verify_precedence.journal balance
+      tag:lvl=N` and `... print tag:lvl=N` for N in {10,20,30,40,50}
+      against the equivalent `python -m ledgerkit ... -q "tag:lvl=N"
+      balance`/`print` -- IDENTICAL matched accounts/amounts (balance)
+      and IDENTICAL matched transactions (print) for every N, at both
+      posting and transaction level. Confirms: (a) the no-shadowing
+      claim directly -- lvl=10/20/30/40 all independently match the SAME
+      2024-04-01 assets:cash posting/transaction, none excluded by
+      another; (b) Rule A/ancestor-walking -- `tag:owner=acct` matched
+      assets:cash, assets:cash:till, AND assets:cash:till:jar (the
+      undeclared grandchild) identically on both tools; (c) Rule B -- the
+      2024-04-10 posting (no comment of its own) matches tag:lvl=30
+      (account-inherited) on both tools; (d) Rule C/D -- tag:lvl=40
+      (transaction-header-only) matches BOTH postings of its transaction
+      (including equity:opening, which has no comment of its own) on
+      both tools, at posting level too, not just transaction level.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 6 re-verification)"
+verified_date: "2026-09-25"

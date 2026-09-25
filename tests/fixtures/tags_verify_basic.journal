@@ -1,0 +1,19 @@
+; tags_verify_basic.journal
+; Independent compat-differential-tester fixture (LK-COMPAT-QUERY-TAG-001
+; re-verification) -- NOT derived from the implementing session's own
+; tests/fixtures/tags.journal. Exercises: bare tag:NAME (any value incl.
+; empty), tag:NAME=REGEX value discrimination, tag whose value itself
+; contains a literal '=' (first-'=' split), case-insensitivity, and a
+; malformed-regex query term.
+
+2024-01-01 Grocery shopping  ; type:food, notes
+    expenses:food:groceries   $50.00  ; project:kitchen, blank:
+    assets:checking          $-50.00
+
+2024-01-02 Gas station  ; type:auto
+    expenses:auto:fuel        $40.00  ; project:roadtrip
+    assets:checking          $-40.00
+
+2024-02-01 Equals sign inside tag value
+    expenses:misc              $5.00  ; formula:=0.05
+    assets:checking           $-5.00

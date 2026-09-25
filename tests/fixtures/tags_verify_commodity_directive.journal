@@ -1,0 +1,13 @@
+; tags_verify_commodity_directive.journal
+; Independent compat-differential-tester fixture (re-verifying
+; LK-COMPAT-PARSER-TAG-COMMODITY-001's specific claim: a `commodity`
+; directive's SAME-LINE comment tags and its indented FOLLOW-ON `;`
+; comment-line tags are both captured and both propagate to postings
+; using that commodity).
+
+commodity $  ; sameline:yes
+    ; followon:yes
+
+2024-05-01 Euro purchase
+    expenses:books                $12.00
+    assets:eurobank               $-12.00

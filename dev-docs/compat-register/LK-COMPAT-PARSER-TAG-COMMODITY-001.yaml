@@ -52,6 +52,18 @@ reason: >
   merge behaviour for a repeated `account` directive (confirmed by a
   named regression test, not assumed).
 
+  This entry's original evidence was a Ledgerkit-only internal-state
+  check (no differential run against the real binary), which the schema
+  requires before `status` can move past `proposed`
+  (`schema.md`'s evidence field notes) -- compat-differential-tester
+  supplied that missing executable evidence this session, via the
+  observable effect (tag: query matching against postings using that
+  commodity), since hledger has no direct way to print its internal
+  `jdeclaredcommoditytags` map for a byte-for-byte structural comparison.
+  Both same-line and indented follow-on commodity-directive comment tags
+  were confirmed captured and propagating identically to hledger -- see
+  evidence.
+
 implementation:
   - ledgerkit/parser.py (commodity directive handling; commodity_comment_target)
   - ledgerkit/models.py:Journal.declared_commodity_tags
@@ -77,5 +89,32 @@ evidence:
       a differential run against the real hledger binary -- see status
       note below.
     pinned_at: "n/a (Ledgerkit-only check, this session)"
+  - kind: executable
+    ref: >
+      compat-differential-tester independent re-check (2026-09-25), a
+      dispatch separate from the implementing session, on a freshly
+      constructed fixture
+      (tests/fixtures/tags_verify_commodity_directive.journal):
+        commodity $  ; sameline:yes
+            ; followon:yes
+        2024-05-01 Euro purchase
+            expenses:books                $12.00
+            assets:eurobank               $-12.00
+      Both tools parse the file cleanly (exit 0). `hledger -f
+      tests/fixtures/tags_verify_commodity_directive.journal balance
+      tag:sameline=yes` and `... tag:followon=yes` each show both
+      postings (EUR -12.00/12.00 -- both use commodity $), identically to
+      `python -m ledgerkit -f
+      tests/fixtures/tags_verify_commodity_directive.journal -q
+      "tag:sameline=yes" balance` / `-q "tag:followon=yes" balance` --
+      confirming BOTH the same-line comment tag ("sameline") AND the
+      indented follow-on comment-line tag ("followon") on a `commodity`
+      directive are captured and propagate to postings using that
+      commodity, matching hledger exactly (observed via the query-time
+      effect, since hledger exposes no direct dump of
+      `jdeclaredcommoditytags` for a structural diff).
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 6 re-verification)"
+verified_date: "2026-09-25"
