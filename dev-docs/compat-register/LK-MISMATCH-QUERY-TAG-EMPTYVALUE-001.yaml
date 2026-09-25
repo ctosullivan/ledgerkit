@@ -1,3 +1,11 @@
+# RESOLVED, Stage C Phase 7 (2026-09-25) -- see resolved_into: below.
+# This entry is RETAINED, UNCHANGED except for the resolved_into/
+# resolved_date fields, as the historical record of what was originally
+# observed. Current behaviour is documented in the new entry it points
+# to, not here. See dev-docs/compat-register/schema.md's "Resolution
+# lifecycle" section for why this is a new entry + back-link rather than
+# an in-place kind: edit.
+#
 # Filed by compat-differential-tester during independent re-verification
 # of LK-COMPAT-QUERY-TAG-001 (Stage C Phase 6 tag: query matching,
 # dispatched separately from the implementing session per
@@ -100,6 +108,43 @@ evidence:
       -- a pre-implementation research note, not itself a register entry.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
+  - kind: executable
+    ref: >
+      Independent post-fix re-verification (2026-09-25, Stage C Phase 7,
+      genuinely separate compat-differential-tester dispatch from the
+      implementing session, per 09-compatibility-system.md §9.6): on a
+      freshly built fixture (`tests/fixtures/
+      query_regex_emptypattern_phase7_verify.journal`, independent of both
+      prior fixtures used for this entry), confirmed
+      `ledgerkit/query/regex.py::validate_hledger_regex`'s new `pattern ==
+      ""` check (26-query-regex-empty-pattern-design.md) now agrees with
+      real hledger 1.52.4 for every case in the matrix: `acct:`, `desc:`,
+      `tag:kind=`, `tag:blank=`, bare `tag:`, `depth:=2`, and each under
+      `not:` wrapping -- all reject on BOTH tools (hledger: exit 1,
+      `This regular expression is invalid or unsupported...`; ledgerkit:
+      exit 1, `ledgerkit: invalid query: <prefix>: pattern must not be
+      empty (hledger rejects an empty regex at parse time)`, message text
+      not required to match, only the reject/accept verdict). Confirmed
+      `validate_hledger_regex("")`'s raw message (checked directly via
+      Python, not just through the CLI wrapper) is fully generic with no
+      `tag:`-specific wording, matching the design's corrected §5. Also
+      confirmed the narrow-vs-broad scoping did not overshoot: `acct:.*`,
+      `acct:a*`, `acct:^$`, `acct:()` are all still accepted (exit 0) by
+      BOTH tools, with matching selected-transaction sets. Full test
+      suite (844 tests) passes post-fix. This independently confirms
+      `LK-COMPAT-QUERY-TAG-001`'s original `tag:NAME=` claim ("matches an
+      empty value") is false in both directions were it re-asserted
+      today: both hledger and ledgerkit now reject, so the two tools
+      genuinely agree (kind: compatible would be correct), not merely
+      that ledgerkit changed in isolation. This entry itself is NOT
+      edited to `resolved_into`/kind flip by this dispatch -- per
+      schema.md's Resolution lifecycle section, that is the lead's
+      follow-up action once this evidence is reviewed.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
 status: verified
 verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 6 re-verification)"
 verified_date: "2026-09-25"
+
+resolved_into: LK-COMPAT-QUERY-TAG-EMPTYVALUE-001
+resolved_date: "2026-09-25"

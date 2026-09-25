@@ -1,0 +1,25 @@
+; Fixture built independently by compat-differential-tester for the Stage C
+; Phase 7 post-implementation independent re-verification dispatch
+; (dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md,
+; resolving dev-docs/compat-register/LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001).
+;
+; Deliberately NOT reused from tests/fixtures/query_regex_empty_pattern_matrix
+; .journal or tests/fixtures/tags_verify_basic.journal, per this dispatch's
+; explicit instruction to re-derive fixtures independently rather than share
+; the implementing/research sessions' own fixtures. Three transactions, one
+; posting-comment tag with an empty value (blank:) and one with a non-empty
+; value (kind:), distinct account and description text so every query-term
+; prefix below has something real to (not) match.
+
+2024-05-01 Hardware Store
+    ; kind:tools, blank:
+    expenses:home:hardware     $22.00
+    assets:checking
+
+2024-05-02 Bakery Run
+    expenses:food:bakery        $6.75
+    assets:checking
+
+2024-05-03 Online Course
+    expenses:education:course  $99.00
+    assets:checking

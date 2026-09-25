@@ -9,6 +9,36 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 7 — independent verification and register resolution] — 2026-09-25
+
+Full detail: [dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-IMPLEMENTATION.md)'s addendum
+
+**Human:** directed independent verification (a genuinely separate
+`compat-differential-tester` dispatch) before any compat-register
+promotion, then resolution of `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`
+through the new lifecycle mechanism once that verification confirmed
+the fix.
+
+**Claude:** dispatched an independent `compat-differential-tester`
+(fresh fixture, no access to the implementing session's own
+conversation); it confirmed the fix precisely — `acct:`/`desc:`/bare
+`tag:`/`tag:NAME=`/`depth:=N` all now reject identically on both
+hledger and ledgerkit, including under `not:` wrapping, with no
+overshoot (`.*`/`a*`/`^$`/`()` confirmed still accepted by both) and a
+confirmed-generic error message. Exercised the new resolution-lifecycle
+mechanism for the first time: created `LK-COMPAT-QUERY-TAG-EMPTYVALUE-
+001` (`kind: compatible`, `status: verified`, `resolves:` back-link);
+retained `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` untouched except for a
+new `resolved_into:`/`resolved_date:` pair; moved its row in
+`UNEXPLAINED.md` from "Open entries" to "Resolved entries". Corrected
+`LK-COMPAT-QUERY-TAG-001`'s own false `tag:NAME=` claim in place and
+promoted it to `status: verified`. Added evidence notes (no status
+change) to `LK-COMPAT-QUERY-ACCT-001`/`DESC-001`/`DEPTH-001` for their
+own empty-pattern slice. `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`
+untouched, still open, still out of scope. `dev-docs/hledger-
+compatibility.md` updated. Phase 7 is now implementation-and-
+verification-complete; `[DONE]` remains the user's own call.
+
 ### [Stage C Phase 7 — implemented, independent verification pending] — 2026-09-25
 
 Full detail: [dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-IMPLEMENTATION.md)

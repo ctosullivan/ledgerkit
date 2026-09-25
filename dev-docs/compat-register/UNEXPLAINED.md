@@ -26,16 +26,16 @@ files themselves changing first; the two must always agree.
 
 | ID | Area | Opened | Summary | Owner |
 |---|---|---|---|---|
-| `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` | query.tag.emptyvalue | 2026-09-25 | `tag:NAME=` (and any other empty-regex query value, e.g. `acct:`/`desc:`) errors (exit 1) on real hledger 1.52.4 but is accepted and matches "any value" on ledgerkit — found while independently re-verifying `LK-COMPAT-QUERY-TAG-001`, which incorrectly claimed the two were equivalent for this case | Stage C Phase 7 (fix implemented, awaiting independent differential verification) |
 | `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` | query.regex.emptyalternation | 2026-09-25 | Empty-alternation-branch regex syntax (`(|)`, confirmed both sides; `a\|`/`\|a`/`(a\|)`/`(\|a)`, hledger-side only confirmed) errors on real hledger 1.52.4 but `(|)` at least is accepted by ledgerkit — found as a related-but-separate observation while scoping `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`; explicitly out of Stage C Phase 7's own scope | unassigned |
 
 ## Resolved entries
 
 Moved here (not deleted) once independently verified and superseded by
-a new, settled-state entry — see the paragraph above. Empty so far.
+a new, settled-state entry — see the paragraph above.
 
 | Original ID | Resolved into | Resolved | Summary |
 |---|---|---|---|
+| `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` | `LK-COMPAT-QUERY-TAG-EMPTYVALUE-001` | 2026-09-25 | Stage C Phase 7: `ledgerkit.query.regex.validate_hledger_regex` now rejects an empty pattern (`pattern == ""`), matching real hledger's own parse-time rejection for `acct:`/`desc:`/`tag:NAME=`/`depth:=N` alike — independently verified by a genuinely separate `compat-differential-tester` dispatch |
 
 ## Format, once entries exist
 

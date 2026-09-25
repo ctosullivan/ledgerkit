@@ -9,10 +9,20 @@
 # NOT promoted to `verified` by compat-differential-tester's independent
 # re-check (2026-09-25): every claim held up EXCEPT the entry's own
 # `tag:NAME=` claim below, which live differential testing against the
-# pinned binary shows is FALSE -- see the added `executable` evidence
-# item and LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001 (filed this session).
-# Left at `status: proposed`, not reclassified or edited otherwise, per
-# 09-compatibility-system.md §9.6 ("do not paper over a failure").
+# pinned binary showed was FALSE -- see LK-MISMATCH-QUERY-TAG-EMPTYVALUE-
+# 001 (filed same day). Left at `status: proposed`, not reclassified or
+# edited otherwise, per 09-compatibility-system.md §9.6 ("do not paper
+# over a failure").
+#
+# RESOLVED, Stage C Phase 7 (2026-09-25, same day, later): the false
+# claim is corrected below (`tag:NAME=` now correctly documented as
+# rejected, matching hledger) and a genuinely separate
+# compat-differential-tester dispatch independently confirmed the fix.
+# Promoted to `status: verified`. See LK-COMPAT-QUERY-TAG-EMPTYVALUE-001
+# (new entry, resolves the mismatch via the register's resolution-
+# lifecycle mechanism, dev-docs/compat-register/schema.md) for the
+# empty-value-specific record; this entry's own correction below is
+# scoped to `tag:NAME=`'s general matching claim.
 
 id: LK-COMPAT-QUERY-TAG-001
 area: query.tag
@@ -50,27 +60,31 @@ reason: >
   independently re-confirmed live against the pinned binary this session
   (see evidence).
 
-  Empty-value matching is ordinary regex behaviour, not special-cased:
-  `tag:NAME` (bare) produces `value_pattern=None` ("any value, including
-  empty"); `tag:NAME=` produces `value_pattern=""` (a real empty pattern,
-  which also matches via `.search()` since an empty regex matches
-  anywhere) -- both correctly match a tag with an empty value, without
-  any dedicated empty-value code path.
+  **Corrected, Stage C Phase 7 (2026-09-25) — this paragraph originally
+  claimed `tag:NAME=` (empty value) matches a tag with an empty value;
+  that claim was FALSE and is superseded here, not merely annotated.**
+  `tag:NAME` (bare, no `=` at all) produces `value_pattern=None` ("any
+  value, including empty") — this half was always correct and remains
+  unchanged: bare `tag:NAME` still matches an empty-valued tag exactly
+  as described. `tag:NAME=` (an explicit, empty value pattern) is now
+  correctly documented as **rejected**: `ledgerkit.query.regex.
+  validate_hledger_regex("")` raises `UnsupportedRegexConstructError` at
+  parse time (`26-query-regex-empty-pattern-design.md`), matching real
+  hledger's own parse-time rejection of an empty regex — a genuine
+  behaviour change from Stage C Phase 6 (breaking, not backward-
+  compatible; `dev-docs/versioning.md`), not merely a documentation fix.
+  If a tag's empty value needs matching, use bare `tag:NAME`, which
+  already covers it — `tag:NAME=` is no longer a second way to express
+  the same query, it is now a parse error.
 
-  *** COMPAT-DIFFERENTIAL-TESTER CORRECTION (2026-09-25): the paragraph
-  above is WRONG for the `tag:NAME=` half. Live testing against the
-  pinned 1.52.4 binary shows hledger REJECTS an empty regex pattern
-  outright (`tag:blank=` -> parse-time error, exit 1) -- it does not
-  treat it as "matches any value including empty." Ledgerkit's
-  `compile_hledger_regex("")` compiles successfully and matches via
-  `.search()`, so Ledgerkit accepts and matches an input hledger itself
-  rejects. This is a real, confirmed behavioural divergence for this one
-  input shape, not merely an inaccurate description of otherwise-correct
-  behaviour -- see LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001 (filed this
-  session) and the added `executable` evidence item below. Every other
-  claim in this entry (bare `tag:NAME` any-value matching, value
-  discrimination, case-insensitivity, first-`=`-split preservation,
-  malformed-regex rejection) was independently re-confirmed and holds. ***
+  **History, retained**: live differential testing (2026-09-25) first
+  found the above paragraph's original claim false — hledger rejects an
+  empty regex pattern outright (`tag:blank=` → parse-time error, exit
+  1), Ledgerkit at the time accepted and matched it. Filed as
+  `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`. Every other claim in this
+  entry (bare `tag:NAME` any-value matching, value discrimination,
+  case-insensitivity, first-`=`-split preservation, malformed-regex
+  rejection) held up throughout and remains correct.
 
 implementation:
   - ledgerkit/query/ast.py:Tag
@@ -118,14 +132,29 @@ evidence:
       case (case-insensitivity, first-'='-split-with-literal-'='-in-value,
       and bare-name-any-value all confirmed equivalent). Malformed-regex
       rejection also confirmed equivalent: `tag:(` and `tag:foo=(` both
-      exit 1 on both tools. BUT `tag:blank=` and `tag:type=` (empty value
-      pattern) diverge: hledger exits 1
+      exit 1 on both tools. AT THE TIME, `tag:blank=` and `tag:type=`
+      (empty value pattern) diverged: hledger exited 1
       ("Error: This regular expression is invalid or unsupported"), while
-      ledgerkit exits 0 and matches -- confirmed not tag:-specific (same
+      ledgerkit exited 0 and matched -- confirmed not tag:-specific (same
       divergence reproduced with `acct:` and `desc:`, bare, on the same
-      fixture). See LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001 for the full
-      writeup. This is why this entry remains `status: proposed`, not
-      `verified`, despite every other claim holding up.
+      fixture). See LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001 for the original
+      finding and its subsequent resolution.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+  - kind: executable
+    ref: >
+      Stage C Phase 7 fix (dev-docs/planning/core-redefinition/26-query-
+      regex-empty-pattern-design.md) and its independent verification
+      (2026-09-25, a genuinely separate compat-differential-tester
+      dispatch from the implementing session): `tag:NAME=` (any NAME,
+      empty value) now rejects on BOTH hledger and ledgerkit -- the two
+      tools genuinely agree, resolving the divergence the prior evidence
+      item found. Confirmed on a fresh, independent fixture (`tests/
+      fixtures/query_regex_emptypattern_phase7_verify.journal`); full
+      844-test suite passes. See LK-COMPAT-QUERY-TAG-EMPTYVALUE-001 (new
+      entry resolving LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001) for the
+      empty-value-specific record.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
-status: proposed
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 7 empty-regex-pattern verification)"
+verified_date: "2026-09-25"

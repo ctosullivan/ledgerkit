@@ -151,3 +151,38 @@ One continuous implementation session, no sub-agent dispatches for the
 code itself. Proportionate to the fix's small size — the bulk of the
 effort was the compat-register schema/process amendment (general-
 purpose, not phase-specific) rather than the one-check code fix.
+
+## Addendum (2026-09-25, same day) — independent verification and register resolution
+
+A genuinely separate `compat-differential-tester` dispatch (Step 6,
+`09-compatibility-system.md` §9.6) independently re-verified the fix on
+a fresh fixture (`tests/fixtures/query_regex_emptypattern_phase7_verify.
+journal`), confirming exactly what the original research matrix
+predicted, with no discrepancy found: `acct:`/`desc:`/bare `tag:`/
+`tag:NAME=`/`depth:=N` all now reject on both hledger and ledgerkit
+(including under `not:` wrapping, rejecting at parse time before
+negation); the narrow-vs-broad scoping did not overshoot (`.*`/`a*`/
+`^$`/`()` confirmed still accepted by both tools); the error message is
+confirmed generic with no `tag:`-specific leakage (checked directly via
+Python, not just through the CLI wrapper). Full 844-test suite
+reconfirmed passing.
+
+The register's new resolution-lifecycle mechanism was then exercised
+for the first time (its intended purpose): `LK-COMPAT-QUERY-TAG-
+EMPTYVALUE-001` created (`kind: compatible`, `status: verified`,
+`resolves: LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`); the original mismatch
+entry retained untouched except for a new `resolved_into`/
+`resolved_date` pair; `UNEXPLAINED.md`'s row moved from "Open entries"
+to "Resolved entries". `LK-COMPAT-QUERY-TAG-001`'s own false `tag:NAME=`
+claim corrected in place (not renamed — it was always `kind: compatible`,
+only one sub-claim was wrong) and promoted to `status: verified`.
+`LK-COMPAT-QUERY-ACCT-001`/`DESC-001`/`DEPTH-001` each gained a new
+evidence item citing the same independent verification for their own
+empty-pattern slice, without a status change (their broader claims
+weren't re-verified in full this dispatch). `LK-MISMATCH-QUERY-REGEX-
+EMPTYALT-001` untouched throughout, as planned.
+
+`dev-docs/hledger-compatibility.md`'s `tag:` row updated to cite the
+completed independent verification and resolution. This phase is now
+implementation-and-verification-complete; whether to mark it `[DONE]`
+remains the user's own call, never inferred here.
