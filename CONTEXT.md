@@ -1,78 +1,107 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C Phase 6 (`tag:` query-term matching) — a small final correction
-pass on the design document (not a redesign): fixed `accounts tag:X`
-visibility (a four-way split, not the prior amendment's incomplete
-three-way one), clarified transaction-level matching's rule, fixed a
-real Python error in the evaluator-API wording, and resolved the
-commodity-tag substrate's scope as in-phase. **Still stopped for the
-mandatory human design-review gate.** No implementation has begun.
+Stage C Phase 6 (`tag:NAME[=REGEX]` query-term matching) — **implementation
+complete**, by a fresh coding agent (Step 6 of the design → plan →
+implement → verify process), per the already-approved design
+(`23-tag-query-matching-design.md`, §17: Option A, `accounts`-mode
+replication) and implementation plan
+(`24-tag-query-matching-implementation-plan.md`, evaluator-API shape
+`journal: Journal | None = None`). **Next required step is independent
+verification** — a genuinely separate `compat-differential-tester`
+dispatch (Stage C Phase 5's own verification-independence process,
+`09-compatibility-system.md` §9.6) — **not performed by this session**.
 
 ## Where We Are
-Corrected design document: `dev-docs/planning/core-redefinition/
-23-tag-query-matching-design.md` — §17 now lists **two** open items
-(down from five). A second dated addendum was appended to the existing
-planning retro (`dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md`,
-original content and first addendum both untouched). `ROADMAP.md`/
-`CHANGELOG.md` updated. About to commit + push, then present a concise
-summary and wait — do NOT proceed to Step 4 or any code change until
-explicit approval arrives.
+Both implementation commits are made, about to be pushed (end of this
+phase, per the project's standing Commit & Push Cadence rule):
+`0523426` (core: commodity-tag substrate, `ledgerkit/tags.py` private
+helpers, `Tag` AST node, parser rule, evaluator branches + `journal`
+param, `accounts`-mode dispatch, doc sync) and `fa05bbc` (integration:
+`tests/fixtures/tags.journal`, `TestQueryAstTagIntegration`,
+`TestTagQueryFlag`, 6 compat-register entries at `status: proposed`,
+this phase's implementation retro). Full test suite: 827 tests, all
+passing (746 before this phase, 81 new). Awaiting the next agent
+dispatch (`compat-differential-tester`) to run a real differential
+comparison against the pinned hledger 1.52.4 binary and promote the six
+`status: proposed` entries to `verified` (or file a mismatch) — do NOT
+self-promote any of them in a future session either; that promotion may
+only come from that agent's own separately-dispatched output.
 
 ## Decisions In Flight
-- **§9.1: inheritance scope** — Option A (complete, four sources) vs.
-  Option B (own-tags-only, disclosed divergence). Lead recommends A.
-  **Not decided.**
-- **§9.2: `accounts` command mode** — replicate hledger's mode
-  (transaction-level + account-inherited visible; posting-own +
-  commodity-propagated not — the corrected four-way split) vs. uniform
-  matching. Lead recommends replication. **Not decided.**
-- Resolved this pass, no longer open: §9.1's evaluator-API shape
-  (candidates named, none chosen — implementation-planning-stage
-  choice, not a blocking gate); commodity-tag substrate scope (in this
-  phase, not a prerequisite sub-phase); §9.3 helper visibility
-  (private by default).
+All resolved this session, recorded in `knowledge/DECISIONS.md`
+(2026-09-25 entries):
+- **Option A** (complete four-source effective-tag semantics) implemented
+  in full, not Option B (own-tags-only subset).
+- **Evaluator API shape**: `journal: Journal | None = None` on
+  `matches_transaction`/`matches_posting` — a real default; `Tag`
+  evaluated with `journal=None` raises `ValueError`.
+- **`accounts` command mode**: replicates hledger's own narrower
+  visibility (transaction-level + account-inherited visible; posting-own
+  + commodity-propagated not) via a private
+  `_matches_posting_for_accounts` dispatch — not uniform matching.
+- **Judgment call** (not pre-resolved by either document): the fourth new
+  `ledgerkit/tags.py` helper is named `_effective_tags` (private, leading
+  underscore), not the unprefixed `effective_tags` the implementation
+  plan's own code sample literally showed — resolved per the design's
+  own §9.3 text ("keep ALL new helpers private"), which the plan's
+  header text agrees with even though its code sample didn't. Flagged in
+  the phase retro, not silently decided.
 
 ## Files Currently Relevant
-- `dev-docs/planning/core-redefinition/23-tag-query-matching-design.md`
-  — §2.5 (corrected `accounts` four-way visibility), §6 (transaction-
-  matching rule), §9.1 (evaluator API + commodity scope, both
-  corrected/resolved), §9.2 (accounts recommendation), §17 (current,
-  shorter approval list).
-- `dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md` — original retro
-  plus two dated addenda (first: commodity-tag propagation; second:
-  this correction pass).
-- `hledger-lib/Hledger/Data/Posting.hs:443-444` —
-  `transactionAllTags t = ttags t ++ concatMap ptags (tpostings t)`,
-  the exact source for §6's corrected transaction-matching rule.
+- `dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md` — this
+  phase's full retro (what shipped, what worked, the one judgment call).
+- `dev-docs/compat-register/LK-COMPAT-QUERY-TAG-001.yaml`,
+  `-COMBINE-001`, `-INHERIT-001`, `-COMMODITY-001`,
+  `LK-COMPAT-PARSER-TAG-COMMODITY-001`, `-ACCOUNTS-001` — all
+  `status: proposed`; the next agent's actual work list.
+- `tests/fixtures/tags.journal` — the precedence-matrix fixture a
+  `compat-differential-tester` dispatch should extend or reuse directly
+  against the real hledger binary, per its own header comment.
+- `ledgerkit/tags.py` (`_inherited_account_tags`, `_commodity_tags`,
+  `_posting_commodities`, `_effective_tags`, `_accounts_effective_tags`),
+  `ledgerkit/query/eval.py` (`journal` param, `_matches_posting_impl`,
+  `_matches_posting_for_accounts`), `ledgerkit/query/ast.py` (`Tag`),
+  `ledgerkit/query/parser.py` (`_build_tag`), `ledgerkit/parser.py`
+  (`commodity_comment_target`), `ledgerkit/models.py`
+  (`declared_commodity_tags`) — the real implementation, for whoever
+  reviews it next.
 
 ## Blockers / Open Questions
-Two items in the amended §17 — see "Decisions In Flight" above. Nothing
-else blocking.
+None blocking further Ledgerkit work in general. The one open item is
+process-sequential, not a decision: independent `compat-differential-
+tester` verification of the six new `status: proposed` entries has not
+happened yet. Until it does, `tag:` should be treated as "implemented,
+not yet independently confirmed compatible" — accurate per
+`dev-docs/hledger-compatibility.md`'s own wording, which already says
+exactly this.
 
 ## What NOT To Revisit
-- Don't re-derive `accounts tag:X`'s visibility rule — now confirmed,
-  three verification passes deep, as: transaction-level and account-
-  inherited tags visible; posting-own and commodity-propagated tags
-  not. This took three passes to get right; treat it as settled unless
-  new evidence contradicts it.
-- Don't reintroduce "keyword-only parameter with no default" as a
-  backward-compatible evaluator-API shape — it is a real Python error
-  (such a parameter is still mandatory on every call). The corrected
-  candidates are `journal: Journal | None = None`, a context object, or
-  pre-materialized storage.
-- Don't re-open the commodity-tag substrate's scope question — resolved
-  this pass, in scope for this phase, not a prerequisite sub-phase.
-- Don't silently pick Option A/B (§9.1) or a mode for §9.2 and proceed —
-  both remain explicit, named human-decision gates.
-- Don't treat any of these corrections as implementation defects — no
-  `ledgerkit/`/`tests/` code exists yet; all three correction passes so
-  far have been design-review corrections, caught exactly where this
-  process's own gate exists to catch them.
+- Don't re-litigate Option A vs. B, the evaluator-API shape, or the
+  `accounts`-mode decision — all three are closed, implemented, and
+  recorded in `knowledge/DECISIONS.md`.
+- Don't implement shadowing/exclusion logic into `_effective_tags` "to
+  match the manual's override wording more literally" — this was
+  deliberately rejected; the manual's prose is not the compatibility
+  basis here, the pinned binary's executable behaviour is (design §2.7,
+  `knowledge/DOMAIN_RULES.md`'s tag: entry). A future "simplification"
+  that adds name-only dedup would be a real regression, not a cleanup.
+- Don't self-promote any of the six `status: proposed` compat-register
+  entries to `verified` (or even `self-verified`) without an actual
+  differential run against the real pinned hledger binary — this
+  session's own "executable" evidence citations in those entries are
+  honestly sourced from the design's own prior findings and this
+  session's own Ledgerkit-only checks, not a real differential run this
+  session performed.
+- Don't unilaterally split `ledgerkit/reports.py` (~720 lines) or
+  `ledgerkit/cli.py` (~510 lines) — both were already over CLAUDE.md's
+  300-500 line guidance before this phase; this phase added modestly to
+  both without pushing either past a threshold it hadn't already crossed.
+  Flagged in the retro for a human decision, not acted on.
 
-## Recent Git State (before this response's commit, if any)
+## Recent Git State
+fa05bbc test: add tag: integration tests, compat-register entries, retro
+0523426 feat: implement tag:NAME[=REGEX] query matching (Stage C Phase 6)
+0849690 docs: small final correction pass on Stage C Phase 6 tag: design
 2d2ebf6 docs: amend Stage C Phase 6 tag: design -- add commodity-tag semantics
 7a74056 docs: Stage C Phase 6 -- tag: query-matching context curation + design
-f397d85 docs: Stage C Phase 5A -- adopt CodeCompass v1 development workflow
-eecb8a9 docs: amend Stage C Phase 5A plan per review findings
-c6e4b1e docs: plan Stage C Phase 5A -- CodeCompass workflow adoption
