@@ -73,6 +73,33 @@ evidence:
       posting, specifically to exercise this case.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
+  - kind: executable
+    ref: >
+      Follow-up dispatch (2026-09-25) built a full matrix beyond the one
+      data point above, on a freshly-built fixture (`tests/fixtures/
+      query_regex_empty_pattern_matrix.journal`, independent of
+      `tags_verify_basic.journal`), confirming the empty-pattern
+      rejection is a single uniform hledger rule across every
+      regex-taking prefix, and precisely scoping it: hledger rejects only
+      the literal empty pattern STRING (`acct:`, `desc:`, `tag:NAME=`,
+      bare `tag:` alone, `depth:=N`, and each of those under `not:`
+      wrapping -- all byte-identical stderr, exit 1), NOT any pattern
+      merely capable of matching an empty string (`acct:.*`, `acct:a*`,
+      `acct:^$`, `acct:()` all exit 0 and match normally). A separate,
+      unrelated rejection family exists for empty-alternation-branch
+      syntax (`acct:(|)`, `acct:a|`, `acct:|a`, `acct:(a|)`) and stacked
+      quantifiers (`acct:a**`), sharing the same generic error message
+      but distinguishable because the offending pattern text is echoed
+      after the message (vs. nothing echoed for the true-empty-string
+      case). `status:`/`date:` confirmed not regex-taking (different or
+      no error path). Full transcript, every exact command, and the
+      full reasoning for why this scopes to a narrow
+      `pattern == ""`-style check (not a broader "matches empty"
+      semantic check) is in
+      `dev-docs/planning/core-redefinition/25-query-regex-empty-pattern-matrix.md`
+      -- a pre-implementation research note, not itself a register entry.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
 status: verified
 verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 6 re-verification)"
 verified_date: "2026-09-25"

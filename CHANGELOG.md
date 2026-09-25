@@ -9,6 +9,31 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 7 — planning: empty-regex-pattern rejection] — 2026-09-25
+
+Full detail: [dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md](dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md), [dev-docs/planning/core-redefinition/25-query-regex-empty-pattern-matrix.md](dev-docs/planning/core-redefinition/25-query-regex-empty-pattern-matrix.md), [dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-PLAN.md](dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-PLAN.md)
+
+**Human:** directed planning of the next Stage C phase, per Phase 6's
+own closeout recommendation: resolve `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-
+001` (Ledgerkit accepts an empty regex pattern where real hledger
+rejects one).
+
+**Claude:** dispatched `context-curator` for Step 1 first — it
+correctly self-refused, since general hledger/source research falls
+outside its actual narrow charter (rating CodeCompass's usefulness),
+not something to stretch informally the way a prior phase's retro
+implied. Re-routed to a `compat-differential-tester` dispatch for the
+live-binary matrix, plus direct lead-performed auditing of `ledgerkit/
+query/regex.py`/`parser.py`. Found the scope is narrow: hledger rejects
+only the literal empty pattern string (not any pattern whose semantics
+merely admit an empty match — `.*`/`a*`/`^$`/`()` are all accepted),
+and every regex-taking query term already routes through one shared
+function (`validate_hledger_regex`), so the fix is a single check
+there, reusing the existing public `UnsupportedRegexConstructError` —
+no new exception class, no `api-spec.md` change. Design document
+written and stopped for explicit human approval (§11's four-item gate)
+— no `ledgerkit/`/`tests/` code touched.
+
 ### [Stage C Phase 6 — closeout, marked `[DONE]`] — 2026-09-25
 
 Full detail: [ROADMAP.md](ROADMAP.md) Stage C row, [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md)'s closeout addendum

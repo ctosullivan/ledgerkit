@@ -1,0 +1,18 @@
+; Fixture built independently for the compat-differential-tester dispatch
+; investigating hledger's exact rejection behaviour for empty-pattern query
+; terms (acct:, desc:, tag:NAME=, depth:REGEX=N) -- see
+; dev-docs/planning/core-redefinition/25-query-regex-empty-pattern-matrix.md
+; (the findings write-up this fixture supports) and
+; dev-docs/compat-register/LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001.yaml.
+;
+; Deliberately built fresh, independent of tests/fixtures/tags_verify_basic
+; .journal, per the dispatch's instruction not to reuse existing fixtures.
+
+2024-03-01 Corner Grocer
+    ; project:kitchen, blank:
+    expenses:food:groceries    $12.50
+    assets:checking
+
+2024-03-02 Bookshop Purchase
+    expenses:books              $8.00
+    assets:checking
