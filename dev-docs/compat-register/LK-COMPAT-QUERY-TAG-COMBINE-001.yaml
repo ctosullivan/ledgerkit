@@ -1,0 +1,74 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 23-tag-query-matching-design.md §2.3/§8 (executable-confirmed this
+# phase, stronger evidence than 19-tag-query-semantics-brief.md's original
+# source-only proposal of the same entry), implemented Stage C Phase 6 per
+# 24-tag-query-matching-implementation-plan.md.
+
+id: LK-COMPAT-QUERY-TAG-COMBINE-001
+area: query.tag.combine
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  Unlike `acct:`/`desc:`/`status:` (whose same-prefix unnegated terms
+  OR-combine with each other per hledger's own `combineQueriesByType`),
+  multiple `tag:` terms in one query string always AND together --
+  `tag:a tag:b` requires both tags present on the same posting/transaction,
+  never either. This falls out of Ledgerkit's existing bucket-building
+  logic (`ledgerkit/query/parser.py`'s `parse()`) for free: `Tag` is not
+  one of the three OR-eligible `isinstance` checks
+  (acct_terms/desc_terms/status_terms), so every `tag:` term lands in
+  `other_terms`, which is AND'd individually -- no new combination code
+  was needed or written; the correct behaviour is a structural consequence
+  of `tag:` not being added to any OR bucket, confirmed by a named
+  regression test (`test_multiple_tag_terms_and_not_or`) rather than
+  merely asserted.
+
+  `not:tag:...` is also valid (unlike `not:depth:...`, which is rejected
+  at parse time because `depth:` isn't a real predicate) -- `tag:` is an
+  ordinary selection predicate, so negating it is meaningful and no
+  special-casing was added to reject it.
+
+implementation:
+  - ledgerkit/query/parser.py:parse (other_terms bucket; no Tag-specific code)
+  - ledgerkit/query/eval.py:matches_posting, matches_transaction (Not/And branches, generic)
+
+tests:
+  - tests/test_query/test_parser.py::TestTag::test_multiple_tag_terms_and_not_or
+  - tests/test_query/test_parser.py::TestTag::test_not_tag_negation
+  - tests/test_query/test_parser.py::TestTag::test_tag_and_acct_combine_with_and
+  - tests/test_query/test_eval.py::TestTag::test_tag_inside_and_or_combinators
+  - tests/test_query/test_eval.py::TestTag::test_not_tag_negates
+  - tests/test_cli/test_cli.py::TestTagQueryFlag::test_not_tag_negation
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (combining query terms)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Query.hs (combineQueriesByType; Tag not among the OR-grouped constructors)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      Context-curator dispatch (Stage C Phase 6 planning, prior session):
+      `print tag:a tag:b` against a fixture where the two tags land on
+      different postings of different transactions matched ONLY the
+      transaction where both tags co-occur -- confirmed AND, not OR --
+      directly contrasted in the same session against `acct:food
+      acct:transport`, which correctly OR-combined. See
+      23-tag-query-matching-design.md §2.3. This session (the
+      implementing session) did not itself re-run against the real
+      hledger binary -- see status note below.
+    pinned_at: "1.52.4-g33fa849e7-20260910"
+
+status: proposed

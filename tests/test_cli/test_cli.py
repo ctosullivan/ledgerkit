@@ -18,6 +18,7 @@ SAMPLE_JOURNAL = FIXTURES / "sample.journal"
 FILTERED_JOURNAL = FIXTURES / "filtered.journal"
 ASSERTIONS_PASS = FIXTURES / "assertions_pass.journal"
 ASSERTIONS_FAIL = FIXTURES / "assertions_fail.journal"
+TAGS_JOURNAL = FIXTURES / "tags.journal"
 
 _SIMPLE_JOURNAL = textwrap.dedent("""\
     2024-01-01 Simple
@@ -527,6 +528,79 @@ class TestQueryFlag(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(out.count("2024-01-15") + out.count("2024-03-05"), 2)
         self.assertNotIn("Opening balance", out)
+
+
+class TestTagQueryFlag(unittest.TestCase):
+    """CLI-level -q "tag:..." wiring across all five commands (Stage C
+    Phase 6). tags.journal declares a "rate" tag with a DIFFERENT value at
+    each of the four effective-tag sources — see the fixture's own header
+    comment and tests/test_reports.py's TestQueryAstTagIntegration for the
+    full precedence-matrix coverage at the reports.py level; these tests
+    only confirm the CLI's own -q string parsing wires `tag:` through
+    correctly for each command, one command per test."""
+
+    def _run(self, *args: str) -> tuple[int, str, str]:
+        with patch("sys.argv", ["ledgerkit", *args]):
+            out = StringIO()
+            err = StringIO()
+            with patch("sys.stdout", out), patch("sys.stderr", err):
+                code = main()
+        return (code, out.getvalue(), err.getvalue())
+
+    def test_balance_tag_query(self):
+        code, out, _err = self._run("-f", str(TAGS_JOURNAL), "-q", "tag:rate=3", "balance")
+        self.assertEqual(code, 0)
+        self.assertIn("assets:bank", out)
+        self.assertNotIn("expenses:misc", out)
+
+    def test_register_tag_query(self):
+        code, out, _err = self._run("-f", str(TAGS_JOURNAL), "-q", "tag:rate=1", "register")
+        self.assertEqual(code, 0)
+        self.assertIn("assets:bank", out)
+        self.assertNotIn("expenses:misc", out)
+
+    def test_accounts_tag_query(self):
+        code, out, _err = self._run("-f", str(TAGS_JOURNAL), "-q", "tag:rate=3", "accounts")
+        self.assertEqual(code, 0)
+        lines = sorted(l for l in out.splitlines() if l)
+        self.assertEqual(lines, ["assets:bank", "assets:bank:savings"])
+
+    def test_stats_tag_query(self):
+        code, out, _err = self._run("-f", str(TAGS_JOURNAL), "-q", "tag:rate=4", "stats")
+        self.assertEqual(code, 0)
+        self.assertIn("Txns                : 1", out)
+
+    def test_print_tag_query(self):
+        code, out, _err = self._run("-f", str(TAGS_JOURNAL), "-q", "tag:rate=4", "print")
+        self.assertEqual(code, 0)
+        self.assertIn("Opening balance", out)
+        self.assertNotIn("Sibling transaction", out)
+
+    def test_accounts_tag_query_posting_own_not_visible(self):
+        # The accounts-mode exception (design §2.5/§9.2), exercised end to
+        # end through the CLI: rate:1 is a posting-own tag, never visible
+        # to plain `accounts tag:X`.
+        code, out, _err = self._run("-f", str(TAGS_JOURNAL), "-q", "tag:rate=1", "accounts")
+        self.assertEqual(code, 0)
+        self.assertEqual(out.strip(), "")
+
+    def test_not_tag_negation(self):
+        # rate:3 is inherited by EVERY posting to assets:bank or a
+        # descendant (account-inherited tags apply to every posting under
+        # that account, per rule B) -- so not:tag:rate=3 excludes every
+        # assets:bank* posting entirely, not just assets:bank:savings.
+        code, out, _err = self._run(
+            "-f", str(TAGS_JOURNAL), "-q", "not:tag:rate=3", "balance"
+        )
+        self.assertEqual(code, 0)
+        self.assertNotIn("assets:bank", out)
+        self.assertIn("expenses:misc", out)
+
+    def test_malformed_tag_query_exits_one(self):
+        code, out, err = self._run("-f", str(TAGS_JOURNAL), "-q", "tag:(", "balance")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("invalid query", err)
 
 
 if __name__ == "__main__":

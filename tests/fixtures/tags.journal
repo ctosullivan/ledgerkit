@@ -1,0 +1,41 @@
+; tags.journal — fixture for Stage C Phase 6 tag: query-matching tests
+; (dev-docs/planning/core-redefinition/23-tag-query-matching-design.md,
+; 24-tag-query-matching-implementation-plan.md). Deliberately mirrors the
+; design document's own §2.7 precedence fixture: a "rate" tag declared,
+; with a DIFFERENT value, at every one of the four effective-tag sources
+; (account-inherited, commodity-propagated, posting-own, transaction-
+; header), so a naive "highest-priority wins" implementation would fail
+; tests that expect every value to remain independently matchable
+; (union-not-shadowing, design §2.7).
+;
+; Sources and their "rate" value:
+;   account-inherited (assets:bank, incl. descendants)  rate:3
+;   commodity-propagated ($)                             rate:2
+;   posting-own (first transaction's assets:bank posting) rate:1
+;   transaction-header (first transaction)                rate:4
+;   posting-own, sibling transaction, same account         rate:5
+;   posting-own, child account (assets:bank:savings)       rate:6
+
+account assets:bank  ; rate:3, asrc:1
+    ; more:info
+
+account assets:bank:savings
+
+commodity $  ; rate:2, csrc:1
+    ; extra:tag
+
+2024-01-01 Opening balance  ; rate:4, hsrc:1
+    assets:bank               $1000.00  ; rate:1, psrc:1
+    equity:opening-balances  $-1000.00
+
+2024-01-05 Sibling transaction, same account, different posting-own rate
+    assets:bank                 $50.00  ; rate:5
+    equity:opening-balances    $-50.00
+
+2024-01-10 Child account posting, own tag plus inherited parent tag
+    assets:bank:savings         $20.00  ; rate:6
+    equity:opening-balances    $-20.00
+
+2024-01-15 Commodity tag on an account with no account-level tag
+    expenses:misc                $30.00
+    equity:opening-balances     $-30.00

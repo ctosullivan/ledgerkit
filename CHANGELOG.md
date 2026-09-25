@@ -55,9 +55,10 @@ register entries at `status: proposed` (`LK-COMPAT-QUERY-TAG-001`,
 `-COMBINE-001`, `-INHERIT-001`, `-COMMODITY-001`, `-ACCOUNTS-001`,
 `LK-COMPAT-PARSER-TAG-COMMODITY-001`) — independent
 `compat-differential-tester` verification is a separate, later step, not
-run by this session. 99 new tests (unit: parser/eval/tags; integration:
-a new `tests/fixtures/tags.journal` fixture plus `reports.py`/CLI
-wiring for all five commands) — full suite (845 tests) passes. Docs
+run by this session. 81 new tests (unit: query parser/eval, tags.py
+helpers, commodity directive tag capture; integration: a new
+`tests/fixtures/tags.journal` fixture plus `reports.py`/CLI wiring for
+all five commands) — full suite (827 tests) passes. Docs
 synced in the same response: `dev-docs/api-spec.md` (the two disclosed,
 approved changes — `QueryNode`'s `Tag` member, the `journal` parameter —
 plus documenting the also-approved `Journal.declared_commodity_tags`

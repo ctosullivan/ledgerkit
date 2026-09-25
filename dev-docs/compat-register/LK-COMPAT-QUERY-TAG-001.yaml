@@ -1,0 +1,82 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 23-tag-query-matching-design.md §2.1 (a context-curator dispatch's own
+# re-verification, independent of brief 19), implemented Stage C Phase 6
+# per 24-tag-query-matching-implementation-plan.md. Basic tag:NAME[=REGEX]
+# name/value matching only -- inheritance/propagation/combination are
+# separate entries (LK-COMPAT-QUERY-TAG-INHERIT-001,
+# LK-COMPAT-QUERY-TAG-COMMODITY-001, LK-COMPAT-QUERY-TAG-COMBINE-001).
+
+id: LK-COMPAT-QUERY-TAG-001
+area: query.tag
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `tag:NAME[=REGEX]` splits its argument on the FIRST `=` only
+  (`Query.hs:482-487`) -- NAME (required) and REGEX (optional; a bare
+  `tag:NAME` matches any value, including empty). Both name and value are
+  matched case-insensitively, infix (substring), using the same
+  regex-tdfa-dialect contract `acct:`/`desc:` already use -- no new
+  regex-dialect work needed (folds into the existing LK-EXT-QUERY-001
+  extension entry). Ledgerkit's `_build_tag`
+  (`ledgerkit/query/parser.py`) implements the same first-`=`-split via
+  `str.partition("=")`, reusing `compile_hledger_regex` for both halves
+  -- the identical validation/compilation path `_build_acct`/`_build_desc`
+  already use, so this entry adds no new regex-matching primitive, only a
+  new AST node and parser rule for an existing matching mechanism.
+
+  Value-containing-`=` is preserved correctly: `tag:rate==0.05` (a tag
+  literally named "rate" with value "=0.05") keeps everything after the
+  first `=` as the value pattern, since `str.partition` splits on only the
+  first occurrence -- confirmed by a named regression test.
+
+  Empty-value matching is ordinary regex behaviour, not special-cased:
+  `tag:NAME` (bare) produces `value_pattern=None` ("any value, including
+  empty"); `tag:NAME=` produces `value_pattern=""` (a real empty pattern,
+  which also matches via `.search()` since an empty regex matches
+  anywhere) -- both correctly match a tag with an empty value, without
+  any dedicated empty-value code path.
+
+implementation:
+  - ledgerkit/query/ast.py:Tag
+  - ledgerkit/query/parser.py:_build_tag
+  - ledgerkit/query/eval.py:_tag_matches, matches_transaction, matches_posting
+
+tests:
+  - tests/test_query/test_parser.py::TestTag
+  - tests/test_query/test_eval.py::TestTag
+  - tests/test_tags.py::TestEffectiveTags
+  - tests/test_reports.py::TestQueryAstTagIntegration
+  - tests/test_cli/test_cli.py::TestTagQueryFlag
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries (tag:NAME[=REGEX])"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Query.hs:482-487 (tag: argument split on first '='); Query.hs (matchesPosting Tag branch, patternsMatchTags)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      Context-curator dispatch (Stage C Phase 6 planning, prior session):
+      nine live differential runs against the pinned binary on a scratch
+      fixture (tag-verify.journal) -- `tag:a` (any value including
+      literal-substring matches inside other fields, confirmed as
+      expected regex behaviour), `tag:a=1`/`tag:a=2` discriminating by
+      value, anchored patterns (`tag:'^type$=^a$'`) working as expected.
+      See 23-tag-query-matching-design.md §2.1. This session (the
+      implementing session) did not itself re-run against the real
+      hledger binary -- see status note below.
+    pinned_at: "1.52.4-g33fa849e7-20260910"
+
+status: proposed

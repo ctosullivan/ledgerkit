@@ -1,0 +1,118 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 23-tag-query-matching-design.md §2.5/§9.2 (the `accounts` command's
+# own narrower tag-visibility mode -- the original design document's
+# recommendation to diverge was reconsidered and REVERSED per explicit
+# review instruction, in favour of replication), implemented Stage C
+# Phase 6 per 24-tag-query-matching-implementation-plan.md.
+
+id: LK-COMPAT-QUERY-TAG-ACCOUNTS-001
+area: query.tag.accounts
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  Plain (non-`--declared`) `accounts tag:X` has a real, source-confirmed,
+  narrower tag-visibility mode distinct from every other hledger command
+  Ledgerkit tracks. `journalPostingsKeepAccountTagsOnly`
+  (`hledger/Hledger/Cli/Commands/Accounts.hs:73`, confirmed the ONLY call
+  site by direct grep) replaces a posting's own tag list (`ptags`) with
+  only its account-inherited tags before `accounts` builds its list --
+  discarding both the posting's own literal comment tags AND any
+  commodity-propagated tags (already merged into `ptags` earlier in the
+  pipeline by that point, so `ptags=[]` discards those too). But query
+  matching itself reads `postingAllTags p = ptags p ++ maybe []
+  ttags (ptransaction p)`, which unconditionally re-adds the
+  TRANSACTION's own tags (`ttags`) regardless of whatever
+  `keepaccounttags` did to `ptags` -- so transaction-level tags remain
+  visible to plain `accounts tag:X` even though posting-own and
+  commodity-propagated tags do not. Four-way executable-confirmed (design
+  §2.5, across three successive verification passes that each corrected
+  the prior pass's own incomplete framing): transaction-level VISIBLE,
+  account-inherited VISIBLE, posting-own NOT VISIBLE, commodity-
+  propagated NOT VISIBLE.
+
+  The design document's ORIGINAL recommendation was uniform matching
+  (treat this as a disclosed divergence, for internal consistency with
+  every other command). That recommendation was explicitly reconsidered
+  and REVERSED per review instruction: the quirk is real, narrow (one
+  command, one matching-mode substitution, confirmed to need no
+  `DepthSpec`-style side-channel unlike `depth:`'s own Phase 5 redesign),
+  and cheap to implement correctly (reuses `_inherited_account_tags`
+  directly, a subset of the full four-source computation already
+  required). "Avoid a second special case" was judged, on reflection, not
+  a strong enough reason to choose a known, disclosed, easily-avoidable
+  divergence over a small amount of well-understood extra matching logic
+  -- see knowledge/DECISIONS.md, 2026-09-25.
+
+  Ledgerkit replicates this exactly via a new private
+  `ledgerkit.tags._accounts_effective_tags` (transaction-own +
+  account-inherited only) and a private
+  `ledgerkit.query.eval._matches_posting_for_accounts` dispatch wrapper,
+  used ONLY by `ledgerkit.reports.accounts`'s own `Tag`-matching path --
+  every other node type behaves identically to ordinary `matches_posting`
+  either way, and `balance`/`register`/`print`/`stats` are completely
+  unaffected by this wrapper's existence (confirmed by a named regression
+  test asserting ordinary `matches_posting` still sees all four sources
+  on the exact same fixture).
+
+implementation:
+  - ledgerkit/tags.py:_accounts_effective_tags
+  - ledgerkit/query/eval.py:_matches_posting_for_accounts, _matches_posting_impl
+  - ledgerkit/reports.py:accounts
+
+tests:
+  - tests/test_tags.py::TestAccountsEffectiveTags
+  - tests/test_query/test_eval.py::TestTagAccountsMode
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_accounts_transaction_level_tag_is_visible
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_accounts_account_inherited_tag_is_visible
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_accounts_posting_own_tag_is_not_visible
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_accounts_commodity_propagated_tag_is_not_visible
+  - tests/test_cli/test_cli.py::TestTagQueryFlag::test_accounts_tag_query
+  - tests/test_cli/test_cli.py::TestTagQueryFlag::test_accounts_tag_query_posting_own_not_visible
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#accounts (accounts command, --declared mode contrast)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: >
+      hledger/Hledger/Cli/Commands/Accounts.hs:73
+      (journalPostingsKeepAccountTagsOnly call site, confirmed the only
+      one by direct grep); Journal.hs:669 (keepaccounttags implementation
+      -- p{ptags=[]} `postingAddTags` (journalInheritedAccountTags j $
+      paccount p)); Query.hs (matchesPosting (Tag ...) reads
+      postingAllTags, not ptags directly); Posting.hs:439-440
+      (postingAllTags = ptags ++ maybe [] ttags (ptransaction p) --
+      unconditional ttags re-addition, the fact that corrects the naive
+      "account-only" reading)
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      Same precedence fixture as LK-COMPAT-QUERY-TAG-INHERIT-001 (prior
+      session, design amendment passes): `accounts tag:rate=4`
+      (transaction-header-only tag) matched, confirming transaction-level
+      visibility survives accounts' own posting/commodity-tag stripping
+      -- the finding that corrected an earlier, incomplete "account-
+      inherited tags only" claim. A targeted four-way re-test (same
+      session) confirmed all four cells of the visibility matrix
+      precisely: `accounts tag:rate=3` (account) matched both tagged
+      accounts; `accounts tag:rate=1` (posting-own) and `accounts
+      tag:rate=2` (commodity) both returned empty. See
+      23-tag-query-matching-design.md §2.5. This session (the
+      implementing session) reproduced the same four-way split on its own
+      new fixture (tests/fixtures/tags.journal) via Ledgerkit's own
+      accounts()/CLI, not against the real hledger binary -- see status
+      note below.
+    pinned_at: "1.52.4-g33fa849e7-20260910"
+
+status: proposed

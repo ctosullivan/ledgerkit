@@ -1,0 +1,119 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 23-tag-query-matching-design.md §2.6/§2.7 (new this amendment relative
+# to brief 19 -- commodity-directive tag propagation, a real, separately-
+# verified fifth source the original document had omitted entirely),
+# implemented Stage C Phase 6 per
+# 24-tag-query-matching-implementation-plan.md. Query-time propagation
+# only -- parsing/storage is a separate entry,
+# LK-COMPAT-PARSER-TAG-COMMODITY-001.
+
+id: LK-COMPAT-QUERY-TAG-COMMODITY-001
+area: query.tag.commodity
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  A `commodity` directive's comment may contain tags ("commodity tags",
+  `hledger.1:3550-3556`): "These will be propagated to all postings using
+  that commodity in their main amount, as hidden but queryable posting
+  tags, except where the posting already [has] a tag of the same name.
+  (Posting tags override account tags override commodity tags.)" Traced
+  precisely to source: `journalPostingsAddCommodityTags` looks up
+  `journalCommodityTags` for every commodity a posting's main amount
+  references (`postingCommodities`, plural -- a posting can in principle
+  reference more than one) and adds them via the SAME `postingAddTags`
+  mechanism account-tag inheritance uses -- both applied once, at journal-
+  read time, gated by a single `auto_posting_tags_` flag that is `True`
+  for every normal CLI command (`False` only for `print
+  --output-format=beancount`, a documented exception).
+
+  Ledgerkit's `ledgerkit.tags._commodity_tags` (new, private) looks up
+  the new `Journal.declared_commodity_tags` substrate (see
+  LK-COMPAT-PARSER-TAG-COMMODITY-001) for every commodity symbol in a
+  posting's main amount via `_posting_commodities` (in practice always a
+  0- or 1-element list -- Ledgerkit's `Posting.amount` has no
+  `MixedAmount` concept, unlike hledger's), unioned into
+  `_effective_tags` alongside the other three sources. Deliberately
+  computed ON DEMAND (Ledgerkit's own established pure-function style,
+  `ledgerkit/tags.py`'s pre-existing `effective_date`/`effective_date2`
+  precedent), never by mutating `Posting.tags` the way hledger's own
+  mechanism mutates `ptags` at read time -- this avoids silently breaking
+  Stage C Phase 4's already-documented "own tags only" contract for that
+  field.
+
+  THE SAME NON-SHADOWING FINDING APPLIES HERE, per the design's own
+  instruction that this entry's `reason:` field state it explicitly
+  (mirroring LK-COMPAT-QUERY-TAG-INHERIT-001's identical requirement):
+  despite the manual's "posting tags override account tags override
+  commodity tags" wording reading like exclusion, executable testing
+  shows a commodity-declared tag remains matchable even when a posting
+  using that commodity ALSO has a different-valued same-named tag of its
+  own -- both are independently discoverable via `tag:`, never
+  shadowed. `_effective_tags`'s commodity contribution is a plain
+  concatenation, not a conditional "only if the posting doesn't already
+  have one" -- the manual's "except where the posting already [has] a
+  tag of the same name" describes something narrower than exclusion for
+  query-matching purposes (per the design's own analysis, not
+  investigated further since it doesn't change the matching contract).
+
+implementation:
+  - ledgerkit/tags.py:_commodity_tags, _posting_commodities, _effective_tags
+  - ledgerkit/models.py:Journal.declared_commodity_tags
+  - ledgerkit/query/eval.py:matches_transaction, matches_posting, _matches_posting_impl
+
+tests:
+  - tests/test_tags.py::TestCommodityTags
+  - tests/test_tags.py::TestPostingCommodities
+  - tests/test_tags.py::TestEffectiveTags
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_commodity_tag_propagates_to_postings_using_that_commodity
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_precedence_posting_vs_commodity
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_precedence_account_vs_commodity
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_parent_account_tag_and_commodity_tag_compose_on_same_posting
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_no_shadowing_regression_naive_dedup_by_name_would_fail_this
+
+evidence:
+  - kind: manual
+    ref: "hledger.1:3550-3556 (\"Commodity tags\" section)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: >
+      Types.hs:676 (jdeclaredcommoditytags); JournalReader.hs:634-639,
+      666-667 (populated from commodity directive comments at read time);
+      Journal.hs:653-655 (journalCommodityTags), 659-662
+      (journalPostingsAddCommodityTags), 648-650
+      (journalPostingsAddAccountTags -- same postingAddTags mechanism);
+      Read/Common.hs:397,412 (auto_posting_tags_ gate, applied
+      unconditionally for both mechanisms in sequence at read time);
+      hledger/Hledger/Cli/CliOptions.hs:642 (autopostingtags = not $
+      command == "print" && moutputformat == Just "beancount" -- True for
+      every normal CLI command); Posting.hs:439-440 (postingAllTags =
+      ptags ++ maybe [] ttags (ptransaction p) -- query-time matching
+      reads only the already-materialized result, no live Journal-
+      dependent computation at match time in hledger's own architecture)
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      Design amendment's own precedence fixture (prior session):
+      `commodity $ ; rate:2, csrc:1` / `account assets:bank ; rate:3,
+      asrc:1` / a transaction with posting `; rate:1, psrc:1` and a
+      sibling transaction with header `; rate:4` and posting `; rate:5`
+      on the same account, run against the pinned binary. tag:rate=2
+      (commodity's) matched the transaction whose posting has rate:1 too
+      (alongside every other transaction on that commodity) -- confirming
+      commodity propagation and non-shadowing together. See
+      23-tag-query-matching-design.md §2.6/§2.7. This session (the
+      implementing session) did not itself re-run against the real
+      hledger binary -- see status note below.
+    pinned_at: "1.52.4-g33fa849e7-20260910"
+
+status: proposed

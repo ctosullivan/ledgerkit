@@ -1,0 +1,81 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 23-tag-query-matching-design.md §3/§4/§9.1 (the commodity-tag substrate
+# gap this amendment identified -- Journal had no storage for commodity-
+# directive tags at all, and parser.py actively discarded the comment
+# text needed to populate one), implemented Stage C Phase 6 per
+# 24-tag-query-matching-implementation-plan.md, mirroring Phase 4's own
+# LK-COMPAT-PARSER-TAG-SCOPE-001 precedent (account-directive tag
+# parsing/storage) structurally. Parsing/storage only -- query-time
+# propagation is a separate entry, LK-COMPAT-QUERY-TAG-COMMODITY-001.
+
+id: LK-COMPAT-PARSER-TAG-COMMODITY-001
+area: parser.tags.commodity
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `commodity` directive's inline comment may declare tags
+  (same-line, or indented follow-on `;` lines), captured at journal-read
+  time into `Journal.jdeclaredcommoditytags`. Before this phase,
+  Ledgerkit's `parser.py` actively discarded the `commodity` directive's
+  comment: `body = _strip_directive_comment(rest)` removed the comment
+  before symbol extraction, and indented follow-on lines were consumed as
+  an ordinary, discarded subdirective -- confirmed by direct read at
+  design time (§3). The data didn't exist to be read, a distinct gap from
+  the already-known-and-disclosed account-tag INHERITANCE computation gap
+  (`Journal.declared_account_tags` existed but had no consumer -- see
+  LK-COMPAT-QUERY-TAG-INHERIT-001).
+
+  Fixed by mirroring Phase 4's own `account`-directive tag-capture code
+  path structurally, not inventing a new subdirective-scanning mechanism:
+  a new `commodity_comment_target` state variable in `parser.py`'s main
+  loop, mutually exclusive with (and reset alongside) the existing
+  `account_comment_target`, feeds the SAME follow-on-';'-line tag-scanning
+  block `account` directives already used -- extended with an `elif`
+  branch writing into the new `declared_commodity_tags` dict instead of
+  `declared_account_tags`. Same-line comment tags use the existing
+  `_TWO_SPACE_SEMICOLON_COMMENT` regex and `parse_tags`, identically to
+  the `account`-directive site. `Journal.declared_commodity_tags: dict[
+  str, list[tuple[str, str]]]` mirrors `declared_account_tags`'s exact
+  shape; tags from multiple `commodity` directives for the same symbol
+  accumulate (append), matching `declared_account_tags`'s own established
+  merge behaviour for a repeated `account` directive (confirmed by a
+  named regression test, not assumed).
+
+implementation:
+  - ledgerkit/parser.py (commodity directive handling; commodity_comment_target)
+  - ledgerkit/models.py:Journal.declared_commodity_tags
+
+tests:
+  - tests/test_directives/test_directives.py::TestCommodityDirectiveTags
+
+evidence:
+  - kind: manual
+    ref: "hledger.1:3550-3556 (\"Commodity tags\"); hledger.1 (account directive tags, the structural precedent)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: "hledger-lib/Hledger/Read/JournalReader.hs:634-639,666-667 (commodity directive comment-tag capture at read time); Types.hs:676 (jdeclaredcommoditytags)"
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      Manual construction (this implementing session): `commodity $  ;
+      rate:2, csrc:1` with a follow-on `  ; extra:tag` line parsed via
+      ledgerkit.parser.parse_string produces
+      `j.declared_commodity_tags == {"$": [("rate", "2"), ("csrc", "1"),
+      ("extra", "tag")]}` -- same-line and follow-on tags both captured,
+      matching the account-directive precedent's own observed shape. Not
+      a differential run against the real hledger binary -- see status
+      note below.
+    pinned_at: "n/a (Ledgerkit-only check, this session)"
+
+status: proposed

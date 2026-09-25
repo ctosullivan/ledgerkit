@@ -27,6 +27,7 @@ from decimal import Decimal
 from ledgerkit.loader import load_journal
 from ledgerkit.models import Amount, Journal, Posting, Query, Transaction
 from ledgerkit.parser import parse_string
+from ledgerkit.query.eval import matches_posting, matches_transaction
 from ledgerkit.reports import (
     JournalStats,
     _matches_pattern,
@@ -44,6 +45,7 @@ import ledgerkit
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 SAMPLE_JOURNAL = os.path.join(FIXTURES_DIR, "sample.journal")
 FILTERED_JOURNAL = os.path.join(FIXTURES_DIR, "filtered.journal")
+TAGS_JOURNAL = os.path.join(FIXTURES_DIR, "tags.journal")
 
 
 # ---------------------------------------------------------------------------
@@ -1107,6 +1109,172 @@ class TestQueryAstIntegration(unittest.TestCase):
             stats(self.journal).transaction_count,
             stats(self.journal, _query_ast=None).transaction_count,
         )
+
+
+# ---------------------------------------------------------------------------
+# tag:NAME[=REGEX] integration (Stage C Phase 6 — 23-tag-query-matching-
+# design.md, 24-tag-query-matching-implementation-plan.md)
+#
+# tags.journal declares a "rate" tag at all four effective-tag sources with
+# a DIFFERENT value at each (see the fixture's own header comment):
+#   posting-own (first txn's assets:bank posting)          rate:1
+#   commodity-propagated ($)                                rate:2
+#   account-inherited (assets:bank + descendants)           rate:3
+#   transaction-header (first txn)                          rate:4
+#   posting-own, sibling txn, same account                  rate:5
+#   posting-own, child account (assets:bank:savings)        rate:6
+# ---------------------------------------------------------------------------
+
+class TestQueryAstTagIntegration(unittest.TestCase):
+    def setUp(self):
+        self.journal = load_journal(TAGS_JOURNAL)
+
+    # -- commodity-directive tag propagation --------------------------------
+
+    def test_commodity_tag_propagates_to_postings_using_that_commodity(self):
+        from ledgerkit.query.ast import Tag
+        # Every posting in the fixture uses commodity "$" -- rate:2 (the
+        # commodity's own declared tag) must match all of them at the
+        # balance level, including postings with no account-level tag at
+        # all (expenses:misc).
+        result = balance(self.journal, _query_ast=Tag("rate", "2"))
+        self.assertIn("assets:bank", result)
+        self.assertIn("expenses:misc", result)
+        self.assertIn("equity:opening-balances", result)
+
+    # -- five same-name/different-value precedence pairs (design §2.7) ------
+
+    def test_precedence_posting_vs_account(self):
+        from ledgerkit.query.ast import Tag
+        # rate:1 (posting-own) matches only that one posting's account;
+        # rate:3 (account-inherited) matches every posting/descendant of
+        # assets:bank, including the one whose OWN rate is different (1).
+        r1 = balance(self.journal, _query_ast=Tag("rate", "1"))
+        r3 = balance(self.journal, _query_ast=Tag("rate", "3"))
+        self.assertEqual(set(r1.keys()), {"assets:bank"})
+        self.assertEqual(set(r3.keys()), {"assets:bank", "assets:bank:savings"})
+
+    def test_precedence_posting_vs_commodity(self):
+        from ledgerkit.query.ast import Tag
+        # rate:1 (posting-own) is narrower than rate:2 (commodity-wide) --
+        # both independently matchable on the SAME posting.
+        txn = self.journal.transactions[0]
+        posting = txn.postings[0]
+        self.assertTrue(matches_posting(Tag("rate", "1"), txn, posting, journal=self.journal))
+        self.assertTrue(matches_posting(Tag("rate", "2"), txn, posting, journal=self.journal))
+
+    def test_precedence_account_vs_commodity(self):
+        from ledgerkit.query.ast import Tag
+        # rate:3 (account) and rate:2 (commodity) both match the same
+        # assets:bank posting independently.
+        txn = self.journal.transactions[0]
+        posting = txn.postings[0]
+        self.assertTrue(matches_posting(Tag("rate", "3"), txn, posting, journal=self.journal))
+        self.assertTrue(matches_posting(Tag("rate", "2"), txn, posting, journal=self.journal))
+
+    def test_precedence_parent_account_vs_child_account_posting(self):
+        from ledgerkit.query.ast import Tag
+        # assets:bank:savings' own posting has rate:6; it ALSO inherits
+        # rate:3 from its parent assets:bank -- both independently match
+        # the exact same posting.
+        child_txn = self.journal.transactions[2]
+        child_posting = child_txn.postings[0]
+        self.assertEqual(child_posting.account, "assets:bank:savings")
+        self.assertTrue(matches_posting(Tag("rate", "6"), child_txn, child_posting, journal=self.journal))
+        self.assertTrue(matches_posting(Tag("rate", "3"), child_txn, child_posting, journal=self.journal))
+
+    def test_precedence_transaction_level_vs_other_source(self):
+        from ledgerkit.query.ast import Tag
+        # The first transaction's own header tag (rate:4) and its
+        # posting's own tag (rate:1) both independently match that same
+        # posting -- transaction-level tags are never shadowed by a
+        # posting's own different-valued tag, or vice versa.
+        txn = self.journal.transactions[0]
+        posting = txn.postings[0]
+        self.assertTrue(matches_posting(Tag("rate", "4"), txn, posting, journal=self.journal))
+        self.assertTrue(matches_posting(Tag("rate", "1"), txn, posting, journal=self.journal))
+
+    def test_no_shadowing_regression_naive_dedup_by_name_would_fail_this(self):
+        from ledgerkit.query.ast import Tag
+        # All six differently-valued "rate" tags in the fixture remain
+        # independently discoverable via balance() -- a regression check
+        # that nothing in the pipeline collapses same-named tags.
+        for value, expected_accounts in [
+            ("1", {"assets:bank"}),
+            ("2", {"assets:bank", "assets:bank:savings", "expenses:misc", "equity:opening-balances"}),
+            ("3", {"assets:bank", "assets:bank:savings"}),
+            ("4", {"assets:bank", "equity:opening-balances"}),
+            ("5", {"assets:bank"}),
+            ("6", {"assets:bank:savings"}),
+        ]:
+            with self.subTest(value=value):
+                result = balance(self.journal, _query_ast=Tag("rate", value))
+                self.assertEqual(set(result.keys()), expected_accounts)
+
+    # -- parent-account tag + commodity tag composing on the same posting ---
+
+    def test_parent_account_tag_and_commodity_tag_compose_on_same_posting(self):
+        from ledgerkit.query.ast import Tag
+        # assets:bank:savings' posting has no account directive of its
+        # own -- rate:3 reaches it only via parent-account inheritance,
+        # and rate:2 reaches it only via commodity propagation. Neither
+        # source is the posting's own literal comment (that's rate:6).
+        child_txn = self.journal.transactions[2]
+        child_posting = child_txn.postings[0]
+        self.assertTrue(matches_posting(Tag("rate", "3"), child_txn, child_posting, journal=self.journal))
+        self.assertTrue(matches_posting(Tag("rate", "2"), child_txn, child_posting, journal=self.journal))
+
+    # -- accounts' own narrower four-way visibility split (design §2.5/§9.2) -
+
+    def test_accounts_transaction_level_tag_is_visible(self):
+        from ledgerkit.query.ast import Tag
+        result = accounts(self.journal, _query_ast=Tag("rate", "4"))
+        self.assertIn("assets:bank", result)
+
+    def test_accounts_account_inherited_tag_is_visible(self):
+        from ledgerkit.query.ast import Tag
+        result = accounts(self.journal, _query_ast=Tag("rate", "3"))
+        self.assertIn("assets:bank", result)
+        self.assertIn("assets:bank:savings", result)
+
+    def test_accounts_posting_own_tag_is_not_visible(self):
+        from ledgerkit.query.ast import Tag
+        # rate:1/rate:5/rate:6 are all posting-own tags -- none visible to
+        # plain `accounts tag:X`.
+        self.assertEqual(accounts(self.journal, _query_ast=Tag("rate", "1")), [])
+        self.assertEqual(accounts(self.journal, _query_ast=Tag("rate", "5")), [])
+        self.assertEqual(accounts(self.journal, _query_ast=Tag("rate", "6")), [])
+
+    def test_accounts_commodity_propagated_tag_is_not_visible(self):
+        from ledgerkit.query.ast import Tag
+        self.assertEqual(accounts(self.journal, _query_ast=Tag("rate", "2")), [])
+
+    # -- journal=None loud failure, exercised through the public report API -
+
+    def test_query_ast_matches_posting_without_journal_raises(self):
+        from ledgerkit.query.ast import Tag
+        txn = self.journal.transactions[0]
+        posting = txn.postings[0]
+        with self.assertRaises(ValueError):
+            matches_posting(Tag("rate", "1"), txn, posting)
+
+    def test_query_ast_matches_transaction_without_journal_raises(self):
+        from ledgerkit.query.ast import Tag
+        with self.assertRaises(ValueError):
+            matches_transaction(Tag("rate", "1"), self.journal.transactions[0])
+
+    # -- stats/register also see the full effective-tags union --------------
+
+    def test_stats_filters_transactions_by_tag(self):
+        from ledgerkit.query.ast import Tag
+        s = stats(self.journal, _query_ast=Tag("rate", "4"))
+        self.assertEqual(s.transaction_count, 1)
+
+    def test_register_filters_postings_by_tag(self):
+        from ledgerkit.query.ast import Tag
+        rows = register(self.journal, _query_ast=Tag("rate", "3"))
+        self.assertTrue(all(r.account in ("assets:bank", "assets:bank:savings") for r in rows))
+        self.assertEqual(len(rows), 3)  # two assets:bank postings + one assets:bank:savings
 
 
 if __name__ == "__main__":

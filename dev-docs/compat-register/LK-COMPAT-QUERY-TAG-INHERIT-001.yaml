@@ -1,0 +1,117 @@
+# Proposed by dev-docs/planning/core-redefinition/
+# 23-tag-query-matching-design.md §2.2/§2.7 (rules A-D; the union-not-
+# shadowing precedence finding), implemented Stage C Phase 6 per
+# 24-tag-query-matching-implementation-plan.md. Covers account-tag
+# inheritance and the posting-own/transaction-own/account-inherited
+# portion of effective-tag matching. Commodity propagation is a separate
+# entry: LK-COMPAT-QUERY-TAG-COMMODITY-001.
+
+id: LK-COMPAT-QUERY-TAG-INHERIT-001
+area: query.tag.inherit
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  hledger's `tag:` reads a posting's/transaction's *effective* tags, not
+  merely its own literal comment. Four composing rules, all independently
+  re-confirmed live against the pinned binary (design §2.2):
+  Rule A (account tags inherited down the account tree -- a query against
+  an account name matches if any ANCESTOR account declared the tag, not
+  just the exact account); Rule B (every posting to that account or any
+  descendant inherits it, even with no comment of its own); Rule C (a
+  tag declared only on a transaction's header line is matched by a query
+  against a posting that has no comment of its own); Rule D (a
+  transaction matches if ITS OWN tags directly match, OR if any posting's
+  effective tag set matches -- both halves real, independent inputs, per
+  hledger's `transactionAllTags t = ttags t ++ concatMap ptags (tpostings
+  t)`, not merely "reachable through rule C's propagation," which the
+  design's own §6 explicitly warns against assuming redundant).
+
+  Ledgerkit closes the pre-existing gap this required: `Journal.
+  declared_account_tags` (Stage C Phase 4) was populated correctly but had
+  NO consumer anywhere in the codebase before this phase (confirmed by
+  direct grep at design time) -- `ledgerkit.tags._inherited_account_tags`
+  (new, private) is that consumer, walking an account's `:`-separated
+  ancestor chain and unioning each level's declared tags, applying to the
+  declaring account itself and every descendant (not just strict
+  descendants), matching hledger's own `journalInheritedAccountTags`.
+
+  THE SINGLE MOST COUNTER-INTUITIVE FINDING (design §2.7, this entry's own
+  reason field per the design's explicit instruction): hledger's manual
+  states "posting tags override account tags override commodity tags,"
+  which reads like exclusion (only the highest-priority value visible
+  when names collide). Executable testing against the pinned binary shows
+  this is NOT what happens for `tag:` query-matching -- every
+  differently-valued, same-named tag from every applicable source remains
+  SIMULTANEOUSLY, INDEPENDENTLY matchable. A query for an account-
+  inherited value still matches a posting whose own comment declares a
+  DIFFERENT value for the same tag name, and vice versa. Traced to
+  source: `Tag = (TagName, TagValue)` is a plain tuple with structural
+  equality, and hledger's own `postingAddTags` deduplicates via
+  `Data.List.union` on the FULL tuple (name AND value) -- a same-name,
+  different-value pair is never considered a duplicate and is never
+  dropped. `ledgerkit.tags._effective_tags` is therefore a PLAIN
+  CONCATENATION of posting-own + transaction-own + account-inherited (+
+  commodity-propagated, see the sibling entry) tags, with NO shadowing/
+  exclusion logic whatsoever -- the executable result, not the manual's
+  prose, is the basis for this classification, per the design's own
+  governing instruction.
+
+implementation:
+  - ledgerkit/tags.py:_inherited_account_tags, _effective_tags
+  - ledgerkit/query/eval.py:matches_transaction, matches_posting, _matches_posting_impl
+
+tests:
+  - tests/test_tags.py::TestInheritedAccountTags
+  - tests/test_tags.py::TestEffectiveTags
+  - tests/test_query/test_eval.py::TestTag
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_precedence_posting_vs_account
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_precedence_parent_account_vs_child_account_posting
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_precedence_transaction_level_vs_other_source
+  - tests/test_reports.py::TestQueryAstTagIntegration::test_no_shadowing_regression_naive_dedup_by_name_would_fail_this
+
+evidence:
+  - kind: manual
+    ref: "https://hledger.org/1.52/hledger.html#queries; hledger.1 (tag inheritance and 'posting tags override account tags override commodity tags' wording)"
+    pinned_at: "1.52.4"
+  - kind: source
+    ref: >
+      Hledger/Query.hs (matchesPosting (Tag ...), postingAllTags,
+      transactionAllTags); Hledger/Data/Journal.hs
+      (journalInheritedAccountTags, journalPostingsAddAccountTags);
+      Hledger/Data/Posting.hs:467-468 (postingAddTags, Data.List.union on
+      full (name, value) tuples); Hledger/Data/Types.hs:442 (Tag = plain
+      tuple, derived structural Eq)
+    pinned_at: "1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d)"
+  - kind: executable
+    ref: >
+      Context-curator dispatch (Stage C Phase 6 planning, prior session):
+      fixture with `account assets:bank ; type:A` and child
+      `assets:bank:savings` (no tags of its own) confirmed all four rules
+      A-D live, including composition (a posting with no comment of its
+      own, under an account with no comment of its own, under an ancestor
+      account with a declared tag, still matches). A separate precedence
+      fixture (`account assets:bank ; rate:3, asrc:1` / posting `;
+      rate:1, psrc:1` / sibling transaction with header `; rate:4` and
+      posting `; rate:5` on the same account) run against the pinned
+      binary confirmed the full non-shadowing matrix: tag:rate=1 (posting)
+      matched only its own transaction; tag:rate=3 (account) matched
+      EVERY transaction posting to that account or a descendant --
+      including the one with its own different rate:1/rate:5; `balance
+      tag:rate=3` aggregated correctly at posting level too. See
+      23-tag-query-matching-design.md §2.2/§2.7. This session (the
+      implementing session) did not itself re-run against the real
+      hledger binary -- see status note below.
+    pinned_at: "1.52.4-g33fa849e7-20260910"
+
+status: proposed
