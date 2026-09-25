@@ -682,3 +682,148 @@ Ledgerkit's own reports — rejected in favour of hledger-accuracy, given
 the exception is real and now confirmed, not speculative.
 
 **Applies to:** `ledgerkit/query/depth.py`, `ledgerkit/reports.py`
+
+---
+
+## 2026-09-25 — `tag:` matches hledger's complete four-source effective-tag semantics (Option A), not a disclosed own-tags-only subset (Option B)
+
+**Decision:** Stage C Phase 6's `tag:NAME[=REGEX]` implements hledger's
+full, verified effective-tag semantics: a posting's own literal comment
+tags, its transaction's own tags, its account's declared-and-inherited
+tags (walking every ancestor, not just the exact declared account), and
+its main amount's commodity's declared tags — unioned with **no
+shadowing/exclusion logic**, per `23-tag-query-matching-design.md` §2.7's
+executable finding that hledger's manual "posting tags override account
+tags override commodity tags" wording does not mean exclusion for
+query-matching: same-named, differently-valued tags from every source
+remain simultaneously, independently matchable. This required building a
+genuinely new commodity-tag substrate (`Journal.declared_commodity_tags`,
+mirroring `declared_account_tags`'s shape; `commodity` directive comment
+capture in `parser.py`, mirroring the existing `account`-directive
+tag-capture code path) alongside the account-inheritance computation.
+
+**Why:** Option B (own-tags-only, no account inheritance, no commodity
+propagation) would have shipped faster but left a real, disclosed gap
+covering **two** of the four sources real hledger journals commonly use
+— materially bigger than a single-source gap, with no evidence either
+missing source was individually more tractable to defer. The commodity-
+tag substrate work is structurally a close parallel to Phase 4's own
+already-successful `account`-directive tag-capture work (same shape:
+capture same-line + follow-on comment tags, store in a
+`dict[str, list[tuple[str, str]]]`), not novel risk. See design §9.1's
+own recommendation, unchanged in direction from its original framing.
+
+**Rejected alternative:** Option B — a disclosed Ledgerkit-native subset
+(own tags only), mirroring the `MaxAccountLevel` precedent. Rejected
+because the resulting gap (two missing sources, not one) was judged too
+large relative to the marginal implementation cost of doing it properly,
+and the commodity substrate work was not genuinely separable risk.
+
+**Applies to:** `ledgerkit/models.py`, `ledgerkit/parser.py`,
+`ledgerkit/tags.py`, `ledgerkit/query/ast.py`, `ledgerkit/query/eval.py`
+
+---
+
+## 2026-09-25 — Evaluator API shape: `journal: Journal | None = None`, not a context object or pre-materialised storage
+
+**Decision:** `matches_transaction`/`matches_posting` (`ledgerkit/query/
+eval.py`) each gained one new parameter, `journal: Journal | None = None`
+— a real default, so every existing caller that never constructs a `Tag`
+node keeps compiling and running unchanged. A `Tag` node evaluated with
+`journal=None` raises `ValueError` (not `TypeError` — deliberately
+distinguishing "caller's fault, journal context was available and should
+have been passed" from a genuine internal correctness bug), never
+silently narrowing to own-tags-only.
+
+**Why:** all four existing call sites (`reports.py`'s
+`balance`/`register`/`accounts`/`stats`, `cli.py`'s `print`) already had
+`journal` in their own enclosing scope, so a plain optional parameter is
+the least invasive of the three candidates design §9.1 raised (a
+`journal` parameter; a bundling context object; pre-materialised
+effective-tag storage computed before evaluation runs). A context object
+would have been justified only if more cross-cutting evaluator needs were
+anticipated beyond this one; none are. Pre-materialising into new storage
+was considered (it would avoid touching `matches_transaction`/
+`matches_posting`'s signatures at all) but rejected as needless indirection
+for a computation (`ledgerkit.tags._effective_tags`) that is already cheap
+and pure — there is no performance or architectural reason to precompute
+and cache it separately.
+
+**Rejected alternatives:** a context-object parameter (deferred — no
+second cross-cutting need exists yet to justify the extra abstraction);
+pre-materialised effective-tag storage computed once before query
+evaluation (rejected — needless indirection over an already-cheap pure
+computation, and would have broken the on-demand-computation style
+`ledgerkit/tags.py` already established for `effective_date`/
+`effective_date2`).
+
+**Applies to:** `ledgerkit/query/eval.py`, `ledgerkit/reports.py`,
+`ledgerkit/cli.py`
+
+---
+
+## 2026-09-25 — `accounts -q "tag:X"` replicates hledger's narrower visibility, not uniform matching
+
+**Decision:** `ledgerkit.reports.accounts` dispatches `Tag` nodes through
+a private `ledgerkit.query.eval._matches_posting_for_accounts` wrapper
+instead of the ordinary `matches_posting` — using
+`ledgerkit.tags._accounts_effective_tags` (transaction-own +
+account-inherited tags only, excluding posting-own and
+commodity-propagated tags) rather than the full four-source
+`_effective_tags` every other command uses. Every other `QueryNode` type
+behaves identically either way; `balance`/`register`/`print`/`stats` are
+completely unaffected by this wrapper's existence.
+
+**Why:** design §2.5/§9.2 found this is a real, source-confirmed hledger
+quirk (`journalPostingsKeepAccountTagsOnly` composed with
+`postingAllTags`'s unconditional `++ ttags`), now four-way executable-
+confirmed, and narrow to implement — one command, one matching-mode
+substitution, no `DepthSpec`-style side-channel needed (unlike `depth:`'s
+own Phase 5 redesign). The design's original recommendation favoured
+uniform matching for internal consistency; that recommendation was
+explicitly reconsidered and reversed before implementation planning,
+on the grounds that "avoid a second special case" is not, by itself, a
+strong enough reason to choose a disclosed, easily-avoidable divergence
+from real hledger behaviour over a small, well-understood amount of extra
+matching logic that directly reuses machinery (`_inherited_account_tags`)
+the full computation already needs.
+
+**Rejected alternative:** uniform matching — `accounts` using the same
+`_effective_tags` as every other command, disclosed as an
+`intentional_divergence`. Rejected once the design's own re-assessment
+found the divergence avoidable at low, well-understood cost.
+
+**Applies to:** `ledgerkit/reports.py`, `ledgerkit/query/eval.py`,
+`ledgerkit/tags.py`
+
+---
+
+## 2026-09-25 — `effective_tags` implemented as private `_effective_tags` (small judgment call resolving a naming inconsistency between design and plan)
+
+**Decision:** the fourth new `ledgerkit/tags.py` helper is named
+`_effective_tags` (leading underscore), not the unprefixed `effective_tags`
+that both `23-tag-query-matching-design.md` §9.3's own illustrative naming
+and `24-tag-query-matching-implementation-plan.md`'s file-by-file section
+literally wrote.
+
+**Why:** design §9.3's own resolution text is explicit and unambiguous —
+"keep **all** new inheritance/commodity helpers **private** initially
+(leading-underscore...)" — and separately names `effective_tags` itself
+as one of the three helpers that resolution covers. The implementation
+plan's file-by-file section lists four functions under a header reading
+"All three new helpers **private**," with three of the four
+(`_inherited_account_tags`, `_commodity_tags`, `_accounts_effective_tags`)
+already spelled with a leading underscore and the fourth
+(`effective_tags`) spelled without one — read most plausibly as the
+plan simply carrying forward the design's own illustrative (pre-decision)
+spelling for that one name rather than a deliberate reversal of §9.3's
+express "all new helpers" resolution, since the plan states no rationale
+for singling out exactly this one helper as the sole public exception,
+and doing so would contradict the plan's own stated Unauthorised-Change-
+Rule discipline against adding undisclosed public API surface. Treated
+as the smallest reasonable resolution of a naming inconsistency between
+two already-approved documents, not a new design decision — flagged in
+the Stage C Phase 6 implementation retro per this project's standing
+ambiguity-handling instruction.
+
+**Applies to:** `ledgerkit/tags.py`, `ledgerkit/query/eval.py`

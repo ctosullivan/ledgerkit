@@ -11,8 +11,17 @@ import datetime
 import unittest
 from decimal import Decimal
 
-from ledgerkit.models import Amount, Posting, Transaction
-from ledgerkit.tags import effective_date, effective_date2, parse_tags
+from ledgerkit.models import Amount, Journal, Posting, Transaction
+from ledgerkit.tags import (
+    _accounts_effective_tags,
+    _commodity_tags,
+    _effective_tags,
+    _inherited_account_tags,
+    _posting_commodities,
+    effective_date,
+    effective_date2,
+    parse_tags,
+)
 
 
 class TestBasicTags(unittest.TestCase):
@@ -169,6 +178,126 @@ class TestEffectiveDate2(unittest.TestCase):
         txn = _txn(datetime.date(2024, 1, 1))
         p = _posting(date_override=datetime.date(2024, 6, 1))
         self.assertEqual(effective_date2(txn, p), datetime.date(2024, 6, 1))
+
+
+class TestInheritedAccountTags(unittest.TestCase):
+    """_inherited_account_tags — Stage C Phase 6 (design §2.2 rule A,
+    §5's implementation-plan resolution)."""
+
+    def setUp(self):
+        self.journal = Journal(
+            declared_account_tags={
+                "assets": [("type", "A")],
+                "assets:bank": [("rate", "3")],
+            }
+        )
+
+    def test_own_account_tags_included(self):
+        self.assertEqual(
+            _inherited_account_tags(self.journal, "assets:bank"),
+            [("type", "A"), ("rate", "3")],
+        )
+
+    def test_deep_descendant_inherits_from_every_ancestor(self):
+        self.assertEqual(
+            _inherited_account_tags(self.journal, "assets:bank:savings"),
+            [("type", "A"), ("rate", "3")],
+        )
+
+    def test_unrelated_account_gets_nothing(self):
+        self.assertEqual(_inherited_account_tags(self.journal, "expenses:food"), [])
+
+    def test_root_level_declared_tag_applies_to_itself_too(self):
+        self.assertEqual(_inherited_account_tags(self.journal, "assets"), [("type", "A")])
+
+    def test_sibling_branch_does_not_inherit(self):
+        # "assets:savings" is a sibling of "assets:bank", not a descendant
+        # -- it must inherit "assets"'s own tag but NOT "assets:bank"'s.
+        self.assertEqual(_inherited_account_tags(self.journal, "assets:savings"), [("type", "A")])
+
+
+class TestPostingCommodities(unittest.TestCase):
+    def test_no_amount_returns_empty(self):
+        self.assertEqual(_posting_commodities(Posting(account="a")), [])
+
+    def test_amount_returns_single_commodity(self):
+        p = Posting(account="a", amount=Amount(Decimal("1"), "USD"))
+        self.assertEqual(_posting_commodities(p), ["USD"])
+
+
+class TestCommodityTags(unittest.TestCase):
+    def setUp(self):
+        self.journal = Journal(declared_commodity_tags={"$": [("rate", "2")], "EUR": [("rate", "9")]})
+
+    def test_single_commodity_lookup(self):
+        self.assertEqual(_commodity_tags(self.journal, ["$"]), [("rate", "2")])
+
+    def test_multiple_commodities_concatenate(self):
+        self.assertEqual(_commodity_tags(self.journal, ["$", "EUR"]), [("rate", "2"), ("rate", "9")])
+
+    def test_undeclared_commodity_contributes_nothing(self):
+        self.assertEqual(_commodity_tags(self.journal, ["GBP"]), [])
+
+    def test_empty_list_returns_empty(self):
+        self.assertEqual(_commodity_tags(self.journal, []), [])
+
+
+class TestEffectiveTags(unittest.TestCase):
+    """_effective_tags — the full four-source union (design §2.2/§2.6/§2.7:
+    plain concatenation, no shadowing)."""
+
+    def setUp(self):
+        self.journal = Journal(
+            declared_account_tags={"assets:bank": [("rate", "3")]},
+            declared_commodity_tags={"$": [("rate", "2")]},
+        )
+        self.txn = Transaction(date=datetime.date(2024, 1, 1), description="x", tags=[("rate", "4")])
+        self.posting = Posting(
+            account="assets:bank", amount=Amount(Decimal("1"), "$"), tags=[("rate", "1")]
+        )
+
+    def test_unions_all_four_sources_with_no_dedup_by_name(self):
+        self.assertEqual(
+            _effective_tags(self.journal, self.txn, self.posting),
+            [("rate", "1"), ("rate", "4"), ("rate", "3"), ("rate", "2")],
+        )
+
+    def test_posting_with_no_declared_tags_anywhere_is_empty(self):
+        bare_journal = Journal()
+        bare_txn = Transaction(date=datetime.date(2024, 1, 1), description="x")
+        bare_posting = Posting(account="expenses:misc", amount=Amount(Decimal("1"), "GBP"))
+        self.assertEqual(_effective_tags(bare_journal, bare_txn, bare_posting), [])
+
+    def test_posting_with_no_amount_still_gets_account_and_txn_tags(self):
+        # No commodity to propagate from, but account inheritance and
+        # transaction tags are unaffected by a None amount.
+        posting = Posting(account="assets:bank")
+        self.assertEqual(
+            _effective_tags(self.journal, self.txn, posting),
+            [("rate", "4"), ("rate", "3")],
+        )
+
+
+class TestAccountsEffectiveTags(unittest.TestCase):
+    """_accounts_effective_tags — the `accounts` command's narrower
+    visibility mode (design §2.5/§9.2): transaction-own + account-
+    inherited only, excluding posting-own and commodity-propagated."""
+
+    def setUp(self):
+        self.journal = Journal(
+            declared_account_tags={"assets:bank": [("rate", "3")]},
+            declared_commodity_tags={"$": [("rate", "2")]},
+        )
+        self.txn = Transaction(date=datetime.date(2024, 1, 1), description="x", tags=[("rate", "4")])
+        self.posting = Posting(
+            account="assets:bank", amount=Amount(Decimal("1"), "$"), tags=[("rate", "1")]
+        )
+
+    def test_excludes_posting_own_and_commodity_tags(self):
+        self.assertEqual(
+            _accounts_effective_tags(self.journal, self.txn, self.posting),
+            [("rate", "4"), ("rate", "3")],
+        )
 
 
 if __name__ == "__main__":

@@ -315,6 +315,15 @@ class Journal:
     # declared_accounts, per knowledge/DECISIONS.md's 2026-09-13 guardrail
     # — declared_accounts's own list[str] shape is never changed.
     declared_account_tags: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    # Directly-declared tags per commodity symbol (from `commodity SYMBOL ;
+    # tag:value` directive comments, including follow-on indented comment
+    # lines) — keyed by the exact commodity symbol, mirroring
+    # declared_account_tags's shape exactly. hledger propagates these onto
+    # every posting whose main amount uses that commodity (the "commodity
+    # tags" feature, see knowledge/DOMAIN_RULES.md); Ledgerkit computes that
+    # propagation on demand (ledgerkit/tags.py's effective_tags), never by
+    # mutating Posting.tags/Transaction.tags.
+    declared_commodity_tags: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
     source_file: str | None = None
     included_files: int = 0
     # Maps commodity symbol → raw amount string from an explicit `commodity`

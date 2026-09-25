@@ -161,9 +161,10 @@ silently consumes the rest of the file.
 ## Tags
 
 A `name:value` pair inside a `;` comment is a **tag**. Tags can appear in a
-transaction's inline comment, a posting's inline comment, or an `account`
-directive's inline comment (same-line or indented follow-on lines, exactly
-like ordinary comment text):
+transaction's inline comment, a posting's inline comment, an `account`
+directive's inline comment, or a `commodity` directive's inline comment
+(same-line or indented follow-on lines, exactly like ordinary comment
+text):
 
 ```
 2024-01-15 Coffee  ; category:food, business:yes
@@ -171,6 +172,7 @@ like ordinary comment text):
     assets:bank
 
 account expenses:food  ; type:E
+commodity $  ; symbol:dollar
 ```
 
 **Tag name**: the last whitespace-delimited word immediately before the
@@ -205,9 +207,29 @@ has no such effect — it is stored as a plain tag only.
 Here, the `expenses:food` posting's effective date is `2024-01-20` for
 reporting purposes, while the transaction's own date remains `2024-01-15`.
 
-> Querying journal data by tag (a `tag:NAME[=REGEX]` query term) is not
-> yet implemented — tags are currently parsed and stored, but not usable
-> as a filter. See `ROADMAP.md`.
+**Querying by tag**: `-q "tag:NAME[=REGEX]"` filters `balance`/`register`/
+`accounts`/`stats`/`print` by a posting's or transaction's *effective*
+tags — not just its own literal comment, but also:
+
+- its transaction's own tags (a posting with no comment of its own still
+  matches a tag declared only on its transaction's header line);
+- its account's declared tags, **inherited from every ancestor account**
+  (an `account assets:bank ; type:A` directive's tag applies to
+  `assets:bank` and every account under it, e.g. `assets:bank:savings`,
+  even with no comment of its own);
+- its main amount's commodity's declared tags (a `commodity $ ; rate:2`
+  directive's tag applies to every posting whose amount uses `$`).
+
+Same-named tags from different sources with **different values** are all
+independently matchable — hledger's manual describes this as "posting
+tags override account tags override commodity tags," but that does not
+mean only one wins for query-matching purposes: a query for any one of
+those values matches. `accounts -q "tag:X"` is a deliberate exception —
+it only sees transaction-level and account-inherited tags, not a
+posting's own comment tags or commodity-propagated tags, matching
+hledger's own `accounts` command. See `-q`/`--query` in
+[`usage.md`](usage.md) and `dev-docs/hledger-compatibility.md` for the
+full reference.
 
 ---
 

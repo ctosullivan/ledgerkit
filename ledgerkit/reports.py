@@ -29,6 +29,7 @@ from ledgerkit.query.ast import QueryNode
 from ledgerkit.query.depth import DepthSpec, account_excluded_by_depth, clip_account_name
 from ledgerkit.query.eval import matches_posting as _query_ast_matches_posting
 from ledgerkit.query.eval import matches_transaction as _query_ast_matches_transaction
+from ledgerkit.query.eval import _matches_posting_for_accounts as _query_ast_matches_posting_accounts_mode
 
 
 # ---------------------------------------------------------------------------
@@ -357,7 +358,13 @@ def accounts(
             used by the CLI's -q/--query flag. Not part of the stable public
             API — see knowledge/DECISIONS.md, 2026-09-16 ("Stage C Phase 2's
             query/report integration is internal-only this phase"). AND'd
-            with `query` when both are supplied.
+            with `query` when both are supplied. A `Tag` node is matched
+            using this command's own narrower effective-tags visibility
+            (Stage C Phase 6, design §2.5/§9.2) — transaction-own and
+            account-inherited tags only, excluding posting-own and
+            commodity-propagated tags — replicating hledger's own
+            `accounts tag:X`, which is NOT the same tag visibility every
+            other report function here uses.
         _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
             from the CLI's -q/--query flag's depth: term(s), added Stage C
             Phase 5. See `_effective_depth_spec` for precedence against the
@@ -376,7 +383,15 @@ def accounts(
         for posting in txn.postings:
             if not _posting_matches(posting, txn, query):
                 continue
-            if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting):
+            # accounts uses its own narrower Tag-matching mode (design
+            # §2.5/§9.2) — transaction-own + account-inherited tags only,
+            # excluding posting-own and commodity-propagated tags — rather
+            # than the ordinary matches_posting every other report function
+            # here uses. Every other node type behaves identically either
+            # way; see _matches_posting_for_accounts's own docstring.
+            if _query_ast is not None and not _query_ast_matches_posting_accounts_mode(
+                _query_ast, txn, posting, journal=journal
+            ):
                 continue
             seen.add(clip_account_name(depth_spec, posting.account))
     return AccountsResult(sorted(seen))
@@ -402,7 +417,9 @@ def balance(
             used by the CLI's -q/--query flag. Not part of the stable public
             API — see knowledge/DECISIONS.md, 2026-09-16. AND'd with `query`
             when both are supplied. Never carries depth — depth is never a
-            selection predicate (see `_posting_matches`).
+            selection predicate (see `_posting_matches`). A `Tag` node is
+            matched against each posting's full, four-source effective tag
+            set (Stage C Phase 6 — see `ledgerkit.tags._effective_tags`).
         _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
             from the CLI's -q/--query flag's depth: term(s), added Stage C
             Phase 5. See `_effective_depth_spec` for precedence against the
@@ -424,7 +441,7 @@ def balance(
         for posting in resolve_elision(txn):
             if not _posting_matches(posting, txn, query):
                 continue
-            if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting):
+            if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting, journal=journal):
                 continue
             if posting.amount is None:
                 continue
@@ -454,7 +471,9 @@ def register(
         _query_ast: Private, internal-only filter (a ledgerkit.query.QueryNode)
             used by the CLI's -q/--query flag. Not part of the stable public
             API — see knowledge/DECISIONS.md, 2026-09-16. AND'd with `query`
-            when both are supplied.
+            when both are supplied. A `Tag` node is matched against each
+            posting's full, four-source effective tag set (Stage C Phase 6
+            — see `ledgerkit.tags._effective_tags`).
         _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
             from the CLI's -q/--query flag's depth: term(s), added Stage C
             Phase 5. See `_effective_depth_spec` for precedence against the
@@ -479,7 +498,7 @@ def register(
         for posting in resolve_elision(txn):
             if not _posting_matches(posting, txn, query):
                 continue
-            if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting):
+            if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting, journal=journal):
                 continue
             if posting.amount is None:
                 continue
@@ -514,7 +533,9 @@ def stats(
             ledgerkit.query.eval.matches_transaction (stats is transaction-
             oriented — it filters the transaction list, not individual
             postings, matching its own existing query= filtering above).
-            AND'd with `query` when both are supplied.
+            AND'd with `query` when both are supplied. A `Tag` node matches
+            if the transaction's own tags directly match, or any of its
+            postings' full effective tags match (Stage C Phase 6, design §6).
         _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
             from the CLI's -q/--query flag's depth: term(s), added Stage C
             Phase 5 — resolves this function's own prior TODO for the depth
@@ -544,7 +565,7 @@ def stats(
             and (query.payee is None or _matches_pattern(query.payee, t.description))
         ]
     if _query_ast is not None:
-        txns = [t for t in txns if _query_ast_matches_transaction(_query_ast, t)]
+        txns = [t for t in txns if _query_ast_matches_transaction(_query_ast, t, journal=journal)]
 
     depth_spec = _effective_depth_spec(query, _query_depth)
     all_accounts: set[str] = {

@@ -2,7 +2,8 @@
 
 Mirrors hledger's own query term set (see hledger.1 "Queries" section) for
 Stage C's initial target: acct:, desc:, date: (simple dates only), status:,
-and not:/implicit-AND/same-prefix-OR combination. `depth:` is deliberately
+tag:NAME[=REGEX] (Stage C Phase 6 — see `Tag` below), and not:/implicit-AND/
+same-prefix-OR combination. `depth:` is deliberately
 NOT a node here — as of Stage C Phase 5 it is `ledgerkit.query.depth.
 DepthSpec`, a report-display option carried on `QueryPlan.depth`, never a
 selection predicate (see `MaxAccountLevel`'s docstring below for why, and
@@ -114,6 +115,33 @@ class Status:
 
 
 @dataclass(frozen=True)
+class Tag:
+    """Matches an effective tag name (and, if given, value) — Stage C Phase 6.
+
+    `name_pattern` must already be a validated HledgerRegex-dialect
+    pattern, matched against tag names. `value_pattern` is the same, but
+    matched against tag values; `None` means "any value, including
+    empty" (a bare `tag:NAME` term). Both are case-insensitive infix
+    matches, same contract as `Acct`/`Desc`.
+
+    "Effective tags" means the full four-source union hledger's own
+    `tag:` reads from — a posting's/transaction's own literal comment
+    tags, its account's declared-and-inherited tags, and its main
+    amount's commodity's declared tags (see `ledgerkit.tags._effective_tags`
+    and `dev-docs/planning/core-redefinition/
+    23-tag-query-matching-design.md` §2.2/§2.6/§2.7) — not merely
+    `Posting.tags`/`Transaction.tags`'s own literal contents. Evaluating a
+    `Tag` node therefore needs `Journal` access — see
+    `ledgerkit.query.eval.matches_transaction`/`matches_posting`'s
+    `journal` parameter; a `Tag` node evaluated with no `journal` raises
+    `ValueError`, never silently narrows to own-tags-only.
+    """
+
+    name_pattern: str
+    value_pattern: str | None = None
+
+
+@dataclass(frozen=True)
 class And:
     """Matches when every child node matches."""
 
@@ -140,7 +168,7 @@ class Not:
     term: "QueryNode"
 
 
-QueryNode = Union[Acct, Desc, DateSpan, MaxAccountLevel, Status, And, Or, Not]
+QueryNode = Union[Acct, Desc, DateSpan, MaxAccountLevel, Status, Tag, And, Or, Not]
 
 
 @dataclass(frozen=True)

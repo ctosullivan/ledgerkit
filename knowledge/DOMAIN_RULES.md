@@ -269,3 +269,109 @@ callers.
 
 **Applies to:** `ledgerkit/query/depth.py`, `ledgerkit/query/parser.py`,
 `ledgerkit/reports.py`
+
+---
+
+## `tag:` matches a four-source *effective* tag union, computed once per posting/transaction — and same-named tags from different sources are NEVER shadowed
+
+hledger's `tag:NAME[=REGEX]` does not read `Posting.tags`/
+`Transaction.tags` alone — it reads the union of **four** sources per
+posting: the posting's own literal comment tags, its transaction's own
+tags, its account's declared-and-**inherited** tags (walking every
+ancestor account, not just an exact name match), and its main amount's
+commodity's declared tags (the "commodity tags" feature — a `commodity
+SYMBOL ; tag:value` directive's tags propagate to every posting whose
+main amount uses that commodity). Ledgerkit computes this on demand via
+`ledgerkit.tags._effective_tags(journal, txn, posting)` — a private, pure
+function; `Posting.tags`/`Transaction.tags` themselves still hold **only**
+each entity's own literal comment tags, unchanged from Stage C Phase 4's
+contract (hledger's own mechanism instead mutates `ptags`/`ttags` once at
+journal-read time — Ledgerkit deliberately does not mirror that literal
+mechanism, to avoid silently breaking Phase 4's already-documented field
+semantics).
+
+**Four inheritance/propagation rules, all independently confirmed live
+against the pinned hledger binary:**
+- **Rule A** (account ← parent account's declared tags): a query for a
+  tag declared on `assets:bank` also matches the *account name*
+  `assets:bank:savings`, even with no `account` directive of its own.
+- **Rule B** (posting ← its own account's inherited tags): every posting
+  to `assets:bank` or any descendant matches, even a posting with **no
+  inline comment of its own at all**.
+- **Rule C** (posting ← its transaction's own tags): a tag declared only
+  on the transaction header line is matched by a query against a posting
+  that has no comment of its own.
+- **Rule D** (transaction ← union of all its postings' effective tags,
+  **plus** its own tags directly): a transaction matches if *any*
+  posting's effective tag set matches, **or** if the transaction's own
+  tags directly match — both halves are real, independent inputs (the
+  direct half is not merely implied by rule C's propagation onto
+  postings, even though in practice it usually is also reachable that
+  way too).
+
+**Combination is always AND, never OR**: unlike `acct:`/`desc:`/
+`status:` (whose same-prefix unnegated terms OR-combine), multiple
+`tag:` terms in one query string always AND together — `tag:a tag:b`
+requires both tags present, not either. This falls out for free from
+`tag:` not being one of the three OR-eligible prefixes in
+`ledgerkit/query/parser.py`'s bucket logic — no special-casing needed,
+but easy to assume otherwise by analogy with `acct:`/`desc:`.
+
+**The single most counter-intuitive rule — no shadowing between sources,
+despite the manual's own wording implying otherwise**: hledger's manual
+states "posting tags override account tags override commodity tags,"
+which reads like exclusion (only the highest-priority value visible when
+names collide). **This is not what happens for `tag:` query-matching.**
+Executable testing against the pinned binary shows every differently-
+valued, same-named tag from every applicable source remains
+**simultaneously, independently matchable** — a query for the
+account-inherited value still matches a posting whose own comment
+declares a *different* value for the same tag name, and vice versa.
+Traced to source: `Tag = (TagName, TagValue)` is a plain tuple with
+structural equality, and hledger's own `postingAddTags` deduplicates via
+`Data.List.union` on the **full tuple** (name AND value) — a same-name,
+different-value pair is never considered a duplicate and is never
+dropped. The manual's "override" language describes something narrower
+than exclusion (plausibly which value a hypothetical single-value lookup
+would prefer) — not investigated further, since it doesn't change the
+matching contract. **Ledgerkit's `_effective_tags` is therefore a plain
+concatenation of all four sources with no shadowing/exclusion logic
+whatsoever** — a naive "highest-priority wins" or dedup-by-name
+implementation would be a correctness bug, not a simplification.
+
+**`accounts -q "tag:X"` (plain, non-`--declared` mode) is a genuine,
+narrower exception**: it shows only **transaction-level** and
+**account-inherited** tags — a posting's own comment tags and
+commodity-propagated tags are **not visible** to it, even though every
+other command (`balance`/`register`/`print`/`stats`) sees all four
+sources. Source-confirmed: `journalPostingsKeepAccountTagsOnly` replaces
+a posting's own `ptags` with only its account-inherited tags before
+`accounts` builds its list, but query matching separately reads
+`postingAllTags = ptags ++ ttags`, which unconditionally re-adds the
+transaction's own tags regardless of what `keepaccounttags` did — so
+transaction-level tags remain visible even though posting-own tags do
+not. Ledgerkit replicates this via a private, `accounts`-only
+computation (`ledgerkit.tags._accounts_effective_tags`), not by changing
+`matches_posting`'s own default behaviour.
+
+**A `Tag` node needs `Journal` access to evaluate** (every other
+`QueryNode` type only ever needs the `Transaction`/`Posting` already
+passed in) — `matches_transaction`/`matches_posting` gained an optional
+`journal: Journal | None = None` parameter for this. Evaluating a `Tag`
+node with `journal=None` raises `ValueError` — never silently narrows to
+own-tags-only; a caller that needs `tag:` support but forgets to pass
+`journal` gets a loud, immediate failure, not a quietly wrong answer.
+
+**Why it matters:** every rule above was independently re-verified this
+phase against the pinned hledger 1.52.4 binary on purpose-built fixtures
+(`23-tag-query-matching-design.md` §2), not inferred from the manual's
+prose alone — the manual's own wording on precedence is, on its own,
+actively misleading for the shadowing question. A future change to
+`tags.py`/`query/eval.py` that "simplifies" by deduplicating effective
+tags by name, or that adds a fifth account-tag-only or
+posting-tag-only shortcut without checking this rule first, would
+silently reintroduce a real correctness regression.
+
+**Applies to:** `ledgerkit/tags.py`, `ledgerkit/parser.py`,
+`ledgerkit/models.py`, `ledgerkit/query/ast.py`, `ledgerkit/query/eval.py`,
+`ledgerkit/query/parser.py`, `ledgerkit/reports.py`

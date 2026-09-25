@@ -170,6 +170,82 @@ class TestCommodityDirective(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# commodity directive tags (Stage C Phase 6 — declared_commodity_tags)
+#
+# Mirrors TestAccountDirectiveTags above exactly — commodity-directive tag
+# capture reuses the same follow-on-comment-line mechanism, per
+# 24-tag-query-matching-implementation-plan.md's instruction to mirror
+# the account-directive tag-capture code path rather than invent a new one.
+# ---------------------------------------------------------------------------
+
+class TestCommodityDirectiveTags(unittest.TestCase):
+    def test_same_line_tags_captured(self):
+        j = parse_string("commodity $  ; rate:2, csrc:1\n")
+        self.assertEqual(j.declared_commodity_tags, {"$": [("rate", "2"), ("csrc", "1")]})
+
+    def test_hash_comment_not_tag_scanned(self):
+        # '#' never carries tags, even though it does end the directive body.
+        j = parse_string("commodity $  # rate:2\n")
+        self.assertEqual(j.declared_commodity_tags, {})
+
+    def test_followon_semicolon_line_captured(self):
+        text = "commodity EUR\n  ; more tags - rate:9\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_commodity_tags, {"EUR": [("rate", "9")]})
+
+    def test_followon_hash_line_not_tag_scanned(self):
+        text = "commodity $\n  # rate:2\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_commodity_tags, {})
+
+    def test_same_line_and_followon_tags_both_accumulate(self):
+        text = "commodity $  ; rate:2, csrc:1\n  ; extra:tag\n"
+        j = parse_string(text)
+        self.assertEqual(
+            j.declared_commodity_tags,
+            {"$": [("rate", "2"), ("csrc", "1"), ("extra", "tag")]},
+        )
+
+    def test_format_subdirective_not_tag_scanned(self):
+        # A non-comment Ledger-style subdirective (e.g. "format ...") is
+        # consumed silently, same as for account/commodity directives
+        # generally -- it never contributes tags.
+        text = "commodity INR\n    format INR 1,00,00,000.00\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_commodity_tags, {})
+
+    def test_tags_do_not_leak_to_a_later_commodity_with_no_comment(self):
+        text = "commodity $  ; rate:2\ncommodity EUR\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_commodity_tags, {"$": [("rate", "2")]})
+
+    def test_untagged_commodity_has_no_entry(self):
+        j = parse_string("commodity $\n")
+        self.assertEqual(j.declared_commodity_tags, {})
+
+    def test_no_colon_followon_comment_produces_no_tags(self):
+        text = "commodity $\n    format $1,000.00\n    ; a note\n"
+        j = parse_string(text)
+        self.assertEqual(j.declared_commodity_tags, {})
+
+    def test_tags_do_not_leak_between_account_and_commodity_directives(self):
+        # account_comment_target and commodity_comment_target are
+        # mutually-exclusive, reset-together state — confirm a follow-on
+        # comment after a commodity directive never lands in
+        # declared_account_tags, and vice versa (implementation-plan's own
+        # explicit "no stale target leaking across an unrelated directive"
+        # requirement).
+        text = (
+            "account assets:bank\n"
+            "commodity $  ; rate:2\n"
+            "  ; extra:tag\n"
+        )
+        j = parse_string(text)
+        self.assertEqual(j.declared_account_tags, {})
+        self.assertEqual(j.declared_commodity_tags, {"$": [("rate", "2"), ("extra", "tag")]})
+
+
+# ---------------------------------------------------------------------------
 # payee directive
 # ---------------------------------------------------------------------------
 

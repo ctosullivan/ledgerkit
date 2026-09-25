@@ -1,11 +1,12 @@
 """Query text -> QueryPlan parser.
 
-Implements Stage C's initial term set only: acct:/bare pattern, desc:,
-date: (simple dates — a single full date, or two full dates joined by
-'-'/'..'/' to ', open-ended forms allowed), depth:, status:, and not:/
-implicit-AND/same-prefix-OR combination. tag:, cur:, and hledger's smart/
-period date expressions are not implemented (deliberately out of scope —
-see `dev-docs/planning/core-redefinition/17-query-semantics-brief.md`).
+Implements Stage C's term set: acct:/bare pattern, desc:, date: (simple
+dates — a single full date, or two full dates joined by '-'/'..'/' to ',
+open-ended forms allowed), depth:, status:, tag:NAME[=REGEX] (Stage C
+Phase 6), and not:/implicit-AND/same-prefix-OR combination. cur: and
+hledger's smart/period date expressions are not implemented (deliberately
+out of scope — see `dev-docs/planning/core-redefinition/
+17-query-semantics-brief.md`/`23-tag-query-matching-design.md`).
 
 Combination semantics mirror hledger's own `combineQueriesByType`
 (verified in the semantics brief §6): unnegated acct:/desc:/status: terms
@@ -32,7 +33,7 @@ from __future__ import annotations
 import datetime
 import re
 
-from ledgerkit.query.ast import Acct, And, DateSpan, Desc, Not, Or, QueryNode, QueryPlan, Status, TxnStatus
+from ledgerkit.query.ast import Acct, And, DateSpan, Desc, Not, Or, QueryNode, QueryPlan, Status, Tag, TxnStatus
 from ledgerkit.query.depth import DepthSpec, merge_depth_specs
 from ledgerkit.query.regex import compile_hledger_regex
 
@@ -226,6 +227,24 @@ def _build_depth_spec(value: str) -> DepthSpec:
     return DepthSpec(by_pattern=((pattern, _parse_depth_int(num_str)),))
 
 
+def _build_tag(value: str) -> Tag:
+    # tag:NAME (bare) or tag:NAME=REGEX. Split on the FIRST '=' only —
+    # same "split on first occurrence" convention as _build_depth_spec's
+    # depth:REGEX=N (design §2.1, itself matching hledger's own
+    # Query.hs:482-487) — so a value containing '=' (e.g.
+    # "tag:rate==0.05", a tag literally named "rate" with value "=0.05")
+    # preserves everything after the first '=' rather than mis-splitting
+    # on a later one.
+    name, sep, val = value.partition("=")
+    try:
+        compile_hledger_regex(name)
+        if sep:
+            compile_hledger_regex(val)
+    except (ValueError, re.error) as exc:
+        raise QueryParseError(f"tag: {exc}") from exc
+    return Tag(name, val if sep else None)
+
+
 def _build_status(value: str) -> Status:
     try:
         return Status(_STATUS_VALUES[value])
@@ -257,6 +276,7 @@ _PREFIX_BUILDERS = {
     "desc:": _build_desc,
     "date:": _build_date,
     "status:": _build_status,
+    "tag:": _build_tag,
 }
 
 
@@ -328,11 +348,16 @@ def parse(query_text: str) -> QueryPlan:
 
     # Replicates hledger's combineQueriesByType: unnegated acct:/desc:/
     # status: terms of the same type are OR'd with each other; every other
-    # term (date:, and any not:-wrapped term of any prefix) is AND'd in
-    # individually. A Not(...) node is never pulled into an OR bucket even
-    # when its wrapped prefix matches one of the three types — see
+    # term (date:, tag:, and any not:-wrapped term of any prefix) is AND'd
+    # in individually. A Not(...) node is never pulled into an OR bucket
+    # even when its wrapped prefix matches one of the three types — see
     # 17-query-semantics-brief.md §6. depth: terms never reach this
-    # combination at all (extracted above into depth_spec instead).
+    # combination at all (extracted above into depth_spec instead). tag:
+    # needs no new bucket — it isn't in any of the three OR-eligible
+    # isinstance checks below, so multiple tag: terms land in other_terms
+    # and AND together automatically, matching hledger's own
+    # executable-confirmed always-AND-never-OR tag: combination behaviour
+    # (23-tag-query-matching-design.md §2.3/§8) with zero new logic here.
     acct_terms = [t for t in predicate_terms if isinstance(t, Acct)]
     desc_terms = [t for t in predicate_terms if isinstance(t, Desc)]
     status_terms = [t for t in predicate_terms if isinstance(t, Status)]

@@ -956,6 +956,7 @@ def _parse_string_impl(
     declared_payees: list[str] = []
     declared_tags: list[str] = []
     declared_account_tags: dict[str, list[tuple[str, str]]] = {}
+    declared_commodity_tags: dict[str, list[tuple[str, str]]] = {}
     commodity_directive_raws: dict = {}  # symbol → raw amount string from directive
     aliases: list[tuple[str, str, bool]] = []  # (old_or_pattern, replacement, is_regex)
     ctx = _ParseContext(default_year=default_year, decimal_mark=".")
@@ -971,6 +972,16 @@ def _parse_string_impl(
     # never are. None whenever in_subdirective is False or was set by a
     # non-account directive.
     account_comment_target: str | None = None
+    # Mirrors account_comment_target, but for a just-declared commodity
+    # symbol: set while in_subdirective is True *because* of a commodity
+    # directive specifically. Indented ';'-led lines under it are
+    # tag-scanned into declared_commodity_tags, the same follow-on-comment
+    # mechanism account directives already use. account_comment_target and
+    # commodity_comment_target are mutually exclusive — only one directive's
+    # subdirective block can be open at a time (in_subdirective is a single
+    # shared flag) — both are still reset together wherever either is, to
+    # avoid a stale target leaking across an unrelated directive.
+    commodity_comment_target: str | None = None
     skip_until_blank = False  # lenient mode: True while skipping a malformed transaction
 
     for lineno, raw in enumerate(all_lines, start=1):
@@ -1010,6 +1021,7 @@ def _parse_string_impl(
                 skip_until_blank = False
                 in_subdirective = False
                 account_comment_target = None
+                commodity_comment_target = None
                 continue
             if not re.match(r"^(?:\d{4}[-/.])?(?:\d{1,2})[-/.](?:\d{1,2})(?=[\s*!(=]|$)", line):
                 continue
@@ -1027,6 +1039,7 @@ def _parse_string_impl(
                 last_posting_in_txn = None
             in_subdirective = False
             account_comment_target = None
+            commodity_comment_target = None
             continue
 
         # --- Comment-only line (whole-line or indented follow-on `;` / `#`) ---
@@ -1056,19 +1069,28 @@ def _parse_string_impl(
         is_indented = line[0:1].isspace()
         stripped = line.lstrip()
         if stripped.startswith(";") or stripped.startswith("#"):
-            if current_txn is None and is_indented and account_comment_target is not None:
-                # Follow-on ';'-led comment line under an `account`
-                # directive (outside any transaction) — tag-scanned into
-                # declared_account_tags. '#'-led lines never carry tags
-                # (matches hledger; see ledgerkit/tags.py). This must be
-                # handled here, before the `continue` below, since this
-                # block unconditionally consumes every ';'/'#'-led line —
-                # the in_subdirective check further down the loop body is
-                # never reached for comment lines.
+            if current_txn is None and is_indented and (
+                account_comment_target is not None or commodity_comment_target is not None
+            ):
+                # Follow-on ';'-led comment line under an `account` or
+                # `commodity` directive (outside any transaction) —
+                # tag-scanned into declared_account_tags/
+                # declared_commodity_tags respectively. '#'-led lines never
+                # carry tags (matches hledger; see ledgerkit/tags.py). This
+                # must be handled here, before the `continue` below, since
+                # this block unconditionally consumes every ';'/'#'-led
+                # line — the in_subdirective check further down the loop
+                # body is never reached for comment lines. The two targets
+                # are mutually exclusive (only one directive's subdirective
+                # block can be open at a time), so checking
+                # account_comment_target first is unambiguous.
                 if stripped.startswith(";"):
                     new_tags = parse_tags(stripped[1:].strip())
                     if new_tags:
-                        declared_account_tags.setdefault(account_comment_target, []).extend(new_tags)
+                        if account_comment_target is not None:
+                            declared_account_tags.setdefault(account_comment_target, []).extend(new_tags)
+                        else:
+                            declared_commodity_tags.setdefault(commodity_comment_target, []).extend(new_tags)
                 continue
             if current_txn is not None and is_indented:
                 current_txn_last_lineno = lineno
@@ -1176,6 +1198,7 @@ def _parse_string_impl(
                 transactions.append(current_txn)
             in_subdirective = False
             account_comment_target = None
+            commodity_comment_target = None
             current_txn_last_lineno = None
             last_posting_in_txn = None
             try:
@@ -1202,6 +1225,7 @@ def _parse_string_impl(
                 current_txn = None
             in_subdirective = False
             account_comment_target = None
+            commodity_comment_target = None
             in_block_comment = True
             continue
 
@@ -1234,6 +1258,7 @@ def _parse_string_impl(
                 continue  # consume indented subdirective silently
             in_subdirective = False
             account_comment_target = None
+            commodity_comment_target = None
             # fall through to process this non-indented line normally
 
         # --- account directive ---
@@ -1268,23 +1293,34 @@ def _parse_string_impl(
                 account_comment_target = resolved_name
             else:
                 account_comment_target = None
+            commodity_comment_target = None
             in_subdirective = True
             continue
 
         # --- commodity directive ---
         #
-        # Purpose: record a declared commodity symbol for strict-mode checking.
-        #          Supports all hledger commodity directive forms: sample amount
-        #          with prefix symbol ($1,000.00), sample amount with suffix
-        #          symbol (1,000.00 EUR), bare symbol ($, INR), quoted symbol
+        # Purpose: record a declared commodity symbol for strict-mode checking,
+        #          and (per hledger's "commodity tags" feature) any tags in
+        #          the directive's same-line comment. Supports all hledger
+        #          commodity directive forms: sample amount with prefix
+        #          symbol ($1,000.00), sample amount with suffix symbol
+        #          (1,000.00 EUR), bare symbol ($, INR), quoted symbol
         #          ("AAPL 2023"), empty-quoted no-symbol (""), and numeric-only
         #          (1000.) for format declarations.
         #
         # Edge cases:
         #   - "commodity" with no body raises ParseError (empty symbol)
-        #   - Indented "format" subdirectives are consumed via in_subdirective
+        #   - Indented "format" subdirectives are consumed via in_subdirective;
+        #     indented ';'-led follow-on comment lines are tag-scanned into
+        #     declared_commodity_tags via commodity_comment_target, the same
+        #     mechanism account directives already use for
+        #     declared_account_tags (see the follow-on-comment-line block
+        #     above).
         #   - The same symbol may be declared more than once; deduplication is
-        #     done at check time, not parse time
+        #     done at check time, not parse time. Tags from multiple
+        #     `commodity` directives for the same symbol accumulate (append),
+        #     mirroring declared_account_tags's own merge behaviour for a
+        #     repeated `account` directive.
         if not line[0:1].isspace() and re.match(r"^commodity(\s|$)", line):
             rest = line[len("commodity"):].strip()
             body = _strip_directive_comment(rest)
@@ -1294,7 +1330,15 @@ def _parse_string_impl(
             # a sample amount (contains at least one digit).
             if symbol and any(ch.isdigit() for ch in body):
                 commodity_directive_raws[symbol] = body
+            # Same-line "  ; tag:value" comment (';' only — '#' never
+            # carries tags, per parse_tags/ledgerkit/tags.py).
+            same_line_match = _TWO_SPACE_SEMICOLON_COMMENT.search(rest)
+            if same_line_match:
+                same_line_tags = parse_tags(same_line_match.group(1).strip())
+                if same_line_tags:
+                    declared_commodity_tags.setdefault(symbol, []).extend(same_line_tags)
             account_comment_target = None
+            commodity_comment_target = symbol if symbol else None
             in_subdirective = True
             continue
 
@@ -1317,6 +1361,7 @@ def _parse_string_impl(
                 payee_name = payee_name[1:-1]
             declared_payees.append(payee_name)
             account_comment_target = None
+            commodity_comment_target = None
             in_subdirective = True
             continue
 
@@ -1337,6 +1382,7 @@ def _parse_string_impl(
             if tag_name:
                 declared_tags.append(tag_name)
             account_comment_target = None
+            commodity_comment_target = None
             in_subdirective = True
             continue
 
@@ -1614,6 +1660,7 @@ def _parse_string_impl(
         declared_payees=declared_payees,
         declared_tags=declared_tags,
         declared_account_tags=declared_account_tags,
+        declared_commodity_tags=declared_commodity_tags,
         _commodity_directive_raws=commodity_directive_raws,
     )
 

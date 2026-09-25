@@ -70,8 +70,8 @@ commodity symbol must match exactly — `£` and `GBP` are two distinct identifi
 
 Filters `balance`, `register`, `accounts`, `stats`, and `print` by a
 space-separated query string. Supports `acct:`/bare pattern, `desc:`,
-`date:` (simple dates only), `depth:N`/`depth:REGEX=N`, `status:`, and
-`not:` — see
+`date:` (simple dates only), `depth:N`/`depth:REGEX=N`, `status:`,
+`tag:NAME[=REGEX]`, and `not:` — see
 [`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
 for the full term reference. Not supported by `check` (checks apply to
 the whole journal by design). For `print`, a matching transaction is
@@ -92,6 +92,18 @@ ledgerkit -f myledger.journal -q "depth:2" balance
 
 # Collapse only assets-matching accounts to depth 1; everything else stays full
 ledgerkit -f myledger.journal -q "depth:assets=1" balance
+
+# Postings/transactions tagged "category" with any value
+ledgerkit -f myledger.journal -q "tag:category" balance
+
+# Only postings tagged category:food specifically
+ledgerkit -f myledger.journal -q "tag:category=food" register
+
+# Combine with other terms (always AND, never OR, across different tag: terms)
+ledgerkit -f myledger.journal -q "tag:category=food tag:priority=high" print
+
+# Exclude a tagged category
+ledgerkit -f myledger.journal -q "not:tag:category=food" balance
 ```
 
 Quote a multi-word pattern: `-q 'desc:"whole foods"'`. An invalid query
@@ -111,6 +123,21 @@ Ledgerkit choice. See
 [`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
 for the full explanation and the worked precedence examples for combining
 multiple `depth:` terms.
+
+`tag:NAME[=REGEX]` matches a posting's/transaction's **effective** tags —
+not just its own literal `; name:value` comment, but also its
+transaction's own tags, its account's declared-and-inherited tags (from
+`account NAME ; tag:value` directives, including parent accounts), and
+its commodity's declared tags (from `commodity SYMBOL ; tag:value`
+directives). A bare `tag:NAME` matches any value, including an empty one;
+`tag:NAME=REGEX` requires the value to match too. Multiple `tag:` terms
+always **AND** together (never OR, unlike `acct:`/`desc:`/`status:`).
+`not:tag:...` is valid. `accounts -q "tag:X"` is a deliberate exception:
+it shows only transaction-level and account-inherited tags, not a
+posting's own comment tags or commodity-propagated tags — matching
+hledger's own `accounts` command exactly. See
+[`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
+for the full four-source model and the `accounts` visibility exception.
 
 ---
 

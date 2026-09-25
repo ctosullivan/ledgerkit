@@ -9,6 +9,71 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 6 — `tag:NAME[=REGEX]` query matching implemented] — 2026-09-25
+
+Full detail: [dev-docs/planning/core-redefinition/23-tag-query-matching-design.md](dev-docs/planning/core-redefinition/23-tag-query-matching-design.md), [dev-docs/planning/core-redefinition/24-tag-query-matching-implementation-plan.md](dev-docs/planning/core-redefinition/24-tag-query-matching-implementation-plan.md), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md)
+
+**Human:** directed implementation of the already-approved design/plan
+(Option A — complete four-source effective-tag semantics; `accounts`
+mode replicating hledger; evaluator API shape `journal: Journal | None =
+None`) — a fresh coding-agent dispatch (Step 6 of this project's
+design → plan → implement → verify process), explicitly not authorised
+to redesign anything the design/plan already resolved, and explicitly
+not authorised to promote any compat-register entry past
+`status: proposed`.
+
+**Claude:** implemented `tag:NAME[=REGEX]` end to end. New commodity-tag
+substrate: `Journal.declared_commodity_tags` (mirrors
+`declared_account_tags`'s shape); `parser.py`'s `commodity` directive now
+captures same-line and follow-on comment tags via the same mechanism
+`account` directives already used (a new `commodity_comment_target`
+tracking variable, mutually exclusive with and reset alongside
+`account_comment_target`). New private `ledgerkit/tags.py` helpers:
+`_inherited_account_tags` (ancestor-chain walk, closing a pre-existing
+gap where `declared_account_tags` had no consumer), `_commodity_tags`,
+`_posting_commodities`, `_effective_tags` (the full four-source union,
+plain concatenation — deliberately **no shadowing/exclusion logic**, per
+the design's executable-verified finding that hledger's manual
+"tags override" wording does not mean exclusion for query-matching), and
+`_accounts_effective_tags` (the `accounts` command's narrower
+transaction-own + account-inherited-only variant). New `Tag` AST node
+(`ledgerkit/query/ast.py`), added to the `QueryNode` Union; `_build_tag`
+parser rule (`ledgerkit/query/parser.py`, `str.partition("=")`-based,
+first-`=`-split, reusing `compile_hledger_regex`); no new AND/OR bucket
+needed (`tag:` isn't OR-eligible, falls into `other_terms` automatically,
+correctly AND-combining multiple `tag:` terms). `matches_transaction`/
+`matches_posting` (`ledgerkit/query/eval.py`) each gained
+`journal: Journal | None = None`; a `Tag` node evaluated with
+`journal=None` raises `ValueError`, never silently narrowing to
+own-tags-only. A new private `_matches_posting_for_accounts` wrapper
+(sharing the same recursive And/Or/Not dispatch as `matches_posting` via
+a `tag_source` parameter, not a duplicated copy) gives `reports.
+accounts()` its own narrower Tag-matching mode; `balance`/`register`/
+`print`/`stats` are unaffected. All four existing report call sites plus
+`cli.py`'s `print` now pass `journal=journal` through. 6 new compat-
+register entries at `status: proposed` (`LK-COMPAT-QUERY-TAG-001`,
+`-COMBINE-001`, `-INHERIT-001`, `-COMMODITY-001`, `-ACCOUNTS-001`,
+`LK-COMPAT-PARSER-TAG-COMMODITY-001`) — independent
+`compat-differential-tester` verification is a separate, later step, not
+run by this session. 99 new tests (unit: parser/eval/tags; integration:
+a new `tests/fixtures/tags.journal` fixture plus `reports.py`/CLI
+wiring for all five commands) — full suite (845 tests) passes. Docs
+synced in the same response: `dev-docs/api-spec.md` (the two disclosed,
+approved changes — `QueryNode`'s `Tag` member, the `journal` parameter —
+plus documenting the also-approved `Journal.declared_commodity_tags`
+field addition, judged in scope per design §11's own explicit disclosure
+of that field and CLAUDE.md's unconditional doc-sync rule — see
+`knowledge/DECISIONS.md`), `dev-docs/hledger-compatibility.md`,
+`dev-docs/architecture.md`, `docs/usage.md`, `docs/journal-format.md`,
+`knowledge/DECISIONS.md`, `knowledge/DOMAIN_RULES.md`. Flagged, not
+acted on unilaterally: `ledgerkit/reports.py` (now ~720 lines) and
+`ledgerkit/cli.py` (~510 lines) were already over CLAUDE.md's 300-500
+line module-size guidance before this phase; this phase added modestly
+to both rather than triggering the threshold itself — noted in the
+phase retro for a human decision on whether a split is warranted.
+
+---
+
 ### [Stage C Phase 6 — Design document: small final correction pass] — 2026-09-25
 
 Full detail: [dev-docs/planning/core-redefinition/23-tag-query-matching-design.md](dev-docs/planning/core-redefinition/23-tag-query-matching-design.md), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-PLAN.md)'s second addendum

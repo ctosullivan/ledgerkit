@@ -57,26 +57,71 @@ always delegates to `ledgerkit.query.eval.matches_posting`/
 where `stats` excludes rather than clips; see that function's own
 docstring) for the depth half — never a second, local reimplementation of
 either. `ledgerkit/query/` does not import from `reports.py`, `cli.py`,
-or `checks.py` — only from `models.py` — so the existing "each module
-imports only from modules
-below it" principle still holds with `query/` sitting at the same layer
-as `models.py`.
+or `checks.py` — only from `models.py` (and, since Stage C Phase 6,
+`tags.py` — see below) — so the existing "each module imports only from
+modules below it" principle still holds, with `query/` and `tags.py`
+sitting at the same layer as `models.py` and `query/eval.py` sitting one
+layer above `tags.py`.
 
-**`ledgerkit/tags.py`** (Stage C Phase 4) is a small, pure-function module
-that also sits alongside the main pipeline rather than in its linear flow.
-`parser.py` calls `tags.parse_tags(comment)` at the point a transaction's,
-posting's, or account-directive's `inline_comment` text has already been
-fully assembled (same-line plus any follow-on indented `;` lines), and
-stores the resulting `list[tuple[str, str]]` on the relevant model field
-itself (`Transaction.tags`, `Posting.tags`, `Journal.declared_account_tags`)
-— `tags.py` never mutates a model object directly. It also provides
-`effective_date`/`effective_date2`, pure functions over a `(Transaction,
-Posting)` pair that resolve a posting's `date:`/`date2:` comment-tag
-overrides against the transaction's own dates, matching ledgerkit's
-existing no-back-reference design (`Posting` has no reference back to its
-owning `Transaction`). `tags.py` imports only from `models.py` (under
-`TYPE_CHECKING`, for type hints only), so it sits at the same layer as
-`models.py` and `query/`.
+**Stage C Phase 6** added `tag:NAME[=REGEX]` query matching, the one
+selection-predicate term that needs `Journal` access to evaluate (every
+other `QueryNode` type only ever needs the `Transaction`/`Posting` already
+passed in). This is the first real edge in `ledgerkit/query/`'s own
+import graph: `ledgerkit/query/eval.py` now imports `ledgerkit.tags`'s
+private `_effective_tags`/`_accounts_effective_tags` helpers to compute a
+posting's/transaction's full effective tag set on demand.
+`matches_transaction`/`matches_posting` both gained an optional
+`journal: Journal | None = None` parameter for this — a real default, so
+every existing caller unaffected by `Tag` keeps working unchanged; a
+`Tag` node evaluated with `journal=None` raises `ValueError` rather than
+silently narrowing to own-tags-only. `reports.py`'s four existing call
+sites (`balance`/`register`/`accounts`/`stats`) and `cli.py`'s `print`
+now pass `journal=journal` through — no new parameter of their own, since
+each already had `journal` in scope. `reports.py`'s `accounts` is the one
+exception: it dispatches `Tag` nodes through a private
+`ledgerkit.query.eval._matches_posting_for_accounts` wrapper instead of
+the ordinary `matches_posting`, replicating hledger's own narrower
+`accounts tag:X` tag-visibility (transaction-own + account-inherited
+only, excluding posting-own and commodity-propagated tags) — every other
+node type behaves identically either way, and `balance`/`register`/
+`print`/`stats` are unaffected by this wrapper's existence. See
+`dev-docs/planning/core-redefinition/23-tag-query-matching-design.md` and
+`24-tag-query-matching-implementation-plan.md`.
+
+**`ledgerkit/tags.py`** (Stage C Phase 4; effective-tags computation added
+Phase 6) is a small, pure-function module that also sits alongside the
+main pipeline rather than in its linear flow. `parser.py` calls
+`tags.parse_tags(comment)` at the point a transaction's, posting's,
+account-directive's, or (since Phase 6) commodity-directive's
+`inline_comment` text has already been fully assembled (same-line plus
+any follow-on indented `;` lines), and stores the resulting
+`list[tuple[str, str]]` on the relevant model field itself
+(`Transaction.tags`, `Posting.tags`, `Journal.declared_account_tags`,
+`Journal.declared_commodity_tags`) — `tags.py` never mutates a model
+object directly. It also provides `effective_date`/`effective_date2`,
+pure functions over a `(Transaction, Posting)` pair that resolve a
+posting's `date:`/`date2:` comment-tag overrides against the
+transaction's own dates, matching ledgerkit's existing no-back-reference
+design (`Posting` has no reference back to its owning `Transaction`).
+`tags.py` imports only from `models.py` (under `TYPE_CHECKING`, for type
+hints only), so it sits at the same layer as `models.py` and `query/`.
+
+**Stage C Phase 6** added four private helpers here for `tag:` query
+matching's effective-tags computation: `_inherited_account_tags` (walks
+an account's `:`-separated ancestor chain, unioning each level's
+`Journal.declared_account_tags` entries — closes a pre-existing gap where
+that field had no consumer anywhere), `_commodity_tags` (looks up
+`Journal.declared_commodity_tags` for a posting's main-amount
+commodities), `_effective_tags` (the full four-source union `ledgerkit.
+query.eval` reads for every command except `accounts`), and
+`_accounts_effective_tags` (the narrower transaction-own +
+account-inherited-only union `accounts` reads instead — design §2.5/§9.2).
+All four are pure, on-demand computations over `Journal`/`Transaction`/
+`Posting`, never mutating `Posting.tags`/`Transaction.tags` — deliberately
+different from hledger's own mechanism (which mutates `ptags`/`ttags`
+once at journal-read time) so as not to silently break Phase 4's own
+already-documented "own tags only" contract for those two fields. All
+four are private (no new public API surface — design §9.3's resolution).
 
 ---
 
@@ -115,9 +160,10 @@ multi-file merging.
 - Reads journal text line by line via a state machine
 - Recognises transaction headers, postings, comments, and directives
 - Delegates inline-comment tag extraction (`name:value` pairs) to
-  `tags.parse_tags()` once a transaction's/posting's/account-directive's
-  comment text is fully assembled, and applies posting-level `date:`/
-  `date2:` tag overrides via `tags`-adjacent helpers
+  `tags.parse_tags()` once a transaction's/posting's/account-directive's/
+  commodity-directive's (Stage C Phase 6) comment text is fully assembled,
+  and applies posting-level `date:`/`date2:` tag overrides via
+  `tags`-adjacent helpers
 - Raises `ParseError` with line number on malformed input
 - Does **not** perform any balance validation, file loading, or reporting logic
 - `include` directive lines encountered in raw text are silently skipped
@@ -138,8 +184,8 @@ Core types:
   `date:`/`date2:` tags only take effect at posting scope)
 - `Journal` — top-level container: a list of `Transaction`s, a list of
   `PriceDirective`s, `declared_accounts`, `declared_account_tags`,
-  `declared_commodities`, `declared_payees`, `source_file`, and
-  `included_files` count
+  `declared_commodities`, `declared_commodity_tags` (Stage C Phase 6),
+  `declared_payees`, `source_file`, and `included_files` count
 
 Models are plain dataclasses. They contain no parsing or reporting logic.
 

@@ -1,10 +1,24 @@
-"""Inline comment-tag parsing (hledger `name:value` tags).
+"""Inline comment-tag parsing (hledger `name:value` tags) and
+effective-tag computation for `tag:` query matching.
 
 Pure functions only — no file I/O, no Journal/Transaction/Posting
-mutation. `parser.py` calls into this module after a transaction's/
-posting's/account-directive's `inline_comment` text has already been
-fully assembled (including any follow-on indented comment lines), and
-stores the results on the relevant model fields itself.
+mutation. `parser.py` calls into `parse_tags` after a transaction's/
+posting's/account-directive's/commodity-directive's `inline_comment` text
+has already been fully assembled (including any follow-on indented
+comment lines), and stores the results on the relevant model fields
+itself.
+
+Stage C Phase 6 added the account-inheritance/commodity-propagation/
+effective-tags helpers below (`_inherited_account_tags`, `_commodity_tags`,
+`_effective_tags`, `_accounts_effective_tags`) — all private, per
+`dev-docs/planning/core-redefinition/
+23-tag-query-matching-design.md` §9.3's resolution (no new public API
+surface without a demonstrated external consumer). Unlike hledger's own
+mechanism (which mutates `ptags`/`ttags` once at journal-read time —
+design §2.6), these remain pure, on-demand computations over `Journal`/
+`Transaction`/`Posting` — `Posting.tags`/`Transaction.tags` still hold
+only each entity's own literal inline-comment tags, exactly as Stage C
+Phase 4 established; nothing here mutates them.
 
 Grounded in `dev-docs/planning/core-redefinition/20-tag-parsing-syntax-
 brief.md`, itself derived from hledger 1.52.4's actual extraction grammar
@@ -21,7 +35,7 @@ import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ledgerkit.models import Posting, Transaction
+    from ledgerkit.models import Journal, Posting, Transaction
 
 
 def parse_tags(comment: str | None) -> list[tuple[str, str]]:
@@ -138,3 +152,106 @@ def _tag_name_before_colon(candidate: str) -> str:
         return ""
     parts = candidate.split()
     return parts[-1] if parts else ""
+
+
+def _inherited_account_tags(journal: "Journal", account: str) -> list[tuple[str, str]]:
+    """Return every ancestor account's (and `account`'s own) declared tags.
+
+    Walks `account`'s `:`-separated ancestor chain from the root segment
+    down to `account` itself, concatenating each level's
+    `Journal.declared_account_tags` entries (own tags first come from the
+    least-specific ancestor, most-specific last — order does not affect
+    `tag:` matching, a pure membership test, but is kept deterministic).
+    Mirrors hledger's `journalInheritedAccountTags`: inherited tags apply
+    to the declaring account itself and all of its descendants, not just
+    strict descendants (design §2.2 rule A, confirmed live against the
+    pinned binary). An account with no declared tags anywhere in its own
+    chain (and no ancestor with any) returns [].
+    """
+    tags: list[tuple[str, str]] = []
+    segments = account.split(":")
+    for i in range(1, len(segments) + 1):
+        prefix = ":".join(segments[:i])
+        tags.extend(journal.declared_account_tags.get(prefix, []))
+    return tags
+
+
+def _posting_commodities(posting: "Posting") -> list[str]:
+    """Return the commodity symbol(s) used in `posting`'s main amount.
+
+    Ledgerkit's `Posting.amount` is a single `Amount` (one commodity per
+    posting — no `MixedAmount` concept), so this is always a 0- or
+    1-element list. Named/plural to mirror hledger's own
+    `postingCommodities` (design §2.6), which is plural because hledger's
+    `Posting` amount CAN reference more than one commodity; kept as its
+    own small helper (rather than inlining `[posting.amount.commodity]`)
+    so `_effective_tags`/`_accounts_effective_tags` read the same either
+    way if Ledgerkit ever grows multi-commodity postings.
+    """
+    return [posting.amount.commodity] if posting.amount is not None else []
+
+
+def _commodity_tags(journal: "Journal", commodities: list[str]) -> list[tuple[str, str]]:
+    """Return every declared tag for each commodity symbol in `commodities`.
+
+    Looks up `Journal.declared_commodity_tags` for each symbol
+    (concatenating results, since a posting's main amount can in principle
+    reference more than one commodity — see `_posting_commodities`), per
+    hledger's `journalCommodityTags`/`journalPostingsAddCommodityTags`
+    (design §2.6, the "commodity tags" feature). A commodity with no
+    declared tags contributes nothing.
+    """
+    tags: list[tuple[str, str]] = []
+    for symbol in commodities:
+        tags.extend(journal.declared_commodity_tags.get(symbol, []))
+    return tags
+
+
+def _effective_tags(journal: "Journal", txn: "Transaction", posting: "Posting") -> list[tuple[str, str]]:
+    """Return the full, four-source union of tags effectively visible on `posting`.
+
+    Plain concatenation of `posting`'s own tags, `txn`'s own tags,
+    `posting.account`'s inherited (declared/ancestor) tags, and the
+    declared tags of every commodity used in `posting`'s main amount — the
+    complete set of sources hledger's `tag:` reads from (design §2.2/§2.6).
+
+    Deliberately **no shadowing/exclusion logic**: a same-named tag with a
+    different value from another source is NOT deduplicated away — every
+    differently-valued, same-named tag from every source stays
+    independently matchable. This is not an oversight; it is the
+    design's own executable-verified finding (design §2.7): hledger's
+    manual describes "posting tags override account tags override
+    commodity tags," but live differential testing against the pinned
+    1.52.4 binary shows this is not exclusion for `tag:` query-matching
+    purposes — `Data.List.union`'s deduplication in hledger's own
+    `postingAddTags` is by the FULL `(name, value)` tuple, so a
+    differently-valued same-named tag from another source is never
+    dropped. A naive "highest-priority wins" implementation here would be
+    wrong, not merely a simplification.
+    """
+    return (
+        posting.tags
+        + txn.tags
+        + _inherited_account_tags(journal, posting.account)
+        + _commodity_tags(journal, _posting_commodities(posting))
+    )
+
+
+def _accounts_effective_tags(journal: "Journal", txn: "Transaction", posting: "Posting") -> list[tuple[str, str]]:
+    """Return the narrower tag set hledger's `accounts` command sees (design §2.5/§9.2).
+
+    Unions only `txn`'s own tags and `posting.account`'s inherited tags —
+    explicitly excluding `posting`'s own literal comment tags and any
+    commodity-propagated tags. Replicates hledger's
+    `journalPostingsKeepAccountTagsOnly` (`accounts.hs`'s own
+    `keepaccounttags`, which replaces a posting's `ptags` with only its
+    account-inherited tags) composed with `postingAllTags`'s unconditional
+    `++ ttags` (transaction-level tags are never stripped) — the real,
+    source-confirmed, four-way-tested visibility split plain
+    `accounts tag:X` shows, distinct from every other command's full
+    `_effective_tags`. Used only by `ledgerkit.reports.accounts`'s `Tag`-
+    matching path, via `ledgerkit.query.eval`'s accounts-mode dispatch —
+    reuses `_inherited_account_tags` directly rather than duplicating its
+    ancestor-walk logic.
+    """
+    return txn.tags + _inherited_account_tags(journal, posting.account)

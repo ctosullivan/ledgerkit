@@ -187,6 +187,7 @@ class Journal:
     declared_payees: list[str] = field(default_factory=list)
     declared_tags: list[str] = field(default_factory=list)
     declared_account_tags: dict[str, list[tuple[str, str]]] = field(default_factory=dict)  # [NEW — Stage C Phase 4]
+    declared_commodity_tags: dict[str, list[tuple[str, str]]] = field(default_factory=dict)  # [NEW — Stage C Phase 6]
     source_file: str | None = None
     included_files: int = 0   # count of distinct files pulled in via include
 ```
@@ -202,6 +203,18 @@ computation is a separate, not-yet-built concern; see
 Additive alongside `declared_accounts`, whose `list[str]` shape is
 unchanged, per the existing 2026-09-13 guardrail in `knowledge/
 DECISIONS.md`.
+
+**`declared_commodity_tags`** `[NEW — Stage C Phase 6]`: directly-declared
+tags per commodity symbol, from `commodity SYMBOL ; tag:value` directive
+comments (including its own follow-on indented `;` comment lines) —
+mirrors `declared_account_tags`'s exact shape and merge behaviour (multiple
+`commodity` directives for the same symbol accumulate). hledger propagates
+these onto every posting whose main amount uses that commodity (the
+"commodity tags" feature — `hledger.1:3550-3556`); Ledgerkit computes that
+propagation on demand via `ledgerkit.tags._effective_tags` (private — see
+`ledgerkit/tags.py` below), never by mutating `Posting.tags`/
+`Transaction.tags`. See `dev-docs/planning/core-redefinition/
+23-tag-query-matching-design.md` §2.6.
 
 Top-level container for all parsed journal data.
 
@@ -375,11 +388,21 @@ def effective_date2(txn: Transaction, posting: Posting) -> datetime.date:
 ```
 
 Grounded in `dev-docs/planning/core-redefinition/19-tag-query-semantics-
-brief.md` and `20-tag-parsing-syntax-brief.md`. This module implements
-**parsing and storage only** — the `tag:` query term itself (matching,
-inheritance-rule computation, same-prefix-AND-not-OR combination) is not
-yet implemented; see `dev-docs/hledger-compatibility.md`'s Query Language
-section.
+brief.md` and `20-tag-parsing-syntax-brief.md`. Through Stage C Phase 5
+this module implemented parsing and storage only; **Stage C Phase 6**
+added the `tag:` query term's effective-tags computation here too
+(account-tag inheritance, commodity-tag propagation, and the four-source
+union `_effective_tags`/`_accounts_effective_tags` that `ledgerkit.query.
+eval` calls into) — see `dev-docs/planning/core-redefinition/
+23-tag-query-matching-design.md`/`24-tag-query-matching-implementation-
+plan.md`. These are **private** helpers (`_inherited_account_tags`,
+`_commodity_tags`, `_posting_commodities`, `_effective_tags`,
+`_accounts_effective_tags`), not part of this module's public surface
+above — design §9.3's resolution: no new public API without a
+demonstrated external consumer. `tag:` matching itself (the AST node,
+parser, and evaluator branches) lives in `ledgerkit/query/`, not here;
+see that section below. `dev-docs/hledger-compatibility.md`'s Query
+Language section now documents `tag:` as implemented.
 
 ---
 
@@ -979,22 +1002,24 @@ positional argument is an error.
 
 ---
 
-## `ledgerkit/query/` `[Stage C Phase 1; wired into cli.py/reports.py since Phase 2-3; depth: model changed Phase 5]`
+## `ledgerkit/query/` `[Stage C Phase 1; wired into cli.py/reports.py since Phase 2-3; depth: model changed Phase 5; tag: added Phase 6]`
 
 Re-exported from `ledgerkit/__init__.py`. Wired into `cli.py`'s `-q`/
 `--query` flag (all of `balance`/`register`/`accounts`/`stats`/`print`)
 via `reports.py`'s private `_query_ast`/`_query_depth` parameters — see
 `knowledge/DECISIONS.md`, 2026-09-16 (private, internal-only integration;
-no public API change from that alone). Implements Stage C's initial term
-set: `acct:`/bare pattern, `desc:`, `date:` (a single simple date, or two
+no public API change from that alone). Implements Stage C's term set:
+`acct:`/bare pattern, `desc:`, `date:` (a single simple date, or two
 simple dates joined by `-`/`..`/` to `, open-ended forms allowed),
-`depth:N`/`depth:REGEX=N`, `status:`, and `not:`/implicit-AND/
-same-prefix-OR combination. `tag:`, `cur:`, hledger's smart/period date
-expressions, and the `PythonRegex` extension syntax (`07-query-regex.md`
-§7.4) are **not implemented** — Stage C follow-on work. Full semantics
-grounding: `dev-docs/planning/core-redefinition/
-17-query-semantics-brief.md`; the Stage C Phase 5 `depth:` redesign:
-`21-stage-c-phase-5-depth-and-verification-plan.md`.
+`depth:N`/`depth:REGEX=N`, `status:`, `tag:NAME[=REGEX]` (Stage C Phase 6
+— see `Tag` below), and `not:`/implicit-AND/same-prefix-OR combination.
+`cur:` and hledger's smart/period date expressions, and the `PythonRegex`
+extension syntax (`07-query-regex.md` §7.4) are **not implemented** —
+Stage C follow-on work. Full semantics grounding: `dev-docs/planning/
+core-redefinition/17-query-semantics-brief.md`; the Stage C Phase 5
+`depth:` redesign: `21-stage-c-phase-5-depth-and-verification-plan.md`;
+the Stage C Phase 6 `tag:` design/plan: `23-tag-query-matching-design.md`/
+`24-tag-query-matching-implementation-plan.md`.
 
 ### `ledgerkit/query/ast.py`
 
@@ -1026,6 +1051,11 @@ class Status:
     value: TxnStatus
 
 @dataclass(frozen=True)
+class Tag:  # [NEW — Stage C Phase 6]
+    name_pattern: str            # validated HledgerRegex-dialect pattern
+    value_pattern: str | None = None  # None = any value, including empty
+
+@dataclass(frozen=True)
 class And:
     terms: tuple[QueryNode, ...]
 
@@ -1037,7 +1067,7 @@ class Or:
 class Not:
     term: QueryNode
 
-QueryNode = Union[Acct, Desc, DateSpan, MaxAccountLevel, Status, And, Or, Not]
+QueryNode = Union[Acct, Desc, DateSpan, MaxAccountLevel, Status, Tag, And, Or, Not]
 
 @dataclass(frozen=True)
 class QueryPlan:
@@ -1066,6 +1096,19 @@ tested — `balance`/`register`/`print`/`accounts`) to be a report-display
 clipping/aggregation option, never a selection predicate, and why the
 existing boolean node was kept as a distinct, disclosed primitive rather
 than reused under a colliding name.
+
+**`Tag`** `[NEW — Stage C Phase 6]` matches an *effective* tag name (and,
+if given, value) — the full four-source union hledger's own `tag:` reads
+from (a posting's/transaction's own literal comment tags, its account's
+declared-and-inherited tags, and its main amount's commodity's declared
+tags; `ledgerkit.tags._effective_tags`), not merely
+`Posting.tags`/`Transaction.tags`'s own literal contents. Evaluating a
+`Tag` node needs `Journal` access — see `matches_transaction`/
+`matches_posting`'s new `journal` parameter below. `value_pattern=None`
+means "any value, including empty" (a bare `tag:NAME` term); both
+patterns are case-insensitive infix, same contract as `Acct`/`Desc`. See
+`dev-docs/planning/core-redefinition/23-tag-query-matching-design.md`
+§2.2/§2.6/§2.7 for the full semantics.
 
 **`QueryPlan`** is `ledgerkit.query.parser.parse()`'s return type (Stage C
 Phase 5, changed from a bare `QueryNode`): `predicate` is the selection
@@ -1157,24 +1200,43 @@ def parse(query_text: str) -> QueryPlan:
     depth:N/depth:REGEX=N terms never reach `predicate` at all — they
     accumulate into `depth` via merge_depth_specs. not:depth:... raises
     QueryParseError (depth is a report option, not a negatable
-    predicate)."""
+    predicate). tag:NAME[=REGEX] (Stage C Phase 6) produces a Tag node;
+    not:tag:... is valid (tag: is an ordinary predicate, unlike depth:)."""
 ```
 
 ### `ledgerkit/query/eval.py`
 
 ```python
-def matches_transaction(node: QueryNode, txn: Transaction) -> bool:
+def matches_transaction(node: QueryNode, txn: Transaction, journal: Journal | None = None) -> bool:
     """Transaction-oriented matching (used by print-like commands).
-    Acct/MaxAccountLevel match if ANY posting in the transaction matches."""
+    Acct/MaxAccountLevel match if ANY posting in the transaction matches.
+    Tag matches if txn's own tags directly match, OR any posting's
+    effective tags match (Stage C Phase 6)."""
 
-def matches_posting(node: QueryNode, txn: Transaction, posting: Posting) -> bool:
+def matches_posting(node: QueryNode, txn: Transaction, posting: Posting, journal: Journal | None = None) -> bool:
     """Posting-oriented matching (used by register/balance-like commands).
     Desc/DateSpan/Status are transaction-level facts a posting inherits
     unchanged; Acct/MaxAccountLevel are checked against the posting's own
-    account. depth: is never evaluated here — see ledgerkit.query.depth."""
+    account. depth: is never evaluated here — see ledgerkit.query.depth.
+    Tag (Stage C Phase 6) matches against the posting's full effective
+    tag set."""
 ```
 
 `Depth`'s predicate is purely `accountNameLevel(account) <= n` (colon-
 segment count) — hledger's separate depth-driven *display* truncation/
 aggregation for `balance`/`register` is intentionally not represented
 here; that is report-layer behaviour, not a query predicate.
+
+**`journal` parameter** `[NEW — Stage C Phase 6]`: a real default
+(`Journal | None = None`), so every existing caller that never constructs
+a `Tag` node keeps compiling and running unchanged — see
+`23-tag-query-matching-design.md` §9.1/§11 and
+`24-tag-query-matching-implementation-plan.md`'s resolution of the
+evaluator-API shape. **If a `Tag` node is evaluated with `journal=None`,
+both functions raise `ValueError`** — never silently narrow to
+own-tags-only (the design's binding loud-failure constraint). `ledgerkit.
+reports.accounts` additionally uses a private, undocumented variant
+(`ledgerkit.query.eval._matches_posting_for_accounts`) for its own
+narrower Tag-matching mode (design §2.5/§9.2) — not part of this public
+surface; `matches_posting`/`matches_transaction`'s own behaviour is
+unaffected by its existence.

@@ -429,7 +429,9 @@ def main(argv: list[str] | None = None) -> int:
                     from ledgerkit.query import matches_transaction as _query_ast_matches_transaction
 
                 for txn in sorted(journal.transactions, key=lambda t: t.date):
-                    if query_ast is not None and not _query_ast_matches_transaction(query_ast, txn):
+                    if query_ast is not None and not _query_ast_matches_transaction(
+                        query_ast, txn, journal=journal
+                    ):
                         continue
                     flag = " * " if txn.cleared else " ! " if txn.pending else " "
                     print(f"{txn.date}{flag}{txn.description}")

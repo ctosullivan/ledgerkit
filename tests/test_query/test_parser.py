@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 import unittest
 
-from ledgerkit.query.ast import Acct, And, DateSpan, Desc, Not, Or, Status, TxnStatus
+from ledgerkit.query.ast import Acct, And, DateSpan, Desc, Not, Or, Status, Tag, TxnStatus
 from ledgerkit.query.depth import DepthSpec
 from ledgerkit.query.parser import QueryParseError, parse
 
@@ -234,6 +234,63 @@ class TestNotAndCombination(unittest.TestCase):
             _pred("acct:a acct:b not:acct:c"),
             And((Or((Acct("a"), Acct("b"))), Not(Acct("c")))),
         )
+
+
+class TestTag(unittest.TestCase):
+    """tag:NAME[=REGEX] parsing — Stage C Phase 6
+    (23-tag-query-matching-design.md §5.2, §12; 24-tag-query-matching-
+    implementation-plan.md)."""
+
+    def test_bare_name_no_value_pattern(self):
+        # Bare tag:NAME means "any value, including empty" — represented
+        # as value_pattern=None, not an empty-string pattern.
+        self.assertEqual(_pred("tag:rate"), Tag("rate", None))
+
+    def test_name_equals_value(self):
+        self.assertEqual(_pred("tag:rate=3"), Tag("rate", "3"))
+
+    def test_empty_value_pattern_is_not_none(self):
+        # tag:NAME= (trailing '=' with nothing after) is a REAL empty
+        # value pattern, distinct from bare tag:NAME's None — both
+        # ultimately match an empty tag value via ordinary regex
+        # behaviour (design §12), but the parsed shapes differ.
+        self.assertEqual(_pred("tag:rate="), Tag("rate", ""))
+
+    def test_value_containing_equals_preserves_everything_after_first(self):
+        # tag:rate==0.05 -- a tag literally named "rate" with value
+        # "=0.05". partition("=") splits on the FIRST '=' only (design
+        # §12/§2.1), so everything after it (including the second '=')
+        # is preserved as the value pattern.
+        self.assertEqual(_pred("tag:rate==0.05"), Tag("rate", "=0.05"))
+
+    def test_dot_name_pattern_value_only_matching(self):
+        # tag:.=VALUE -- name pattern "." (matches any single character,
+        # in practice any non-empty name) with a real value constraint.
+        # Ordinary regex behaviour, no special-casing (design §12).
+        self.assertEqual(_pred("tag:.=VALUE"), Tag(".", "VALUE"))
+
+    def test_malformed_name_regex_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("tag:(")
+
+    def test_malformed_value_regex_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("tag:rate=(")
+
+    def test_not_tag_negation(self):
+        # Unlike depth:, tag: is an ordinary predicate — not: is allowed,
+        # no special rejection (design §8/§13).
+        self.assertEqual(_pred("not:tag:rate=3"), Not(Tag("rate", "3")))
+
+    def test_multiple_tag_terms_and_not_or(self):
+        # Design §2.3/§8: multiple tag: terms AND together (tag: is not
+        # one of the three OR-eligible prefixes acct:/desc:/status:), so
+        # this falls into other_terms and AND-combines automatically —
+        # confirmed here rather than merely asserted by the design.
+        self.assertEqual(_pred("tag:a tag:b"), And((Tag("a", None), Tag("b", None))))
+
+    def test_tag_and_acct_combine_with_and(self):
+        self.assertEqual(_pred("tag:a acct:food"), And((Acct("food"), Tag("a", None))))
 
 
 class TestMalformedRegexRaisesAtParseTime(unittest.TestCase):
