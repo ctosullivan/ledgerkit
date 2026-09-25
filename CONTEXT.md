@@ -1,82 +1,78 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C Phase 6 (`tag:NAME[=REGEX]` query-term matching) — **implementation
-and independent verification both complete.** Design approved by the
-user (Option A, `accounts`-mode replication); implemented by a fresh
-coding agent (Step 6); independently re-verified against the pinned
-hledger binary by a genuinely separate `compat-differential-tester`
-dispatch (Step 7). One real, pre-existing (not phase-caused) divergence
-found and filed, not fixed. `[DONE]` for the phase is the user's own
-call to make, not inferred here.
+Stage C Phase 6 (`tag:NAME[=REGEX]` query-term matching) is **`[DONE]`**
+(user-confirmed 2026-09-25) — implementation, independent verification,
+and closeout reconciliation all complete. Stage C itself remains
+`[IN PROGRESS]`; not marked done. No `ledgerkit/`/`tests/` code changed
+in this closeout pass — docs/status-only.
 
 ## Where We Are
-Everything committed and pushed to `main`:
-- `0523426` — core implementation, unit tests, doc sync
-- `fa05bbc` — integration tests, compat-register entries (`status:
-  proposed`), implementation retro
-- `cb06d1f` — `CONTEXT.md` end-state update (implementer's own)
-- `fe9dfe5` — independent verification: 5/6 compat-register entries
-  promoted to `verified`, one mismatch filed, `dev-docs/hledger-
-  compatibility.md` updated, retro addendum appended
-- Docs/roadmap closeout for the verification step (this response):
-  `ROADMAP.md`, `CHANGELOG.md`, this file — about to be committed.
+Full commit sequence for this phase, on `main`, all pushed:
+- `0523426` / `fa05bbc` — core implementation + tests + doc sync
+- `cb06d1f` — implementer's own `CONTEXT.md` update
+- `fe9dfe5` — independent `compat-differential-tester` verification
+  (5/6 compat-register entries → `status: verified`)
+- `5887ea8` — verification-results doc reconciliation
+- (this response's commit) — closeout: Phase 6 marked `[DONE]` in
+  `ROADMAP.md`, remaining Stage C backlog recorded, retro closeout
+  addendum appended
 
-827 tests passing throughout (up from 746 before this phase).
+827 tests passing throughout; unaffected by this closeout pass.
 
 ## Decisions In Flight
-None blocking. Two things await a human call, neither urgent:
-- Whether/when to mark Stage C Phase 6 `[DONE]` in `ROADMAP.md` — user's
-  own call per the project's standing rule, not inferred by Claude.
-- Whether to fix `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` (empty-regex
-  pattern acceptance divergence, affects `acct:`/`desc:`/`tag:` alike,
-  root cause `ledgerkit.query.regex.compile_hledger_regex`) — unscoped,
-  not part of this phase, no design/plan exists for it yet.
+None. Phase 6 is closed. Next open decision is **which Stage C backlog
+item to scope next** — recommended: the empty-regex compatibility fix
+(smallest, most concretely characterised); see backlog below. This is
+the user's call, not started here per explicit instruction not to begin
+the next implementation phase in this task.
 
 ## Files Currently Relevant
-- `dev-docs/compat-register/LK-COMPAT-QUERY-TAG-*.yaml`,
-  `LK-COMPAT-PARSER-TAG-COMMODITY-001.yaml` — 5 now `status: verified`.
-- `dev-docs/compat-register/LK-COMPAT-QUERY-TAG-001.yaml` — still
-  `status: proposed`; its `tag:NAME=` empty-value claim is false, every
-  other claim in it verified.
-- `dev-docs/compat-register/LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001.yaml` —
-  new, `status: verified` (the mismatch itself is confirmed real; no
-  fix proposed here).
+- `ROADMAP.md` — Stage C row: Phase 6 `[DONE]`, remaining backlog listed
+  inline at the end of the row.
 - `dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md` —
-  implementation retro + verification addendum, both dated 2026-09-25.
-- `dev-docs/hledger-compatibility.md` — `tag:`/`accounts tag:X` rows,
-  now cite `verified` status and the empty-regex caveat.
-- `ledgerkit/query/regex.py` (or wherever `compile_hledger_regex` lives
-  — check before assuming a path) — the eventual fix site if the
-  empty-regex divergence is ever taken up.
+  Addendum 2 (closeout) is the authoritative statement of the remaining
+  Stage C backlog and the next-phase recommendation.
+- `dev-docs/compat-register/LK-COMPAT-QUERY-TAG-001.yaml` — still
+  `status: proposed`, deliberately, for its one false `tag:NAME=` claim.
+- `dev-docs/compat-register/LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001.yaml`
+  — the filed, unresolved, cross-cutting empty-regex divergence.
+
+## Remaining Stage C backlog (not this phase's problem, recorded for
+whoever scopes next)
+1. Scope the cross-cutting empty-regex compatibility fix
+   (`LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`) — root cause
+   `ledgerkit.query.regex.compile_hledger_regex`; affects `acct:`/
+   `desc:`/`tag:` alike. **Recommended next phase to scope.**
+2. Converge the legacy public `Query` pathway toward the query-AST/
+   compatibility-shim architecture.
+3. Explicitly resolve the planned `PythonRegex` extension syntax
+   (implement / defer-with-reason / drop — currently just undecided).
+Non-blocking, unscoped unless separately promoted: `cur:`, smart/period
+dates, a standalone `--depth`/`-N` CLI flag.
 
 ## Blockers / Open Questions
-None blocking further work on this phase — it's complete. The two
-items in "Decisions In Flight" are open but not blockers.
+None blocking. The backlog above is open work, not a blocker on
+anything already shipped.
 
 ## What NOT To Revisit
-- Don't re-derive the no-shadowing/union precedence finding — now
-  confirmed independently twice (design-time executable testing, then
-  a separate verification dispatch). Settled.
-- Don't re-derive the `accounts` four-way visibility split — same,
-  confirmed independently twice.
-- Don't treat `LK-COMPAT-QUERY-TAG-001`'s `status: proposed` as
-  something this phase failed to finish — it's a deliberate, honest
-  "not verified" for one specific false claim, not an oversight. Do NOT
-  quietly edit its `reason:` text to remove the false claim and
-  promote it to `verified` — the correct fix is either implementing the
-  empty-regex rejection in Ledgerkit (a code change, its own scoped
-  work) or leaving the entry exactly as it stands.
-- Don't fix `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` unilaterally — it's
-  real, but it's a pre-existing, cross-cutting issue (not `tag:`-
-  specific) outside this phase's approved scope. Surface it, don't
-  silently absorb it into this phase's work.
-- Don't re-run context-curator or redesign any part of this feature —
-  design, implementation, and verification are all done.
+- Don't re-open Phase 6 — implementation and independent verification
+  are both done and confirmed by the user.
+- Don't quietly fix `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` or promote
+  `LK-COMPAT-QUERY-TAG-001` to `verified` in passing — it's explicitly
+  scoped as its own future backlog item (#1 above), not something to
+  absorb into unrelated work.
+- Don't mark Stage C itself `[DONE]` — only Phase 6 is done; Phase-level
+  completion within Stage C does not imply Stage-level completion, and
+  the user was explicit that Stage C stays `[IN PROGRESS]`.
+- Don't start implementing any of the three backlog items without a
+  fresh scoping/design pass — none of them has one yet, matching the
+  project's own design → plan → implement → verify process for anything
+  non-trivial.
 
-## Recent Git State
+## Recent Git State (before this response's commit)
+5887ea8 docs: close out Stage C Phase 6 independent verification
 fe9dfe5 test: independently verify Stage C Phase 6 tag: compat-register entries
 cb06d1f docs: update CONTEXT.md for Stage C Phase 6 implementation end state
 fa05bbc test: add tag: integration tests, compat-register entries, retro
 0523426 feat: implement tag:NAME[=REGEX] query matching (Stage C Phase 6)
-0849690 docs: small final correction pass on Stage C Phase 6 tag: design

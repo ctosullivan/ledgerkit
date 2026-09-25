@@ -9,6 +9,36 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 6 — closeout, marked `[DONE]`] — 2026-09-25
+
+Full detail: [ROADMAP.md](ROADMAP.md) Stage C row, [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md)'s closeout addendum
+
+**Human:** confirmed Stage C Phase 6 complete (implementation `0523426`/
+`fa05bbc`, independent verification `fe9dfe5`, prior reconciliation
+`5887ea8`) and directed a closeout-only pass: mark Phase 6 `[DONE]`;
+reconcile all current-facing status docs; preserve the empty-regex
+mismatch exactly as an explicit, unfolded-in follow-up; no `ledgerkit/`/
+`tests/` changes; do not mark Stage C itself `[DONE]`; record the
+remaining Stage C backlog with named next priorities.
+
+**Claude:** marked Stage C Phase 6 `[DONE]` in `ROADMAP.md` (Stage C
+row itself remains `[IN PROGRESS]`). Swept every current-facing status
+reference (`ROADMAP.md`, `CONTEXT.md`, `dev-docs/architecture.md`,
+`dev-docs/api-spec.md`, `dev-docs/hledger-compatibility.md`,
+`knowledge/DECISIONS.md`) for stale "pending"/"not yet verified"
+language — found none beyond what the prior verification-closeout
+commit (`5887ea8`) had already reconciled. Appended a closeout addendum
+to the implementation retro (never rewriting its prior content or
+addendum). Recorded the remaining Stage C backlog directly in the
+roadmap row: (1) scope the cross-cutting empty-regex compatibility fix
+(`LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`, affects `acct:`/`desc:`/`tag:`
+alike); (2) converge the legacy public `Query` pathway toward the
+query-AST/compatibility-shim architecture; (3) explicitly resolve the
+planned `PythonRegex` extension syntax — with `cur:`, smart/period
+dates, and a standalone `--depth`/`-N` flag kept as non-blocking
+follow-on items, unscoped unless separately promoted. 827 tests
+unaffected — no `ledgerkit/`/`tests/` code touched by this pass.
+
 ### [Stage C Phase 6 — independent verification] — 2026-09-25
 
 Full detail: [dev-docs/compat-register/](dev-docs/compat-register/) (six `LK-COMPAT-QUERY-TAG-*`/`LK-COMPAT-PARSER-TAG-COMMODITY-001` entries, plus `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`), [dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-6-TAG-QUERY-IMPLEMENTATION.md)'s addendum

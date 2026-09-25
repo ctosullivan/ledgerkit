@@ -257,3 +257,51 @@ empty-regex divergence (and whether to also check it against `acct:`/
 `desc:`) is separate, unscoped follow-on work, not blocking this
 phase, and `[DONE]` remains the user's own call per the project's
 standing rule.
+
+## Addendum 2 (2026-09-25, same day) — closeout, marked `[DONE]`
+
+The user explicitly confirmed Stage C Phase 6 complete and directed a
+closeout-only pass. `ROADMAP.md`'s Stage C row now marks **Phase 6
+`[DONE]`** — the Stage C row itself stays `[IN PROGRESS]`, per explicit
+instruction not to mark the Stage itself done. No `ledgerkit/`/`tests/`
+code was touched by this pass; 827 tests remain the current baseline.
+
+The empty-regex mismatch (`LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`,
+`LK-COMPAT-QUERY-TAG-001` at `status: proposed`) is preserved exactly
+as filed in Addendum 1 above — not fixed, not reclassified, not folded
+into this phase's own scope. It is recorded as the first item of Stage
+C's remaining backlog instead, precisely because it's real, pre-
+existing, and cross-cutting (`acct:`/`desc:`/`tag:` all affected), not
+a Phase 6-specific defect.
+
+**Remaining Stage C backlog, recorded here as well as in `ROADMAP.md`**,
+next priorities in order:
+1. Scope the cross-cutting empty-regex compatibility fix
+   (`LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`) — root cause
+   `ledgerkit.query.regex.compile_hledger_regex` not rejecting an empty
+   pattern the way hledger's regex-tdfa dialect does.
+2. Converge the legacy public `Query` pathway toward the query-AST/
+   compatibility-shim architecture (`ledgerkit/query/` has been the
+   real selection-predicate engine since Stage C Phase 1; the older
+   public `Query` surface has not yet been migrated onto it).
+3. Explicitly resolve the planned `PythonRegex` extension syntax
+   (`07-query-regex.md` §7.4) — implement it, defer it with a stated
+   reason, or drop it; currently just "not implemented" with no
+   decision recorded either way.
+
+Kept explicitly non-blocking, unscoped unless separately promoted:
+`cur:` (currency/commodity query term), hledger's smart/period date
+expressions, a standalone `--depth`/`-N` CLI flag.
+
+**Recommended next phase to scope**: item 1 (the empty-regex
+compatibility fix). It's the smallest, most concretely-specified of
+the three priority items — the divergence, its root cause, and its
+blast radius (`acct:`/`desc:`/`tag:`) are already fully characterised
+by this phase's own independent verification step, so it needs a scope
+decision (fix vs. document as `intentional_divergence`) rather than
+further research, and closing it retroactively firms up every
+`LK-COMPAT-QUERY-{ACCT,DESC,TAG}-*` entry's own claims rather than
+leaving a known gap under three already-`verified`-adjacent areas.
+Items 2 and 3 are real but larger/more architectural — better scoped
+as their own dedicated design passes, not bundled into whichever comes
+next by default.
