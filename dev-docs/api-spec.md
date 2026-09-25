@@ -1171,13 +1171,34 @@ def validate_hledger_regex(pattern: str) -> None:
     outside the HledgerRegex-compatible subset (see module docstring for
     the excluded-construct list: '(?...)' forms, backreferences, GNU
     '\\<'/'\\>' boundaries, Perl shorthand classes, POSIX named classes,
-    lazy quantifiers). Does not raise for constructs within the subset
-    (literals, '.', '*', '+', '?', '{n,m}', '|', plain groups, anchors,
-    plain bracket expressions, '\\b'/'\\B')."""
+    lazy quantifiers). Also raises for the empty string ('') -- see
+    breaking-change note below. Does not raise for constructs within the
+    subset (literals, '.', '*', '+', '?', '{n,m}', '|', plain groups,
+    anchors, plain bracket expressions, '\\b'/'\\B'), nor for a non-empty
+    pattern whose semantics merely admit an empty match ('.*', 'a*',
+    '^$', '()' all remain accepted)."""
 
 def compile_hledger_regex(pattern: str) -> re.Pattern[str]:
     """validate_hledger_regex(pattern), then re.compile(pattern, re.IGNORECASE)."""
 ```
+
+**Breaking change from Stage C Phase 6** (`dev-docs/planning/core-
+redefinition/26-query-regex-empty-pattern-design.md`): `validate_
+hledger_regex("")`/`compile_hledger_regex("")` previously validated/
+compiled successfully, matching any value including empty via
+`.search()`. They now raise `UnsupportedRegexConstructError`, matching
+real hledger 1.52.4's own parse-time rejection of an empty regex
+pattern for every prefix that accepts one (`acct:`, `desc:`, `tag:`'s
+name/value halves, `depth:`'s REGEX half). This is an intentional,
+documented-behaviour-breaking correctness fix, made while Ledgerkit is
+still at `1.0.0.dev1` (pre-`1.0.0` — see `dev-docs/versioning.md`), not
+a backward-compatible change: existing code that relied on an empty
+pattern matching everything must be updated to use the actual intended
+match (e.g. a bare `tag:NAME` term, which already means "any value,
+including empty," instead of `tag:NAME=`). The function signatures and
+`UnsupportedRegexConstructError` itself are unchanged — only the set of
+inputs `validate_hledger_regex`/`compile_hledger_regex` accept without
+raising has changed.
 
 ### `ledgerkit/query/parser.py`
 

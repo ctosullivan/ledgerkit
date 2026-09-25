@@ -827,3 +827,85 @@ the Stage C Phase 6 implementation retro per this project's standing
 ambiguity-handling instruction.
 
 **Applies to:** `ledgerkit/tags.py`, `ledgerkit/query/eval.py`
+
+## 2026-09-25 — Empty-regex-pattern rejection is a breaking change, not backward-compatible, made pre-1.0
+
+**Decision:** `ledgerkit.query.regex.validate_hledger_regex("")`/
+`compile_hledger_regex("")` now raise `UnsupportedRegexConstructError`
+instead of validating/compiling successfully. Documented explicitly as
+an **intentional, behaviourally breaking compatibility/correctness
+correction** made while Ledgerkit is still at `1.0.0.dev1` (pre-`1.0.0`),
+not as "no public API change" or "backward-compatible" — both framings
+were used in an earlier draft of the design document and corrected on
+review before implementation (`dev-docs/planning/core-redefinition/
+26-query-regex-empty-pattern-design.md`).
+
+**Why:** real hledger 1.52.4 rejects an empty regex pattern at parse
+time for every prefix that accepts one (`acct:`, `desc:`, `tag:`'s
+name/value halves, `depth:`'s REGEX half); Ledgerkit previously accepted
+an empty pattern as "matches anything, including empty" — a real,
+independently-verified divergence (`LK-MISMATCH-QUERY-TAG-EMPTYVALUE-
+001`). The function signatures and `UnsupportedRegexConstructError`
+itself are genuinely unchanged (so this is not a protected-surface
+change under the Unauthorised Change Rule's signature-based definition),
+but the documented *accepted-input behaviour* of two public functions
+is changing — a call that used to succeed now raises. Calling that "no
+API change" would be inaccurate; calling it "backward-compatible" would
+be actively misleading, since existing code passing `""` intentionally
+will now get an error where it previously got a match-everything
+pattern. No version bump was made for this change — `dev-docs/
+versioning.md`'s new "Breaking changes during the `1.0.0.dev1`
+pre-release" section explains why: no stable `1.0.0` contract has
+shipped yet for a MAJOR bump to signal against; the eventual `1.0.0`
+release absorbs every pre-release breaking correction into one settled
+contract. The rejection is scoped narrowly — only the literal empty
+pattern **string** is rejected, not any pattern whose semantics merely
+admit an empty match (`.*`/`a*`/`^$`/`()` all remain accepted) — a
+broader "semantically admits empty" check was considered and explicitly
+rejected as wrong, since real hledger accepts all four of those.
+
+**Rejected alternative:** describing this as backward-compatible because
+no released version ever depended on the old behaviour. Rejected because
+"nothing has shipped yet" is not the same claim as "this doesn't change
+documented behaviour" — the two are orthogonal, and conflating them
+would set a bad precedent for how future pre-1.0 breaking changes get
+described in `api-spec.md`/`CHANGELOG.md`.
+
+**Applies to:** `ledgerkit/query/regex.py`, `dev-docs/api-spec.md`,
+`dev-docs/versioning.md`
+
+## 2026-09-25 — Compatibility-register mismatch resolution: rename-and-link, never an in-place `kind:` flip
+
+**Decision:** resolving a `kind: unexplained_mismatch` compat-register
+entry (once a fix lands and is independently verified) creates a **new**
+entry under the settled `kind`/`KIND`-prefixed id it resolved into,
+rather than editing the mismatch entry's own `kind:` field in place. The
+original mismatch entry is retained untouched (never deleted or
+overwritten) with a new `resolved_into`/`resolved_date` pair added, and
+cross-linked from the new entry's `resolves:` field. Schema and process
+documented generally in `dev-docs/compat-register/schema.md`'s
+"Resolution lifecycle" section and `09-compatibility-system.md` §9.7 —
+not specific to any one entry.
+
+**Why:** the register's own filename/id convention
+(`LK-<KIND>-<AREA>-<NNN>`, `KIND` tracking the `kind:` field directly,
+`09-compatibility-system.md` §9.3) means a `MISMATCH`-prefixed id
+classified `compatible` (or any other settled state) would contradict
+itself — the id claims "still open," the field claims "resolved." An
+earlier draft of the Stage C Phase 7 design proposed exactly this
+in-place flip; caught and corrected on review before implementation.
+Retaining the original entry (rather than deleting it) preserves the
+historical record of what was actually observed, when, and by whom —
+useful evidence if the same area ever regresses, and consistent with
+this project's general "never rewrite history, only add" discipline
+(already applied to retros).
+
+**Also corrected in the same pass**: `implementation`/`tests` may be
+empty for `kind: unexplained_mismatch` entries too (previously the
+schema said "only for `kind: unsupported`," which didn't reflect that a
+fresh mismatch, by definition, has no fix yet to cite). Never fabricate
+a reference to satisfy the schema — an honest empty list is correct.
+
+**Applies to:** `dev-docs/compat-register/schema.md`,
+`dev-docs/compat-register/UNEXPLAINED.md`,
+`dev-docs/planning/core-redefinition/09-compatibility-system.md`

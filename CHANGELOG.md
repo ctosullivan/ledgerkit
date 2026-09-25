@@ -9,6 +9,43 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 7 — implemented, independent verification pending] — 2026-09-25
+
+Full detail: [dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-IMPLEMENTATION.md)
+
+**Human:** directed implementation of the amended, approved design, with
+four final amendments folded in at implementation time: treat the fix
+as an intentional **breaking** (not backward-compatible) pre-1.0
+correction, reconciled across `versioning.md`/`api-spec.md`; keep the
+empty-alternation mismatch untouched; fix the compat-register lifecycle
+so a resolved mismatch is renamed-and-linked rather than edited in
+place, generalised beyond this one entry; and cover the specified test
+matrix. Independent verification explicitly deferred to a separate
+dispatch before any compat-register promotion.
+
+**Claude:** `ledgerkit/query/regex.py`'s `validate_hledger_regex` now
+rejects `pattern == ""` via the existing `UnsupportedRegexConstructError`
+with a fully generic message ("pattern must not be empty (hledger
+rejects an empty regex at parse time)") — no `tag:`-specific advice in
+the shared validator. `dev-docs/api-spec.md`/`dev-docs/versioning.md`
+updated to describe this accurately as breaking, not backward-compatible,
+with a new general pre-1.0.dev1 breaking-change policy section (no
+version bump invented). `dev-docs/compat-register/schema.md` and
+`09-compatibility-system.md` §9.7 gained a general-purpose
+mismatch-resolution lifecycle (`resolved_into`/`resolved_date`/`resolves`
+fields, a new "Resolved entries" table in `UNEXPLAINED.md`) plus a
+correction allowing `implementation`/`tests` to be empty for
+`unexplained_mismatch` entries, not only `unsupported` ones — not yet
+applied to the actual mismatch entry, deliberately deferred until
+independent verification. 17 new tests (844 total, up from 827,
+all passing): empty-pattern rejection across `acct:`/`desc:`/bare
+`tag:`/`tag:NAME=`/`depth:=N`/`not:acct:`; the CLI's existing
+`QueryParseError`-to-exit-1 convention reused unchanged; explicit
+regression guards that `.*`/`a*`/`^$`/`()` remain accepted.
+`knowledge/DECISIONS.md`/`DOMAIN_RULES.md` updated. `LK-MISMATCH-
+QUERY-REGEX-EMPTYALT-001` untouched. No compat-register entry promoted
+— that is the mandatory next, genuinely separate step.
+
 ### [Stage C Phase 7 — design document: targeted correction pass] — 2026-09-25
 
 Full detail: [dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md](dev-docs/planning/core-redefinition/26-query-regex-empty-pattern-design.md), [dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml](dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml)

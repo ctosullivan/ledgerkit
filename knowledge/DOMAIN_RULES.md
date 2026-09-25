@@ -375,3 +375,48 @@ silently reintroduce a real correctness regression.
 **Applies to:** `ledgerkit/tags.py`, `ledgerkit/parser.py`,
 `ledgerkit/models.py`, `ledgerkit/query/ast.py`, `ledgerkit/query/eval.py`,
 `ledgerkit/query/parser.py`, `ledgerkit/reports.py`
+
+## Real hledger rejects an empty regex pattern — but only the literal empty string, not any pattern that merely admits an empty match
+
+hledger 1.52.4 rejects an empty regex pattern (`""`) at parse time for
+every query-term prefix that accepts one — `acct:`, `desc:`, `tag:`'s
+name and value halves (including bare `tag:` alone, where the empty
+string lands in the NAME slot), and `depth:`'s `REGEX=N` REGEX half.
+Exit 1, `hledger: Error: This regular expression is invalid or
+unsupported, please correct it:`, identical across every prefix and
+unaffected by `not:` wrapping (rejection is parse-time, before negation
+is ever considered).
+
+**The trigger is exactly `pattern == ""`, not "does this pattern's
+semantics admit an empty match."** `.*`, `a*`, `x*`, `^$`, and `()` are
+all accepted by real hledger despite being semantically empty-matching
+or empty-only-matching (`^$`) — a naive fix that rejected any
+empty-admitting pattern would incorrectly break all of these. A
+genuinely separate, unrelated rejection family exists for
+empty-alternation-branch syntax (`(|)`, `a|`, `|a`, `(a|)`, `(|a)`) and
+malformed quantifier stacking (`a**`) — same generic error message
+text, but distinguishable because the offending pattern is echoed on a
+second stderr line (the true-empty-string case prints nothing after the
+message). Ledgerkit's own `.*`/`a*`/`^$`/`()` acceptance is
+correspondingly regression-tested (`tests/test_query/test_regex.py`,
+`TestEmptyMatchingPatternsRemainAccepted`) — a future "simplification"
+that broadens the empty check to a semantic one would break these tests
+and should not be made without re-deriving this exact scoping first.
+
+Ledgerkit replicates the narrow rule exactly: `ledgerkit.query.regex.
+validate_hledger_regex` rejects `pattern == ""` via one check in the
+shared chokepoint every regex-taking query term already routes through
+— no per-prefix special-casing needed, since `_build_tag`'s existing
+`partition("=")` logic already distinguishes bare `tag:NAME` (never
+reaches the empty check at all — `value_pattern` stays `None`) from
+`tag:NAME=` (an explicit, now-rejected empty value pattern).
+
+**Why it matters:** the empty string is the single most counter-intuitive
+scoping boundary in this area — it's tempting to reach for "reject
+anything that can match nothing" as a cleaner-sounding rule, and that
+rule is simply wrong per hledger's own executable behaviour
+(`dev-docs/planning/core-redefinition/25-query-regex-empty-pattern-
+matrix.md`).
+
+**Applies to:** `ledgerkit/query/regex.py`, `ledgerkit/query/parser.py`,
+`ledgerkit/query/depth.py`

@@ -229,3 +229,36 @@ what happens once it receives this packet (never edit `ledgerkit/` to
 make a mismatch disappear; report findings back, don't silently fix
 them) — this section changes when it must be invoked, not what it does
 once invoked.
+
+## 9.7 Resolving an `unexplained_mismatch` entry (added Stage C Phase 7, 2026-09-25)
+
+Two gaps found while resolving `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`
+(empty-regex-pattern rejection, `dev-docs/planning/core-redefinition/
+26-query-regex-empty-pattern-design.md`):
+
+1. §9.3's schema said `implementation`/`tests` "may be empty only for
+   `kind: unsupported` entries" — but a fresh `unexplained_mismatch`
+   entry, by definition, describes an observed disagreement nobody has
+   built a fix for yet, so it legitimately has nothing real to cite for
+   either field either. **Corrected**: both fields may be empty for
+   `unexplained_mismatch` entries too. Never fabricate a reference to
+   satisfy the schema — an honest empty list beats an invented one.
+2. There was no documented process for what happens to a mismatch
+   entry's **identity** once it's actually resolved. Simply flipping its
+   `kind:` field to the settled state it resolved into (e.g.
+   `compatible`) would leave a `MISMATCH`-prefixed `id`/filename
+   contradicting its own `kind:` field, since §9.3's filename convention
+   ties `KIND` directly to `kind:`.
+
+**Resolution mechanism** (full detail: `dev-docs/compat-register/
+schema.md`'s "Resolution lifecycle" section — this is the design
+rationale, that file is the operational reference): resolving a mismatch
+creates a **new** entry (new id, `kind:` matching the settled state,
+`resolves: <old id>`) rather than mutating the old one in place. The
+original `unexplained_mismatch` entry is retained, untouched except for
+a new `resolved_into: <new id>`/`resolved_date:` pair — it stays as
+honest historical evidence of what was observed and when, not deleted or
+overwritten. `UNEXPLAINED.md` moves the entry from its "Open entries"
+table to a new "Resolved" table, cross-linking both ids, instead of
+simply dropping the row. This mechanism is general-purpose — it applies
+to any future `unexplained_mismatch` resolution, not only this one.

@@ -123,7 +123,22 @@ def validate_hledger_regex(pattern: str) -> None:
     Does not compile the pattern — call compile_hledger_regex() to validate
     and compile in one step. Raises re.error separately (unchanged) for a
     pattern that isn't valid Python regex syntax at all.
+
+    Breaking change from Stage C Phase 6: an empty pattern ("") now raises
+    UnsupportedRegexConstructError instead of validating successfully. Real
+    hledger rejects an empty regex at parse time for every prefix that
+    accepts one (acct:, desc:, tag:'s name/value halves, depth:'s REGEX
+    half) — Ledgerkit previously diverged by accepting "" as "matches
+    anything, including empty" (dev-docs/planning/core-redefinition/
+    26-query-regex-empty-pattern-design.md). This rejects only the literal
+    empty string, not any pattern whose semantics merely admit an empty
+    match — '.*', 'a*', '^$', '()' remain valid and unaffected.
     """
+    if pattern == "":
+        raise UnsupportedRegexConstructError(
+            "pattern must not be empty (hledger rejects an empty regex "
+            "at parse time)"
+        )
     match = _EXCLUDED_CONSTRUCT.search(pattern)
     if match is not None:
         assert match.lastgroup is not None

@@ -469,6 +469,17 @@ class TestQueryFlag(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("invalid query", err)
 
+    def test_empty_pattern_exits_one(self):
+        # Stage C Phase 7: an empty regex pattern is rejected at parse
+        # time, matching real hledger (previously accepted and matched
+        # "any value" -- a breaking change from Stage C Phase 6).
+        code, out, err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:", "balance"
+        )
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("invalid query", err)
+
     def test_print_query_filters_whole_transactions(self):
         # print shows the WHOLE matching transaction (all its postings),
         # not just the matching posting -- matches hledger's own print
@@ -598,6 +609,17 @@ class TestTagQueryFlag(unittest.TestCase):
 
     def test_malformed_tag_query_exits_one(self):
         code, out, err = self._run("-f", str(TAGS_JOURNAL), "-q", "tag:(", "balance")
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("invalid query", err)
+
+    def test_empty_value_pattern_exits_one(self):
+        # Stage C Phase 7: tag:NAME= (empty value pattern) now rejects,
+        # matching real hledger -- previously matched a tag with an
+        # empty value (a breaking change from Stage C Phase 6).
+        code, out, err = self._run(
+            "-f", str(TAGS_JOURNAL), "-q", "tag:rate=", "balance"
+        )
         self.assertEqual(code, 1)
         self.assertEqual(out, "")
         self.assertIn("invalid query", err)

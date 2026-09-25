@@ -139,6 +139,25 @@ hledger's own `accounts` command exactly. See
 [`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
 for the full four-source model and the `accounts` visibility exception.
 
+**An empty pattern is rejected, not treated as "match any value."**
+`tag:NAME=` (a trailing `=` with nothing after it) raises an error —
+real hledger rejects an empty regex at parse time, and Ledgerkit now
+matches that exactly. If you want "any value, including empty," use the
+**bare** form instead — `tag:NAME` (no `=` at all) already means that:
+
+```bash
+# Matches a NAME tag with any value, including an empty one
+ledgerkit -f myledger.journal -q "tag:category" balance
+
+# WRONG — raises an error (empty pattern), does not mean "any value"
+ledgerkit -f myledger.journal -q "tag:category=" balance
+```
+
+The same rejection applies to an empty `acct:`/`desc:` pattern and an
+empty `depth:REGEX=N` regex half — see
+[`hledger-compatibility.md`](../dev-docs/hledger-compatibility.md#query-language-stage-c)
+for the full writeup.
+
 ---
 
 ### `-s` / `--strict` — Strict mode

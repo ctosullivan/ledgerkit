@@ -249,12 +249,15 @@ class TestTag(unittest.TestCase):
     def test_name_equals_value(self):
         self.assertEqual(_pred("tag:rate=3"), Tag("rate", "3"))
 
-    def test_empty_value_pattern_is_not_none(self):
-        # tag:NAME= (trailing '=' with nothing after) is a REAL empty
-        # value pattern, distinct from bare tag:NAME's None — both
-        # ultimately match an empty tag value via ordinary regex
-        # behaviour (design §12), but the parsed shapes differ.
-        self.assertEqual(_pred("tag:rate="), Tag("rate", ""))
+    def test_empty_value_pattern_rejected(self):
+        # tag:NAME= (trailing '=' with nothing after) is an empty value
+        # PATTERN, distinct from bare tag:NAME's None. Stage C Phase 7
+        # (26-query-regex-empty-pattern-design.md): real hledger rejects
+        # an empty regex pattern at parse time, so this now raises
+        # QueryParseError -- a breaking change from Stage C Phase 6, when
+        # this parsed successfully to Tag("rate", "").
+        with self.assertRaises(QueryParseError):
+            parse("tag:rate=")
 
     def test_value_containing_equals_preserves_everything_after_first(self):
         # tag:rate==0.05 -- a tag literally named "rate" with value
@@ -310,6 +313,55 @@ class TestMalformedRegexRaisesAtParseTime(unittest.TestCase):
     def test_unbalanced_bracket(self):
         with self.assertRaises(QueryParseError):
             parse("acct:[abc")
+
+
+class TestEmptyPatternRejected(unittest.TestCase):
+    """Stage C Phase 7 (26-query-regex-empty-pattern-design.md): real
+    hledger rejects an empty regex pattern at parse time for every prefix
+    that accepts one. Covers the full matrix the design's own §10 names:
+    acct:, desc:, tag: (bare, empty NAME slot), tag:NAME= (empty VALUE
+    slot), depth:REGEX=N (empty REGEX half), and not:-wrapped forms."""
+
+    def test_bare_acct_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("acct:")
+
+    def test_bare_desc_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("desc:")
+
+    def test_bare_tag_rejected(self):
+        # tag: alone (nothing after the colon, no '=' at all) routes the
+        # empty string through the NAME slot -- same underlying rejection
+        # as tag:NAME='s empty VALUE slot (design §3/§10).
+        with self.assertRaises(QueryParseError):
+            parse("tag:")
+
+    def test_tag_name_equals_empty_value_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("tag:rate=")
+
+    def test_depth_regex_form_empty_pattern_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("depth:=2")
+
+    def test_not_acct_empty_pattern_still_rejected_at_parse_time(self):
+        # Rejection happens before negation is ever considered (design
+        # §2, live-confirmed against hledger: not:acct: fails identically
+        # to bare acct:).
+        with self.assertRaises(QueryParseError):
+            parse("not:acct:")
+
+    def test_error_message_contains_no_tag_specific_advice(self):
+        # Regression guard: the shared validator's message must not bake
+        # in tag:-specific advice, since acct:/desc:/depth: reach the
+        # exact same check (design §5, corrected on review).
+        try:
+            parse("acct:")
+        except QueryParseError as exc:
+            self.assertNotIn("tag:NAME", str(exc))
+        else:
+            self.fail("expected QueryParseError")
 
 
 class TestEmptyQuery(unittest.TestCase):

@@ -99,5 +99,55 @@ class TestExcludedConstructs(unittest.TestCase):
             compile_hledger_regex(r"\d+")
 
 
+class TestEmptyPattern(unittest.TestCase):
+    """Stage C Phase 7: an empty pattern ("") is rejected, matching real
+    hledger's own parse-time rejection (26-query-regex-empty-pattern-
+    design.md §2/§5) -- a breaking change from Stage C Phase 6, when an
+    empty pattern validated and compiled successfully."""
+
+    def test_validate_rejects_empty_string(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("")
+
+    def test_compile_rejects_empty_string(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            compile_hledger_regex("")
+
+    def test_error_message_is_generic_not_tag_specific(self):
+        # The shared validator serves acct:/desc:/depth:/tag: alike and
+        # has no way to know which prefix called it -- the message must
+        # not bake in tag:-specific advice (design §5, corrected on
+        # review). Regression guard for that exact correction.
+        with self.assertRaises(UnsupportedRegexConstructError) as ctx:
+            validate_hledger_regex("")
+        message = str(ctx.exception)
+        self.assertNotIn("tag:", message)
+        self.assertIn("empty", message)
+
+
+class TestEmptyMatchingPatternsRemainAccepted(unittest.TestCase):
+    """Regression guard for the narrow-vs-broad scoping distinction
+    (design §2/§7): hledger rejects only the literal empty pattern
+    STRING, not any pattern whose semantics merely admit an empty match.
+    A future "simplification" that broadens the empty check to a
+    semantic one would break every case here."""
+
+    def test_dot_star_accepted(self):
+        validate_hledger_regex(".*")  # does not raise
+
+    def test_a_star_accepted(self):
+        validate_hledger_regex("a*")
+
+    def test_anchored_empty_accepted(self):
+        validate_hledger_regex("^$")
+
+    def test_empty_group_accepted(self):
+        validate_hledger_regex("()")
+
+    def test_compile_dot_star_matches_empty_string(self):
+        pattern = compile_hledger_regex(".*")
+        self.assertTrue(pattern.search(""))
+
+
 if __name__ == "__main__":
     unittest.main()
