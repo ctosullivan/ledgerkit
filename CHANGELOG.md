@@ -9,6 +9,31 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 8 — independent verification] — 2026-09-26
+
+Full detail: [dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml](dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md)'s addendum
+
+**Human:** implicit via the standing process — independent verification
+is mandatory before any compat-register promotion.
+
+**Claude:** dispatched a genuinely separate `compat-differential-tester`
+(fresh fixture, no access to the implementing session's conversation).
+Confirmed all eight of the design's highest-risk claims: `Query`-vs-`-q`
+parity for `balance`/`register`/`accounts` (including identical
+rejection of excluded constructs/empty patterns); `stats`'s genuinely
+new account/not_account narrowing (unfiltered 6/6 vs. filtered 3/2,
+matching `-q "acct:food" stats` exactly); `balance_from_spec`'s outer-
+query strictness and `ReportSection.accounts`/`.exclude`'s independent
+validation; `Journal.to_dataframe`'s eager validation against an empty
+journal; the deprecated `accounts=[...]` shim's zero/one/many cases,
+with `accounts=[]` confirmed identical to no filter (not `Or(())`, the
+bug caught during design review); the `datetime.date.max` edge case;
+and ordinary inclusive `date_to`. No discrepancies found. `LK-COMPAT-
+QUERY-SHIM-001` promoted `proposed` → `status: verified` by the
+independent dispatch itself. 897 tests reconfirmed passing. Phase 8 is
+now implementation-and-verification-complete; `[DONE]` remains the
+user's own call.
+
 ### [Stage C Phase 8 — Query-as-compatibility-shim convergence, implementation] — 2026-09-26
 
 Full detail: [dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md](dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md)

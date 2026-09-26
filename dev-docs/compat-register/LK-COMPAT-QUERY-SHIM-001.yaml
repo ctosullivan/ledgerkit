@@ -1,9 +1,13 @@
 # Proposed by the implementing session, Stage C Phase 8
 # (dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md).
-# status: proposed -- not yet executable-verified against a real hledger
-# 1.52.4 binary; that is compat-differential-tester's job (a genuinely
-# separate dispatch, per 09-compatibility-system.md §9.6). This entry
-# must NOT be self-promoted past `proposed` by the implementing session.
+# INDEPENDENTLY VERIFIED 2026-09-26 (compat-differential-tester, a genuinely
+# separate dispatch from the implementing session, per
+# 09-compatibility-system.md §9.6): re-ran every claim in this entry from
+# source and from live differential runs against the pinned hledger 1.52.4
+# binary and direct Python-level checks, on a freshly-built fixture
+# (tests/fixtures/query_shim_differential.journal, not reused from the
+# implementing session). All six disclosed behaviour changes and the
+# complete §5.3 consumer inventory held; no mismatch found.
 
 id: LK-COMPAT-QUERY-SHIM-001
 area: query.shim
@@ -109,6 +113,41 @@ reason: >
   independently-implemented `query_match.build_transaction_predicate()` --
   it never reaches any `ledgerkit` report function with a `Query` at all.
 
+  INDEPENDENT VERIFICATION (compat-differential-tester, 2026-09-26, separate
+  dispatch from the Stage C Phase 8 implementing session): every claim above
+  re-checked from source and from live comparison against the pinned hledger
+  1.52.4 binary and direct Python calls, on a freshly-built fixture
+  (tests/fixtures/query_shim_differential.journal). Confirmed: (a) `Query`
+  and `-q` produce identical output for `account`/`not_account`/`payee`/date-
+  range filtering on `balance`/`register`, and both reject the same excluded
+  construct (`\d+`) and the same empty pattern (`acct:`) identically; (b)
+  `stats(query=Query(account="food"))` genuinely narrows `account_count`/
+  `transaction_count` versus the unfiltered call (6 accounts/6 txns ->
+  3 accounts/2 txns), matching `-q "acct:food" stats` exactly; (c)
+  `balance_from_spec`'s outer query rejects the same excluded construct
+  (`QueryParseError`) as `balance`/`register`, and `ReportSection.accounts`/
+  `.exclude` independently reject an excluded construct and an empty pattern
+  (`UnsupportedRegexConstructError`, via the retained `_matches_pattern`);
+  (d) `Journal.to_dataframe(query=...)` filters correctly for a valid
+  pattern and raises `QueryParseError` deterministically for an invalid one
+  even against a zero-transaction `Journal()`, confirming eager, not lazy,
+  validation; (e) the deprecated `accounts=[...]` shim's zero/one/many cases
+  all confirmed correct for both `balance` and `register` -- `accounts=[]`
+  produces output identical to `query=None` (not the `Or(())`-matches-
+  nothing bug), a single account is an unchanged regex passthrough, and two
+  or more accounts (`["food", "transport"]`) OR-match without raising
+  (additionally spot-checked with account names containing literal regex
+  metacharacters, `a.b`/`c(d)`, to confirm `re.escape` produces
+  `HledgerRegex`-portable output); (f) `_posting_matches` confirmed absent
+  from `ledgerkit/` entirely by direct grep -- zero definitions, zero
+  imports, zero call-syntax occurrences outside comments/docs/tests that
+  describe its retirement; (g) `Query(date_to=datetime.date.max)` does not
+  raise `OverflowError` and correctly matches a transaction dated exactly
+  `datetime.date.max` (constructed in the new fixture); (h) an ordinary
+  `Query(date_to=D)` still matches a transaction dated exactly `D` (no
+  off-by-one regression from the `date.max` fix). No mismatch found; the
+  entry's `kind`/`status` claims are confirmed, not merely re-asserted.
+
 implementation:
   - ledgerkit/query/compat.py:_query_to_ast
   - ledgerkit/query/compat.py:_validated
@@ -155,5 +194,107 @@ evidence:
       separately-dispatched compat-differential-tester -- this evidence
       supports `status: proposed`, not `verified`).
     pinned_at: "Stage C Phase 8 implementation session"
+  - kind: test
+    ref: >
+      Independent re-run of the full ledgerkit test suite by
+      compat-differential-tester (separate dispatch): `python -m unittest
+      discover -s tests -t .` -- 897 tests, OK (skipped=29, pandas-optional
+      tests; confirmed genuinely skipped for lack of pandas in this
+      environment, not silently passing). Actual count independently
+      confirmed, not taken on the implementing session's own report.
+    pinned_at: "Stage C Phase 8, independent re-run, 2026-09-26"
+  - kind: source
+    ref: >
+      Independent source read confirming: ledgerkit/reports.py:213-239's
+      `_matches_pattern` now routes through `compile_hledger_regex`, its
+      only remaining callers are ReportSection.accounts/.exclude inside
+      `balance_from_spec` (reports.py:663,667); `balance`/`register`/
+      `accounts`/`stats`/`balance_from_spec`/`Journal.to_dataframe` all
+      translate `query` once via `ledgerkit.query.compat._query_to_ast` and
+      evaluate through `ledgerkit.query.eval.matches_posting`/
+      `matches_transaction` (reports.py:345-697, models.py:498-505); grep
+      of `ledgerkit/` for `_posting_matches` returns zero definitions and
+      zero call sites (only comments/docstrings describing its retirement).
+    pinned_at: "27-query-shim-convergence-design.md's own §5.3 inventory, re-derived independently by direct source read, not trusted from the implementing session's retro"
+  - kind: executable
+    ref: >
+      New fixture: tests/fixtures/query_shim_differential.journal (built
+      fresh for this dispatch; 6 transactions covering account/payee/date-
+      range filtering, two distinct expense subaccounts for the multi-
+      account OR case, and one transaction dated exactly 9999-12-31 for the
+      date.max edge case).
 
-status: proposed
+      Query-vs--q parity (balance/register): `hledger -f
+      tests/fixtures/query_shim_differential.journal balance acct:food` vs
+      `python -m ledgerkit -f tests/fixtures/query_shim_differential.journal
+      -q "acct:food" balance` vs Python
+      `j.balance(query=Query(account="food"))` -- all three report
+      expenses:food:coffee £9.00 / expenses:food:groceries £150.00,
+      identically. Same parity independently confirmed for `not:acct:food`
+      (balance), `desc:Supermarket` (register), and
+      `date:2024-02-01..2024-03-01` (register) against Python
+      `Query(not_account=...)`/`Query(payee=...)`/
+      `Query(date_from=..., date_to=...)` equivalents -- all matched.
+
+      Rejection parity: `hledger balance 'acct:\d+'` (real pinned hledger
+      accepts this and returns output -- a pre-existing, already-documented
+      HledgerRegex-dialect design choice from Stage C Phases 1-7, unrelated
+      to and unchanged by this phase) vs `ledgerkit -q 'acct:\d+' balance`
+      and Python `Query(account=r"\d+")` -- both ledgerkit paths raise
+      identically (`UnsupportedRegexConstructError`/`QueryParseError`,
+      "Perl-style shorthand classes... are not supported"). Same identical-
+      rejection parity independently confirmed for `not_account=r"\d+"`,
+      `payee=r"\d+"`, and the empty pattern (`acct:` / `Query(account="")`,
+      both raising "pattern must not be empty").
+
+      stats correction: `j.stats()` (unfiltered) vs
+      `j.stats(query=Query(account="food"))` -- 6 accounts/6 txns vs 3
+      accounts/2 txns; `python -m ledgerkit -q "acct:food" stats` reports
+      the same "Accounts : 3", "Txns : 2" -- confirms genuine narrowing, not
+      a silently-ignored filter.
+
+      balance_from_spec + ReportSection: `balance_from_spec(query=
+      Query(account="food"))` produces {expenses:food:groceries: 150.00,
+      expenses:food:coffee: 9.00}; `balance_from_spec(query=Query(account=
+      r"\d+"))` raises `QueryParseError`; `ReportSection(accounts=(r"\d+",))`
+      raises `UnsupportedRegexConstructError`; `ReportSection(accounts=
+      ("",))` raises (empty pattern); `ReportSection(accounts=("expenses",),
+      exclude=(r"\d+",))` raises too -- all confirmed via direct Python
+      calls to `ledgerkit.reports.balance_from_spec`.
+
+      to_dataframe: `j.to_dataframe(query=Query(account="food"))` returns
+      the two expected rows; `Journal().to_dataframe(query=
+      Query(account=r"\d+"))` (an EMPTY journal, zero transactions) raises
+      `QueryParseError` before any row-building loop runs, confirming eager
+      validation -- run in a throwaway venv with pandas installed
+      (pandas not present in the primary environment, matching the
+      897-test suite's own 29 pandas-optional skips).
+
+      Deprecated accounts=[...] shim: `j.balance(accounts=[])` ==
+      `j.balance()` exactly (confirms the zero-accounts-must-not-become-
+      Or(()) fix); `j.balance(accounts=["food"])` == prior single-account
+      passthrough behaviour; `j.balance(accounts=["food","transport"])`
+      does NOT raise and OR-matches both subaccounts correctly (same for
+      `j.register(accounts=...)`, all three cases). Additionally spot-
+      checked with an ad hoc journal containing accounts named `a.b` and
+      `c(d)` (literal regex metacharacters) to confirm `re.escape` produces
+      HledgerRegex-portable output, not merely "ordinary names happen to
+      work."
+
+      _posting_matches retirement: `grep -rn "_posting_matches"
+      ledgerkit/` returns zero matches (confirmed independently, not taken
+      from the implementing session's own claim).
+
+      date.max: `Query(date_to=datetime.date.max)` against the new fixture
+      (which includes a transaction dated exactly 9999-12-31) does not
+      raise `OverflowError` and matches that transaction; a separate
+      ordinary-date check (`Query(date_to=date(2024,2,10))` against a
+      transaction dated exactly 2024-02-10) confirms the inclusive
+      boundary still matches with no off-by-one regression.
+
+      No mismatch found across any of the above.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, separate session from the Stage C Phase 8 implementation), per 09-compatibility-system.md §9.6"
+verified_date: "2026-09-26"

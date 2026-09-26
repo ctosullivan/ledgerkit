@@ -1,0 +1,31 @@
+; query_shim_differential.journal — independent fixture for compat-differential-tester's
+; Stage C Phase 8 (Query-shim convergence) verification dispatch.
+; Built fresh for this dispatch; not reused from any prior implementing-session fixture.
+; Covers: account/not_account/payee/date-range filtering (Query vs -q parity),
+; a multi-account OR case (two distinct expense subaccounts for the deprecated
+; accounts=[...] shim), and a transaction dated exactly datetime.date.max
+; (9999-12-31) for the date_to overflow edge case.
+
+2024-01-01 Opening balance
+    assets:bank:checking       £5,000.00
+    equity:opening-balances   -£5,000.00
+
+2024-02-10 Supermarket
+    expenses:food:groceries      £150.00
+    assets:bank:checking        -£150.00
+
+2024-02-15 Cafe
+    expenses:food:coffee           £9.00
+    assets:bank:checking          -£9.00
+
+2024-03-01 Train ticket
+    expenses:transport:train      £42.00
+    assets:bank:checking         -£42.00
+
+2024-03-20 Salary
+    assets:bank:checking       £3,000.00
+    income:salary             -£3,000.00
+
+9999-12-31 Far future correction
+    assets:bank:checking          £1.00
+    equity:opening-balances       -£1.00

@@ -243,3 +243,32 @@ test breadth (translator unit tests, per-consumer integration tests
 covering both the "still works for valid input" and "now raises for
 invalid input" halves of Option A) and documentation sync across five
 files, not into resolving implementation uncertainty.
+
+## Addendum (2026-09-26, same day) — independent verification, no discrepancies
+
+A genuinely separate `compat-differential-tester` dispatch (Step 7,
+`09-compatibility-system.md` §9.6) independently re-checked all eight
+of the design's own highest-risk claims on a fresh fixture (`tests/
+fixtures/query_shim_differential.journal`), with no access to this
+implementation session's own conversation: `Query`-vs-`-q` parity for
+`balance`/`register`/`accounts` (including identical rejection of an
+excluded construct and an empty pattern); `stats(query=...)`'s genuinely
+new account/not_account narrowing (unfiltered 6/6 vs. filtered 3/2,
+matching `-q "acct:food" stats` exactly); `balance_from_spec`'s outer-
+query strictness and `ReportSection.accounts`/`.exclude`'s independent
+`HledgerRegex` validation; `Journal.to_dataframe`'s eager validation
+against an empty journal; and, most importantly, the deprecated
+`accounts=[...]` shim's all-three-cases fix — `accounts=[]` confirmed
+identical to no filter at all (not `Or(())`), one account unchanged,
+two-plus accounts OR-matching without raising, spot-checked further
+with account names containing literal regex metacharacters. The
+`date.max` edge case and the ordinary inclusive-`date_to` case were both
+independently confirmed correct. Full 897-test suite re-run twice,
+matching this session's own count.
+
+**No discrepancies found.** `LK-COMPAT-QUERY-SHIM-001` promoted from
+`status: proposed` to `status: verified` by the independent dispatch
+itself (the only role authorised to do so), with a new evidence entry
+citing its own fixture, commands, and results. No `unexplained_
+mismatch` entries were needed. This phase is now implementation-and-
+verification-complete; `[DONE]` remains the user's own call.
