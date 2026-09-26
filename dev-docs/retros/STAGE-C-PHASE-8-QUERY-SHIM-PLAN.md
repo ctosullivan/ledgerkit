@@ -131,3 +131,68 @@ One continuous planning session, no sub-agent dispatches. Most of the
 effort was tracing the existing planning documents' prior commitments
 and confirming the external-consumer/test-suite blast radius directly,
 rather than open-ended design work.
+
+## Addendum (2026-09-26, same day) — design-review correction pass
+
+The user reviewed the design document and found the blast-radius
+analysis genuinely incomplete on review — not wrong in what it checked,
+but incomplete in what it checked. A design-review correction, exactly
+the same category as Stage C Phases 6 and 7's own amendment rounds, not
+an implementation defect (no `ledgerkit/`/`tests/` code existed yet).
+
+**The most consequential finding**: the original document's "empty
+blast radius" claim was based on grepping direct `Query(...)`
+construction in `tests/`. It never checked whether anything *else*
+synthesizes a `Query.account` value internally — and something does:
+`Journal.balance`/`.register`'s deprecated `accounts=[...]` parameter,
+for two or more accounts, builds a pattern using `(?:...)` non-
+capturing groups, which `HledgerRegex` rejects outright. Under Option A
+as originally proposed, this would have been a real, shipped regression
+with **zero** existing test coverage to catch it — the multi-account
+case has no test at all today. Caught before implementation only
+because the review asked a sharper question than "does any direct
+`Query(...)` test use an excluded construct" — namely, "does anything
+*produce* a `Query.account` value the direct-construction grep
+wouldn't see."
+
+**Three further real gaps**, each confirmed by direct source read once
+flagged: `balance_from_spec`'s own separate filtering loop (never
+`_posting_matches`) still needs `_matches_pattern`, which an earlier
+version of this design would have retired outright, breaking a live
+public path (`ReportSection`); `stats(query=...)` silently ignores
+`account`/`not_account` today (a pre-existing, already-documented
+`TODO`), and full convergence would flip this from "unnoticed gap" to
+"newly-applied filter" — a real behaviour change that needs to be
+named and approved, not discovered as an incidental side effect during
+implementation; and the proposed translator constructed AST nodes
+without validating them first, which would have failed only lazily (if
+at all — never, for an empty journal) rather than deterministically,
+undermining the whole point of routing through the same validated
+dialect. A fifth, smaller correction: the translator's proposed module
+location (`models.py`) would have created a real circular import, since
+`ledgerkit/query/eval.py` already imports from `models.py`. A sixth:
+`Query.date_to + timedelta(days=1)` overflows at `datetime.date.max`,
+an edge case the original inclusive-to-exclusive translation didn't
+account for.
+
+**Process observation**: this is now the fourth phase in a row (Stage C
+Phases 6, 7, and this one) where the human-approval gate caught a real
+gap the design's own author had missed, and — as with Phase 7 — none
+of the gaps were subtle hledger-semantics questions; they were "did you
+check every place this data flows through," a category of miss more
+likely from confirmation bias (having found the reassuring "empty
+blast radius" answer for the case checked, not pushing further to ask
+what else might produce the same shape of input) than from missing
+domain knowledge. Worth naming explicitly for future design passes:
+a blast-radius claim should enumerate every *producer* of the value in
+question (here: everything that can set `Query.account`), not just
+every direct call site the obvious grep surfaces.
+
+Corrected in the design document itself (§5.1/§5.1a/§5.1b/§5.1c, §2,
+§3, §7, §8, §9, §10, §11, §12) — the core decision (converge onto the
+canonical AST, Option A recommended, frozen field shape, `depth` stays
+non-predicate, inclusive `date_to` preserved) is unchanged throughout.
+Approval gate grew from three items to six (§12) — reflecting genuinely
+new, named decision points (the `stats` behaviour correction, the
+`_matches_pattern`/`ReportSection` scope, the `QueryParseError`-reuse
+naming choice), not scope creep in the fix itself.

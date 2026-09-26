@@ -9,6 +9,39 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 8 — design document: targeted correction pass] — 2026-09-26
+
+Full detail: [dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md](dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md)'s addendum
+
+**Human:** directed a targeted correction pass (explicitly not a
+re-scope, no implementation): found the original blast-radius analysis
+incomplete — it checked direct `Query(...)` test construction but
+missed a real internal producer of `Query.account` values using an
+excluded `HledgerRegex` construct — plus three further gaps (`stats`
+behaviour, `_matches_pattern`/`ReportSection` scope, eager validation)
+and two smaller correctness issues (module placement, `date.max`
+overflow).
+
+**Claude:** confirmed each point against the actual source before
+writing it down. `Journal.balance`/`.register`'s deprecated `accounts=
+[...]` parameter, for two or more accounts, synthesizes `Query.account`
+via `(?:...)` non-capturing-group alternation — confirmed rejected by
+`HledgerRegex`, confirmed zero existing test coverage for this path.
+Redesigned to build an `Or(...)` AST directly (§5.1a). Confirmed
+`balance_from_spec` has its own separate filtering loop still needing
+`_matches_pattern` (retained, refactored to route through
+`compile_hledger_regex` instead of retired, §5.1b). Confirmed
+`stats(query=...)` really does silently ignore `account`/`not_account`
+today (a pre-existing documented `TODO`) — full convergence closes this
+as an explicit, disclosed correction (§5.1c). Fixed the translator to
+validate eagerly before constructing AST nodes (§5.1a), moved it to a
+new `ledgerkit/query/compat.py` module to avoid a real circular import
+(§5.1), and corrected the date-translation for the `datetime.date.max`
+overflow edge case. Blast-radius wording corrected from "empty" to the
+accurate, narrower conclusion. Core decision unchanged (Option A, frozen
+`Query` field shape, non-predicate `depth`). Approval gate grew from
+three items to six. No `ledgerkit/`/`tests/` code touched.
+
 ### [Stage C Phase 8 — planning: `Query`-as-compatibility-shim convergence] — 2026-09-26
 
 Full detail: [dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md](dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md)
