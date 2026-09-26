@@ -179,7 +179,8 @@ def matches_posting(node: QueryNode, txn: Transaction, posting: Posting, journal
     """Return True if `posting` (within `txn`) matches `node`.
 
     Desc/DateSpan/Status are transaction-level facts a posting inherits
-    unchanged; Acct/Depth are checked against the posting's own account.
+    unchanged; Acct/MaxAccountLevel are checked against the posting's own
+    account.
 
     Tag (Stage C Phase 6) matches against `posting`'s full, four-source
     effective tag set (`ledgerkit.tags._effective_tags`: own tags,
