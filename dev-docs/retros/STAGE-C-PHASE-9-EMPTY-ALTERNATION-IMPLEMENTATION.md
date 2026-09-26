@@ -176,3 +176,34 @@ function and wiring, writing 36 tests, and syncing five documentation
 surfaces plus the compat-register and retro. No rework, no design
 deviation — the fully-specified design kept this phase's own scope
 tight and predictable.
+
+## Addendum (2026-09-27, same day) — independent verification, resolved cleanly
+
+A genuinely separate `compat-differential-tester` dispatch (Step 7,
+`09-compatibility-system.md` §9.6) independently re-verified all 31
+matrix patterns (18 must-reject, 13 must-accept) on a fresh fixture
+(`tests/fixtures/query_regex_emptyalt_phase9_verify.journal`), cross-
+checked across two query prefixes (62 total CLI comparisons), confirmed
+no regression to Stage C Phase 7's own empty-pattern-string fix, and
+re-ran the full suite independently (935 tests, matching this session's
+own count exactly). One test-harness pitfall was found and correctly
+diagnosed as not a product bug: `-q "acct:a| |b"` (unquoted) gets split
+into two terms by `ledgerkit.query.parser`'s own pre-existing,
+unrelated whitespace tokenizer — re-tested via a direct `validate_
+hledger_regex()` call and via the tokenizer's own documented quoting
+convention, both confirmed correct.
+
+**No discrepancies found.** The independent dispatch itself resolved
+the mismatch through the register's resolution lifecycle: `LK-COMPAT-
+QUERY-REGEX-EMPTYALT-001` promoted `proposed` → `status: verified` with
+its own evidence entry; `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` retained
+untouched except for `resolved_into`/`resolved_date`; its `UNEXPLAINED.md`
+row moved from "Open entries" (now empty — **zero remaining `unexplained_
+mismatch` entries anywhere in the register**) to "Resolved entries."
+
+This closes the last substantive item from Stage C Phase 6's own
+backlog. Phase 9 is now implementation-and-verification-complete;
+`[DONE]` marking is folded into the broader Stage C closeout sequence
+that follows, rather than run as a separate gate — the upcoming
+Stage-C-wide `docs-reconstructor`/`release-phase-auditor` passes will
+necessarily audit this phase too, as the most recently landed work.

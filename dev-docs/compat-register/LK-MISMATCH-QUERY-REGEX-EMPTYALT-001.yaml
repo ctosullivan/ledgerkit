@@ -267,3 +267,6 @@ evidence:
 status: verified
 verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 7 empty-pattern-matrix research, cross-referenced during design-review correction)"
 verified_date: "2026-09-25"
+
+resolved_into: LK-COMPAT-QUERY-REGEX-EMPTYALT-001
+resolved_date: "2026-09-27"

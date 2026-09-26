@@ -9,6 +9,26 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 9 — independently verified, mismatch resolved] — 2026-09-27
+
+Full detail: [dev-docs/compat-register/LK-COMPAT-QUERY-REGEX-EMPTYALT-001.yaml](dev-docs/compat-register/LK-COMPAT-QUERY-REGEX-EMPTYALT-001.yaml), [dev-docs/retros/STAGE-C-PHASE-9-EMPTY-ALTERNATION-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-9-EMPTY-ALTERNATION-IMPLEMENTATION.md)'s addendum
+
+**Human:** standing process — mandatory independent verification before
+any compat-register promotion.
+
+**Claude:** dispatched a genuinely separate `compat-differential-tester`
+(fresh fixture, no access to the implementing session's conversation).
+Confirmed all 31 matrix patterns (18 must-reject, 13 must-accept) across
+two query prefixes (62 comparisons), no regression to Stage C Phase 7's
+own fix, full suite re-confirmed independently (935 tests). No
+discrepancy found. Resolved `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`
+through the register's resolution lifecycle: `LK-COMPAT-QUERY-REGEX-
+EMPTYALT-001` promoted `proposed` → `status: verified`; the mismatch
+entry retained as history (`resolved_into`/`resolved_date` added);
+`UNEXPLAINED.md`'s open-entries table is now empty — zero remaining
+`unexplained_mismatch` entries anywhere in the register. This closes
+the last substantive Stage C Phase 6 backlog item.
+
 ### [Stage C Phase 9 — empty-alternation-branch regex rejection implemented] — 2026-09-27
 
 **Human:** directed implementing `28-empty-alternation-regex-design.md`

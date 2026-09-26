@@ -26,7 +26,6 @@ files themselves changing first; the two must always agree.
 
 | ID | Area | Opened | Summary | Owner |
 |---|---|---|---|---|
-| `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` | query.regex.emptyalternation | 2026-09-25 | Empty-alternation-branch regex syntax — confirmed on BOTH sides for the full family as of 2026-09-27 re-verification: `(|)`, `a\|`, `\|a`, `(a\|)`, `(\|a)`, plus generalised cases (`a\|\|b`, `(a\|)\|b`, `\|\|`, `(\|\|)`, `a\|(\|b)`, `(a)\|`, `\|(a)`, `a(\|)b`, `(a\|)(b)`) all error on real hledger 1.52.4 (regex-tdfa rejects any branch of `\|` with zero atoms) but are ALL accepted by Ledgerkit's `ledgerkit.query.regex.validate_hledger_regex` (no `\|`-aware check exists); found as a related-but-separate observation while scoping `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`; still not resolved into a fix — a fix must be escape-aware (`a\|\|b`-style escaped literal pipes must stay accepted) and must not affect `()`, `(a)`, `a\|b`, `(a\|b)`, `()\|a`, `a\|()` which hledger and Ledgerkit both already accept correctly | unassigned |
 
 ## Resolved entries
 
@@ -36,6 +35,7 @@ a new, settled-state entry — see the paragraph above.
 | Original ID | Resolved into | Resolved | Summary |
 |---|---|---|---|
 | `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001` | `LK-COMPAT-QUERY-TAG-EMPTYVALUE-001` | 2026-09-25 | Stage C Phase 7: `ledgerkit.query.regex.validate_hledger_regex` now rejects an empty pattern (`pattern == ""`), matching real hledger's own parse-time rejection for `acct:`/`desc:`/`tag:NAME=`/`depth:=N` alike — independently verified by a genuinely separate `compat-differential-tester` dispatch |
+| `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` | `LK-COMPAT-QUERY-REGEX-EMPTYALT-001` | 2026-09-27 | Stage C Phase 9: `ledgerkit.query.regex.validate_hledger_regex` now rejects any unescaped `|` with an empty branch on either side (18-pattern family: `(|)`, `a|`, `|a`, `(a|)`, `(|a)`, `a||b`, `(a|)|b`, `||`, `|`, `(|)|c`, `a|(|b)`, `(||)`, `a|||b`, `(|)*`, `(a)|`, `|(a)`, `a(|)b`, `(a|)(b)`), matching real hledger's own regex-tdfa parse-time rejection, while the 13-pattern must-accept set (`()`, `(a)`, `a|b`, `(a|b)`, `()|a`, `a|()`, `()*`, `a| |b`, `^|a`, `a|$`, `a\|\|b`, `\(|a`, `a|\)`) remains accepted on both tools — independently verified by a genuinely separate `compat-differential-tester` dispatch |
 
 ## Format, once entries exist
 

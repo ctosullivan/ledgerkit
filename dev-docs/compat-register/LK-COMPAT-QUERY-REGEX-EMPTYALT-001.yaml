@@ -3,22 +3,20 @@
 # "Resolution lifecycle" section, added Stage C Phase 7,
 # 09-compatibility-system.md §9.7) -- same precedent as
 # LK-COMPAT-QUERY-TAG-EMPTYVALUE-001's own resolution of
-# LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001. The old mismatch entry is
-# retained untouched (no resolved_into/resolved_date added yet -- that
-# is deliberately deferred, per this entry's own status below, until
-# independent verification lands).
+# LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001.
 #
-# status is deliberately `proposed`, NOT self-verified or verified: this
-# entry documents an implementation whose own author has run the new
-# unit tests (35 tests, tests/test_query/test_regex.py's two new
-# classes plus integration tests in test_parser.py/test_cli.py) but has
-# NOT independently re-run the real pinned hledger binary against
-# Ledgerkit post-fix. That is a mandatory, genuinely separate
-# compat-differential-tester dispatch -- the next step, not performed by
-# this implementing session. Per schema.md, `status: proposed` is
-# explicitly permitted here ("hledger-researcher's reading; not yet run
-# against the real binary") and this entry must not be self-promoted
-# past it.
+# Originally filed `status: proposed` by the implementing session (own
+# unit tests run -- 35 tests -- but no independent re-run of the real
+# pinned hledger binary yet). Promoted to `status: verified` 2026-09-27
+# by a genuinely separate compat-differential-tester dispatch (per
+# 09-compatibility-system.md §9.6), which independently re-derived the
+# full 18-must-reject/13-must-accept matrix from a freshly built fixture
+# against both the pinned hledger binary and post-fix Ledgerkit (see the
+# `executable` evidence entry below for the full comparison and the full
+# 935-test suite re-confirmation) before promoting. `LK-MISMATCH-QUERY-
+# REGEX-EMPTYALT-001` itself has now received its `resolved_into`/
+# `resolved_date` pair as part of this same promotion, per schema.md's
+# resolution-lifecycle mechanism.
 
 id: LK-COMPAT-QUERY-REGEX-EMPTYALT-001
 area: query.regex.emptyalternation
@@ -122,4 +120,67 @@ evidence:
       differential verification against the real hledger binary.
     pinned_at: "n/a (unittest run, not an executable hledger comparison)"
 
-status: proposed
+  - kind: executable
+    ref: >
+      Independent compat-differential-tester verification dispatch
+      (2026-09-27, genuinely separate from the implementing session, per
+      09-compatibility-system.md §9.6): fresh fixture built independently
+      for this dispatch, `tests/fixtures/
+      query_regex_emptyalt_phase9_verify.journal` (referenced the shape of
+      `tests/fixtures/query_regex_empty_pattern_matrix.journal` but did not
+      reuse it directly). Three layers of comparison run:
+
+      (1) Direct Python calls to `ledgerkit.query.regex.
+      validate_hledger_regex` for all 18 must-reject and all 13
+      must-accept patterns from the design's §1 -- every one produced the
+      expected ACCEPT/REJECT verdict, no exceptions.
+
+      (2) `hledger -f tests/fixtures/query_regex_emptyalt_phase9_verify
+      .journal print '<prefix><pattern>'` vs. `python -m ledgerkit -f
+      tests/fixtures/query_regex_emptyalt_phase9_verify.journal -q
+      '<prefix><pattern>' print`, run for every one of the 31 patterns
+      (18 must-reject + 13 must-accept) across BOTH `acct:` and
+      `tag:project=` prefixes (62 CLI comparisons total, using subprocess
+      argv lists rather than a shell, to avoid any shell metacharacter
+      corruption of the `|`/`(`/`)`/`\` characters under test) -- all 62
+      agree exactly with the expected verdict on both tools (hledger:
+      exit 1 for must-reject, matching `"This regular expression is
+      invalid or unsupported, please correct it:"` + echoed pattern;
+      ledgerkit: exit 1 via `QueryParseError` wrapping
+      `UnsupportedRegexConstructError` for must-reject, exit 0 with a
+      real match set for must-accept). Confirmed the fix is not
+      prefix-specific, as expected from it living in the shared
+      `validate_hledger_regex`.
+
+      (3) Phase 7 non-regression: `acct:`'s own literal-empty-pattern-string
+      rejection (`LK-COMPAT-QUERY-TAG-EMPTYVALUE-001`'s underlying
+      mechanism) still rejects on both tools; `.*`, `a*`, `^$`, `()` (the
+      last one deliberately overlapping both phases' matrices) all still
+      ACCEPT on both tools, unaffected by this fix.
+
+      One test-harness pitfall surfaced and resolved during this dispatch,
+      not a product defect: `a| |b` (a pattern containing a literal space,
+      part of the 13-pattern must-accept set) initially appeared to
+      MISMATCH when passed unquoted inside the `-q` CLI string
+      (`ledgerkit=REJECT` vs `hledger=ACCEPT`) -- root-caused to
+      `ledgerkit.query.parser._tokenize`'s own pre-existing, unrelated
+      whitespace-based term-splitter (the `-q` flag's documented
+      multi-term-in-one-string convenience, e.g. `-q 'acct:food
+      date:2024'`), which split the unquoted space in `acct:a| |b` into
+      two separate query terms (`acct:a|` and `|b`) before the pattern
+      ever reached `validate_hledger_regex` as one string -- not a
+      regression in this fix. Confirmed via direct
+      `validate_hledger_regex("a| |b")` (ACCEPT) and via the CLI with the
+      pattern single-quoted inside the `-q` string (`-q "acct:'a|
+      |b'"`, using `_tokenize`'s own documented quoting convention) --
+      once tested as a single term the way hledger itself receives it,
+      both tools ACCEPT, no divergence.
+
+      Full test suite: `python -m unittest discover -s tests -t .` ->
+      `Ran 935 tests in 0.727s`, `OK (skipped=29)` -- 935 confirmed
+      independently, matching the implementing session's own count.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger); ledgerkit 60eea4a"
+
+status: verified
+verified_by: "compat-differential-tester (independent dispatch, Stage C Phase 9 verification)"
+verified_date: "2026-09-27"

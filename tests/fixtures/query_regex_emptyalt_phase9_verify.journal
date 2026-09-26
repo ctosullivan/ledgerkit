@@ -1,0 +1,18 @@
+; Fixture built independently for the compat-differential-tester dispatch
+; performing the mandatory independent verification of Stage C Phase 9's
+; empty-alternation-branch regex rejection fix (LK-COMPAT-QUERY-REGEX-
+; EMPTYALT-001, resolving LK-MISMATCH-QUERY-REGEX-EMPTYALT-001). Built
+; fresh per the task's explicit instruction not to reuse
+; tests/fixtures/query_regex_empty_pattern_matrix.journal (used only as a
+; reference for shape). Two postings, one with a tag, so tag:NAME= and
+; acct: query prefixes both have something to potentially match, letting
+; exit-code/match-set comparisons be meaningful for both prefixes tested.
+
+2024-04-01 Grocery Run
+    ; project:kitchen
+    expenses:food:groceries    $15.00
+    assets:checking
+
+2024-04-02 Bookstore
+    expenses:books              $9.00
+    assets:checking
