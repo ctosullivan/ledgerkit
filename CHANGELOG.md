@@ -9,6 +9,33 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 8 — planning: `Query`-as-compatibility-shim convergence] — 2026-09-26
+
+Full detail: [dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md](dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md)
+
+**Human:** directed proceeding with the next Stage C backlog item —
+converging the legacy `Query` dataclass's filtering onto the
+`ledgerkit.query` AST/evaluator.
+
+**Claude:** found this executes an already-approved architectural
+target (`07-query-regex.md` §7.2, written before Stage C began: `Query`
+should become "a compatibility constructor that compiles to a
+`QueryAST`... rather than a parallel filtering path"), not a new
+direction. Confirmed the real-world blast radius is small: the one
+known external consumer, `ledgerkit-editor`, never calls into
+Ledgerkit's own `Query`-matching code at all (only uses `Query` as a
+plain data container, matched by its own independent logic), and
+Ledgerkit's own test suite's `Query(...)` usages use no `HledgerRegex`-
+excluded construct. Found and flagged, before any code was written, a
+real correctness trap: `DateSpan.end` is exclusive (matching hledger),
+`Query.date_to` is inclusive — a naive translation would silently
+exclude transactions dated exactly `date_to`; the design specifies the
+correct `+1 day` translation and a required named regression test.
+Design document stops for explicit human approval (one blocking item:
+full `HledgerRegex` strictness for `Query`'s regex fields vs. a
+permissive fallback — lead recommends strictness) — no `ledgerkit/`/
+`tests/` code touched.
+
 ### [Stage C Phase 7 — independent verification and register resolution] — 2026-09-25
 
 Full detail: [dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-7-EMPTY-REGEX-IMPLEMENTATION.md)'s addendum
