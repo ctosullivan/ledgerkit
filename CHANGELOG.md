@@ -9,6 +9,20 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C closeout — second drift-audit re-run, one finding fixed] — 2026-09-27
+
+**Human:** standing process — re-audit until clean.
+
+**Claude:** a second independent `docs-reconstructor` re-run (confirming
+the four fixes below landed cleanly) found exactly one new, tiny
+finding: `ledgerkit/query/eval.py`'s `matches_posting` docstring still
+said "Acct/Depth are checked against the posting's own account" — the
+one remaining stale reference to the pre-Phase-5-rename `Depth` class
+anywhere in `ledgerkit/` (confirmed by grep; every other occurrence is
+either hledger's own unrelated real `Depth` type, a numeric depth
+value, or the documented historical rename note). Fixed —
+comment-only, zero behaviour change.
+
 ### [Stage C closeout — drift-audit fixes] — 2026-09-27
 
 **Human:** standing process — resolve genuine findings from the
