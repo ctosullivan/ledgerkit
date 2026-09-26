@@ -1064,6 +1064,15 @@ Flags:
   -I, --ignore-assertions
                      Disable balance assertion checking (the assertions basic
                      check). Useful for troubleshooting or loading Ledger files.
+  -q, --query TERMS  Filter using a query string (see ledgerkit.query), e.g.
+                     'acct:food date:2024'. Applies to balance, register,
+                     accounts, stats, and print — not check (checks apply to
+                     the whole journal by design). See the `ledgerkit/query/`
+                     section below for the query-term grammar.
+  -c, --commodity-style STYLE
+                     Override display style for a commodity, e.g.
+                     '$1,000.00' or '1.000,00 EUR'. May be specified more
+                     than once.
   -v, --verbose      More detailed output (stats: show commodity names)
   -1                 Single tab-separated line (stats only)
   -o, --output-file  Write output to FILE instead of stdout
@@ -1094,7 +1103,7 @@ positional argument is an error.
 
 ---
 
-## `ledgerkit/query/` `[Stage C Phase 1; wired into cli.py/reports.py since Phase 2-3; depth: model changed Phase 5; tag: added Phase 6]`
+## `ledgerkit/query/` `[Stage C Phase 1; wired into cli.py/reports.py since Phase 2-3; depth: model changed Phase 5; tag: added Phase 6; empty-pattern rejection Phase 7; ledgerkit.models.Query converged onto this engine Phase 8; empty-alternation-branch rejection Phase 9]`
 
 Re-exported from `ledgerkit/__init__.py`. Wired into `cli.py`'s `-q`/
 `--query` flag (all of `balance`/`register`/`accounts`/`stats`/`print`)
@@ -1277,7 +1286,7 @@ def compile_hledger_regex(pattern: str) -> re.Pattern[str]:
     """validate_hledger_regex(pattern), then re.compile(pattern, re.IGNORECASE)."""
 ```
 
-**Breaking change from Stage C Phase 6** (`dev-docs/planning/core-
+**Breaking change from Stage C Phase 7** (`dev-docs/planning/core-
 redefinition/26-query-regex-empty-pattern-design.md`): `validate_
 hledger_regex("")`/`compile_hledger_regex("")` previously validated/
 compiled successfully, matching any value including empty via
@@ -1313,10 +1322,11 @@ the nearest unescaped neighbouring character is `(`, `)`, or another
 remain accepted, unaffected. Same breaking-change category as the
 Stage C Phase 7 empty-pattern-string fix above — made pre-`1.0.0`, no
 version bump. Function signatures and `UnsupportedRegexConstructError`
-itself are unchanged. As of this writing, the underlying fix is
-documented at `dev-docs/compat-register/LK-COMPAT-QUERY-REGEX-
-EMPTYALT-001.yaml`, `status: proposed` — independent verification by a
-separately-dispatched `compat-differential-tester` is still pending.
+itself are unchanged. The underlying fix is documented at
+`dev-docs/compat-register/LK-COMPAT-QUERY-REGEX-EMPTYALT-001.yaml`,
+`status: verified` — independently confirmed by a separately-dispatched
+`compat-differential-tester` (2026-09-27) against both the pinned
+hledger binary and the full 935-test suite.
 
 ### `ledgerkit/query/parser.py`
 

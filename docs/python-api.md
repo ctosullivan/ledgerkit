@@ -55,8 +55,9 @@ summary      = journal.stats()      # JournalStats — counts, date range, etc.
 styles       = journal.commodity_styles  # dict[str, CommodityStyle]
 ```
 
-All methods accept an optional `query=` parameter for filtering — see the
-[Filtering with Query](#filtering-with-query) section below.
+`balance()`, `register()`, and `stats()` accept an optional `query=`
+parameter for filtering — see the [Filtering with Query](#filtering-with-query)
+section below. `accounts()` does not take a `query=` parameter.
 
 ---
 
@@ -111,8 +112,9 @@ price.price       # Amount  — the price expressed as an Amount
 
 ## Filtering with Query
 
-All four report functions accept an optional `query=` parameter that controls
-which transactions and postings are included.
+`balance()`, `register()`, and `stats()` accept an optional `query=`
+parameter that controls which transactions and postings are included.
+(`accounts()` has no `query=` parameter.)
 
 ```python
 import ledgerkit
@@ -139,7 +141,7 @@ rows = journal.register(query=Query(
 
 # Top-level account balances only (depth rollup)
 top_level = journal.balance(query=Query(depth=1))
-# → {"assets": Decimal("9641"), "expenses": Decimal("1359"), ...}
+# → {"assets": {"£": Decimal("9641")}, "expenses": {"£": Decimal("1359")}, ...}
 ```
 
 `Query` fields at a glance:
@@ -151,7 +153,7 @@ top_level = journal.balance(query=Query(depth=1))
 | `payee` | `str \| None` | Include only transactions whose description matches |
 | `date_from` | `date \| None` | Include only transactions on or after this date |
 | `date_to` | `date \| None` | Include only transactions on or before this date |
-| `depth` | `int \| None` | For `balance()`: roll up to this depth. For `accounts()`/`register()`: exclude deeper accounts |
+| `depth` | `int \| None` | Roll up/clip account names to this depth for `balance()`, `register()`, and `accounts()` — a display-only truncation+aggregation, never an exclusion (matching hledger's own `depth:`/`--depth`; corrected in Stage C Phase 5 — `register()` previously excluded deeper postings entirely, a pre-existing bug) |
 
 **Pattern matching (breaking change, Stage C Phase 8):** `account`,
 `not_account`, and `payee` values are compiled as a case-insensitive,

@@ -9,6 +9,46 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C — full, Stage-wide docs-maintainer reconciliation] — 2026-09-27
+
+**Human:** directed a full, Stage-C-wide reconciliation of every
+current-truth doc against the actual, now-complete nine-phase
+implementation — verified fresh from source/tests, not from any prior
+per-phase docs-maintainer pass's own self-report.
+
+**Claude:** read `ledgerkit/query/` in full (`ast.py`, `parser.py`,
+`eval.py`, `regex.py`, `depth.py`, `compat.py`), `reports.py`'s five
+report functions, `models.py`'s `Query`/report methods, `cli.py`'s `-q`
+wiring, and every `LK-*-QUERY-*` compat-register entry (confirmed
+`UNEXPLAINED.md`'s "Open entries" table is genuinely empty). Found and
+fixed real drift: `dev-docs/api-spec.md`'s CLI flag reference was
+missing `-q`/`--query` and `-c`/`--commodity-style` entirely; a
+Phase-6/Phase-7 mislabel on the empty-pattern-rejection breaking-change
+note; a stale `status: proposed` for `LK-COMPAT-QUERY-REGEX-EMPTYALT-001`
+in both `api-spec.md` and `dev-docs/hledger-compatibility.md` (now
+`status: verified`, independently confirmed 2026-09-27); and, in
+`docs/python-api.md`, a pre-existing false claim that `Query.depth`
+*excludes* deeper accounts for `accounts()`/`register()` (corrected
+Stage C Phase 5 — it clips/rolls up, never excludes, for all three),
+a stale single-commodity `Decimal` example predating Milestone 3's
+`dict[str, dict[str, Decimal]]` balance return type, and an inaccurate
+claim that `accounts()` accepts a `query=` parameter (it does not).
+`dev-docs/architecture.md`'s query-subpackage description was confirmed
+to already accurately describe the final, Phase-8-converged
+architecture (one canonical evaluation path via `_query_to_ast`, one
+disclosed remaining exception for `ReportSection.accounts`/`.exclude`)
+— no change needed there. No cross-phase inconsistency found describing
+`depth:` as a selection predicate, `tag:NAME=` as matching successfully,
+or the empty-alternation family as still unresolved. `knowledge/
+DECISIONS.md`/`DOMAIN_RULES.md` spot-checked internally consistent and
+matching current source — no change needed (out of this agent's write
+scope regardless). `ROADMAP.md`'s Stage C row contains a genuine
+narrative duplication (two near-identical "Phase 9 implemented,
+independent verification pending" paragraphs, the second stale/
+superseded) — reported, not fixed here (`ROADMAP.md` is `roadmap-
+context-curator`'s file, not `docs-maintainer`'s). `ledgerkit/`/`tests/`
+untouched; full suite re-confirmed (935 tests, `OK (skipped=29)`).
+
 ### [Stage C Phase 9 — independently verified, mismatch resolved] — 2026-09-27
 
 Full detail: [dev-docs/compat-register/LK-COMPAT-QUERY-REGEX-EMPTYALT-001.yaml](dev-docs/compat-register/LK-COMPAT-QUERY-REGEX-EMPTYALT-001.yaml), [dev-docs/retros/STAGE-C-PHASE-9-EMPTY-ALTERNATION-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-9-EMPTY-ALTERNATION-IMPLEMENTATION.md)'s addendum
