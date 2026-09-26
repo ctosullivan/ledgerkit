@@ -9,6 +9,39 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 8 — design document: second targeted correction pass] — 2026-09-26
+
+Full detail: [dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md](dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md)'s second addendum
+
+**Human:** directed a final targeted correction pass (explicitly not a
+re-scope, no implementation): found `balance_from_spec`'s outer query
+should converge fully rather than staying on `_matches_pattern`;
+`Journal.to_dataframe` was missed as a `_posting_matches` consumer; the
+deprecated `accounts=[...]` shim's zero/one/many cases weren't all
+handled explicitly; §5.2's "no observable change beyond regex
+strictness" was no longer accurate; the design needed a complete
+per-consumer inventory instead of relying on `Query(...)` grep results;
+the approval gate needed reducing to the actual remaining decisions
+with explicit recommendations.
+
+**Claude:** converged `balance_from_spec`'s outer `query.account`/
+`.payee`/`.not_account` onto `_query_to_ast` + `matches_posting`,
+leaving `ReportSection.accounts`/`.exclude` as the one genuinely
+separate construct (§5.1b, rewritten). Confirmed `Journal.to_dataframe`
+calls `_posting_matches` directly (`models.py:456,461`) and specified
+its migration to the same canonical path (§5.1d, new) — `_posting_
+matches` now has zero remaining callers project-wide, confirmed by
+grep. Found and fixed a second bug in the prior pass's own deprecated-
+shim fix: `accounts=[]` fell through to the many-accounts branch,
+producing `Or(())`, which matches nothing — the opposite of "no
+filter"; specified explicit zero/one/many handling (§5.1a). Rewrote
+§5.2 with all six intentional behaviour changes stated explicitly.
+Added §5.3, a complete table of every `Query` consumer (seven) and how
+each reaches the canonical engine. Rewrote §12's approval gate with an
+explicit recommended choice for every item — only regex strictness
+(Option A) remains genuinely blocking. Core decision unchanged
+throughout. No `ledgerkit/`/`tests/` code touched.
+
 ### [Stage C Phase 8 — design document: targeted correction pass] — 2026-09-26
 
 Full detail: [dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md](dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md)'s addendum

@@ -12,7 +12,46 @@ documents: **[VERIFIED-EXTERNAL]** (confirmed by direct read of the
 actual source/docs cited) / **[EXISTING-DECISION]** (already approved
 elsewhere) / **[PROPOSED]** / **[UNRESOLVED]**.
 
-**Amendment (2026-09-26, same day): a targeted design-correction pass,
+**Amendment 2 (2026-09-26, same day, after Amendment 1 below): a final
+targeted design-correction pass, not a re-scope.** The approved
+architectural direction is unchanged throughout: `Query` converges onto
+the canonical AST/evaluator, Option A is still recommended, field
+shape/signatures stay frozen, `Query.depth` stays non-predicate,
+`Query.date_to`'s inclusive-to-exclusive translation (including the
+`date.max` case) is unchanged, the translator stays in `ledgerkit/
+query/compat.py`, and the `stats` correction/`ReportSection` non-goal
+both stand as Amendment 1 left them. Six further corrections, all found
+by checking every `Query` consumer directly rather than trusting the
+prior pass's own completeness claim: (1) `balance_from_spec`'s **outer**
+`query.payee`/`.account`/`.not_account` — previously left on
+`_matches_pattern` in Amendment 1 — now converge onto `_query_to_ast` +
+`ledgerkit.query.eval.matches_posting`, the same canonical path
+`balance`/`register`/`accounts`/`stats` use; `_matches_pattern` is
+retained **only** for `ReportSection.accounts`/`.exclude`, the one
+genuinely separate, deliberately out-of-scope construct (§5.1b,
+rewritten). (2) `Journal.to_dataframe(query=...)` — missed entirely by
+both prior passes — imports and calls `_posting_matches` directly
+(`models.py:456,461`); it must migrate to `_query_to_ast` +
+`matches_posting` too, or retiring `_posting_matches` (as both prior
+passes proposed) would break it outright (§5.1d, new). (3) The
+deprecated `accounts=[...]` shim's three real cases — zero, one, many —
+were not all handled: `accounts=[]` would have produced `Or(())`, an
+empty OR, which evaluates to **matching nothing**, not "no filter" —
+the opposite of today's behaviour; explicit zero/one/many handling is
+now specified, with the escaped literals in the many-account case
+routed through the same eager-validation helper as everything else
+(§5.1a, corrected). (4) §5.2's claim of "no observable change beyond
+regex strictness" was no longer accurate once (1)-(3) are accounted
+for — replaced with an explicit, complete list of every intentional
+behavioural change this phase makes. (5) A new §5.3 gives the complete
+public-path inventory this design was missing — all seven `Query`
+consumers, and exactly how each reaches the canonical translator/
+evaluator, so no future pass has to re-derive completeness by grepping
+direct `Query(...)` construction again. (6) The approval gate (§12) is
+reduced to the actual remaining human decisions, each with the
+recommended choice stated explicitly.
+
+**Amendment 1 (2026-09-26, earlier the same day): a targeted design-correction pass,
 not a re-scope.** The core decision is unchanged — `Query` converges
 onto the canonical `ledgerkit.query` AST/evaluator, Option A (full
 `HledgerRegex` strictness) is still recommended, `Query`'s field shape/
@@ -373,24 +412,42 @@ translated once via `_query_to_ast` and evaluated through the **same**
 (AND'd) with any `_query_ast` also supplied. **`_matches_pattern` is
 NOT retired** — see §5.1b, it has a live, separate caller.
 
-### 5.1a (continued) — the deprecated multi-account shim, corrected
+### 5.1a (continued) — the deprecated multi-account shim, corrected (Amendment 2: all three cases handled explicitly)
 
-**Real regression found and fixed this pass** (§2): `Journal.balance`/
-`.register`'s `accounts: list[str] | None` parameter, for `len(accounts)
-> 1`, must stop synthesizing a `Query.account` string via `(?:...)`
-non-capturing-group alternation (`HledgerRegex`-excluded). Two
-HledgerRegex-portable options exist; **direct AST construction is
-recommended** over a re-escaped `|`-joined string, since it sidesteps
-any regex-escaping/precedence subtlety entirely:
+**Real regression found and fixed in Amendment 1** (§2): `Journal.
+balance`/`.register`'s `accounts: list[str] | None` parameter, for
+`len(accounts) > 1`, must stop synthesizing a `Query.account` string via
+`(?:...)` non-capturing-group alternation (`HledgerRegex`-excluded).
+**A second real bug in Amendment 1's own fix, found and fixed this
+pass**: that version only distinguished "one account" from "more than
+one," silently falling through to the many-account `Or(...)` branch for
+**zero** accounts too — `Or(tuple(Acct(...) for a in []))` is `Or(())`,
+an **empty** `Or` node. `ledgerkit.query.eval`'s `Or` evaluation is
+`any(...)` over its terms; `any(())` is `False` — an empty `Or` matches
+**nothing**, the exact opposite of `accounts=[]`'s intended "no filter"
+behaviour (today, `accounts=[]` reaches `"|".join(... for a in [])` →
+`""` → `Query(account="")`, which `_matches_pattern`'s old permissive
+handling treats as "matches everything" — a real behaviour today,
+reached only by accident of `_matches_pattern`'s specific empty-string
+handling, not by design, but real all the same and not to be broken).
+All three cases are now handled explicitly, not left to an implicit
+`len() == 1` vs. "else":
 
 ```python
 # ledgerkit/models.py, inside Journal.balance()/register() (lazy import,
 # matching the existing pattern at the top of this class):
 from ledgerkit.query.ast import Acct, Or
+from ledgerkit.query.compat import _validated
 import re as _re
 
 if accounts is not None and query is None:
-    if len(accounts) == 1:
+    if len(accounts) == 0:
+        pass  # No accounts given -- preserve today's effective
+              # no-filter behaviour explicitly. Do NOT fall through to
+              # the Or(...) branch below: Or(()) matches nothing, the
+              # opposite of "no filter" (the bug this pass fixes).
+              # query and _query_ast both stay unset/None.
+    elif len(accounts) == 1:
         query = Query(account=accounts[0])   # unchanged: single-account
                                               # case stays a raw,
                                               # unescaped passthrough,
@@ -401,8 +458,10 @@ if accounts is not None and query is None:
                                               # translator like any other
                                               # Query.account value.
     else:
-        _query_ast = Or(tuple(Acct(_re.escape(a)) for a in accounts))
-        return _balance(self, query=None, _query_ast=_query_ast, tree=tree)
+        terms = tuple(
+            Acct(_validated("account", _re.escape(a))) for a in accounts
+        )
+        return _balance(self, query=None, _query_ast=Or(terms), tree=tree)
 ```
 
 `re.escape(a)` for an ordinary account name (letters, digits, `:`)
@@ -410,53 +469,149 @@ produces the name unchanged in Python 3.7+ (`:` is not a regex
 metacharacter) — and for any account name that *does* contain a real
 regex metacharacter, the escaped form (e.g. `\.`) is itself
 `HledgerRegex`-portable (plain backslash-escaped literals are not in
-`_EXCLUDED_CONSTRUCT`'s exclusion list), so this is safe unconditionally,
-not just for the common case. This bypasses `Query.account` entirely
-for the multi-account case, reusing the already-existing private
-`_query_ast` parameter instead of round-tripping through a synthesized
-string — simpler and more obviously correct than re-deriving a
-`(?:...)`-free string-joining scheme. `register()` gets the identical
-treatment. **Required tests** (§11): one account (unchanged, still a
-raw regex passthrough) and multiple accounts (now `Or`-based, not
-`(?:...)`-based) both keep working.
+`_EXCLUDED_CONSTRUCT`'s exclusion list). **Explicitly validated via
+`_validated` anyway, not assumed safe** — per the standing invariant
+this pass establishes project-wide (§5.1a above, §5.1d below): an AST
+node must never be constructed from unvalidated regex text, even when
+the text's safety is independently reasoned about elsewhere; validating
+eagerly here costs nothing and removes any dependence on that reasoning
+staying correct forever. This bypasses `Query.account` entirely for the
+multi-account case, reusing the already-existing private `_query_ast`
+parameter instead of round-tripping through a synthesized string —
+simpler and more obviously correct than re-deriving a `(?:...)`-free
+string-joining scheme. `register()` gets the identical treatment.
+**Required tests** (§11): all three cases — zero accounts (no filter,
+not `Or(())`), one account (unchanged, still a raw regex passthrough),
+and multiple accounts (now `Or`-based, not `(?:...)`-based).
 
-### 5.1b `_matches_pattern` — retained and refactored, not retired
+### 5.1b `balance_from_spec`'s outer query converges too — `_matches_pattern` retained ONLY for `ReportSection` (rewritten, Amendment 2)
 
-**Scope decision, stated explicitly per explicit instruction.**
-`reports.balance_from_spec` (`reports.py:612-694`) has its own,
-separate, hand-rolled filtering loop — it does not call `_posting_
-matches` at all, and calls `_matches_pattern` directly, five times:
-`query.payee`/`query.account`/`query.not_account` (its own inline
-re-implementation of the outer filter, independent of `_posting_
-matches`), and `ReportSection.accounts`/`.exclude` (`models.py:
-198-215`, a public dataclass with its own OR/exclude semantics that
-have no `Query` equivalent at all). **`_matches_pattern` is retained**,
-not removed — removing a helper a live public-API path (`balance_from_
-spec`, `ReportSection`) still depends on would be a real defect, not a
-simplification.
+**Amendment 1's scope decision was itself incomplete, corrected this
+pass.** Amendment 1 kept `_matches_pattern` alive for **all** of
+`balance_from_spec`'s five call sites — its outer `query.payee`/
+`.account`/`.not_account` check, *and* `ReportSection.accounts`/
+`.exclude`. On review, only the second half of that is actually a
+distinct construct with no `Query` equivalent; the first half is
+exactly the same "translate a `Query` once, evaluate through the
+canonical engine" convergence `balance`/`register`/`accounts`/`stats`
+already get — leaving it on `_matches_pattern` was an unforced,
+unnecessary exception, not a real scope boundary.
 
-**Chosen scope**: `_matches_pattern`'s *implementation* is refactored
-to route through `compile_hledger_regex`/`.search()` instead of the ad
-hoc `_REGEX_META` Python-native-regex heuristic (`reports.py:215-228`)
-— its call sites in `balance_from_spec` are **unchanged**. This gets
-`ReportSection.accounts`/`.exclude` and `balance_from_spec`'s own
-`query` handling onto the same canonical `HledgerRegex` dialect as
-everything else (achieving §7.2's "no parallel regex dialect" goal
-project-wide, not just for `balance`/`register`/`accounts`/`stats`),
-**without** expanding this phase into redesigning `ReportSpec`/
-`ReportSection`'s own OR/exclude combination architecture into AST
-terms — that remains a distinct, larger, not-yet-scoped possible future
-item (§7), since `ReportSection` is a genuinely different public
-surface from `Query` with its own combination semantics, not something
-this phase's own approved scope (`Query` convergence) covers.
+**Corrected design**: `balance_from_spec`'s **outer** `query` is
+translated once via `_query_to_ast(query)` (§5.1a) and evaluated
+per-posting through `ledgerkit.query.eval.matches_posting` — the exact
+same call `reports.py` already imports as `_query_ast_matches_posting`
+for `balance`/`register`/`accounts` — replacing its own inline
+`query.date_from`/`.date_to`/`.payee`/`.account`/`.not_account` checks
+entirely:
 
-Consequence, disclosed: `ReportSection.accounts`/`.exclude` and
-`balance_from_spec`'s `query.account`/`.payee`/`.not_account` now also
+```python
+# reports.py, balance_from_spec() — outer-query handling rewritten:
+from ledgerkit.query.compat import _query_to_ast
+from ledgerkit.query.eval import matches_posting as _query_ast_matches_posting  # already imported
+
+_outer_ast = _query_to_ast(query)
+
+for txn in journal.transactions:
+    for posting in resolve_elision(txn):
+        if _outer_ast is not None and not _query_ast_matches_posting(
+            _outer_ast, txn, posting, journal=journal
+        ):
+            continue
+        # ReportSection.accounts/.exclude: unchanged call sites, see below.
+        if not any(_matches_pattern(pat, posting.account) for pat in section.accounts):
+            continue
+        if any(_matches_pattern(pat, posting.account) for pat in section.exclude):
+            continue
+        ...
+```
+
+(The per-transaction date short-circuit Amendment 1's version had —
+skipping every posting of a transaction whose date already fails —
+becomes a minor, harmless performance difference: `matches_posting`
+re-checks the date predicate per posting instead of once per
+transaction. Not a behaviour change, not required to preserve; noted
+only so the implementer doesn't mistake the loss of that
+micro-optimisation for a regression.)
+
+`section.depth`/`query.depth` handling (the line reading `query.depth
+if query is not None else None`) is **unchanged** — `depth` is still
+read directly off the dataclass field, never routed through
+`_query_to_ast`, consistent with §4's standing rule that `depth` is
+never a predicate.
+
+**`_matches_pattern` is retained — but now ONLY for `ReportSection.
+accounts`/`.exclude`** (`models.py:198-215`), the one genuinely
+separate construct with no `Query` equivalent at all (its own OR-
+across-`accounts`/exclude-across-`exclude` combination semantics).
+**Chosen scope, restated**: `_matches_pattern`'s *implementation* is
+refactored to route through `compile_hledger_regex`/`.search()` instead
+of the ad hoc `_REGEX_META` Python-native-regex heuristic (`reports.py:
+215-228`) — its remaining call sites (`ReportSection.accounts`/
+`.exclude` only, now that the outer-query call sites are gone) are
+otherwise unchanged. This is genuinely the **only** deliberately
+separate filtering construct left in Ledgerkit after this phase — every
+other `Query`-shaped filter, everywhere, reaches the same canonical
+engine (§5.3's full inventory). Full `ReportSpec`/`ReportSection` AST
+convergence (redesigning its OR/exclude combination architecture into
+`QueryNode`/`Or`/`Not` terms) remains a distinct, larger, not-yet-scoped
+possible future item (§7) — `ReportSection` is a genuinely different
+public surface from `Query` with its own combination semantics, not
+something this phase's own approved scope covers.
+
+Consequence, disclosed: `ReportSection.accounts`/`.exclude` now also
 reject an excluded `HledgerRegex` construct and an empty pattern
 (Stage C Phase 7's own rejection, inherited automatically once
 `_matches_pattern` is `compile_hledger_regex`-backed) — the same
-Option-A behaviour change as §6, extended to this second call site by
-construction, not by a separate decision.
+Option-A behaviour change as §6, extended to this construct by
+construction, not by a separate decision. Listed explicitly in §5.2's
+full change inventory.
+
+### 5.1d `Journal.to_dataframe(query=...)` — migrated, not missed
+
+**Found this pass, missed by both the original document and Amendment
+1**: `ledgerkit.models.Journal.to_dataframe` (`models.py:444-473`)
+imports `_posting_matches` directly (`from ledgerkit.reports import
+_posting_matches`, `models.py:456`) and calls it once per posting
+(`models.py:461`). Retiring `_posting_matches`, as both prior versions
+of this design proposed, would break `to_dataframe` outright — a real,
+live, public method (re-exported on `Journal`, documented, pandas-
+optional).
+
+**Corrected design**: `to_dataframe` migrates to the same pattern as
+`balance`/`register`/`accounts`/`stats` — translate `query` once via
+`_query_to_ast`, evaluate per posting via `matches_posting`:
+
+```python
+# ledgerkit/models.py, Journal.to_dataframe():
+def to_dataframe(self, query: Query | None = None):
+    ...
+    from ledgerkit.query.compat import _query_to_ast
+    from ledgerkit.query.eval import matches_posting
+    _ast = _query_to_ast(query)
+    styles = self.commodity_styles
+    rows = []
+    for txn in self.transactions:
+        for p in txn.postings:
+            if _ast is not None and not matches_posting(_ast, txn, p, journal=self):
+                continue
+            ...
+```
+
+`_posting_matches` itself (the wrapper, `reports.py:243-276` — distinct
+from `_matches_pattern`, which §5.1b retains) is now retired
+**everywhere** — `balance`/`register`/`accounts`/`stats` (§5.1a),
+`balance_from_spec` (§5.1b), and `to_dataframe` (here) are its only
+four callers, and all four converge onto `_query_to_ast`+`matches_
+posting`/`matches_transaction` by the end of this phase. Confirmed no
+fifth caller exists by grep (§5.3).
+
+Existing dataframe filtering behaviour is preserved exactly for every
+currently-valid `Query` — the same eager-validation-before-evaluation
+guarantee `_query_to_ast` gives every other caller applies here too,
+including against an empty journal (zero transactions) where the old
+`_posting_matches`-based loop would never have run at all, silently
+never validating anything.
 
 ### 5.1c `stats(query=...)` — closing the existing gap, explicitly
 
@@ -487,18 +642,95 @@ a dedicated, explicitly-named test (§11) confirming `stats(query=
 Query(account=X))` now excludes transactions with no matching posting,
 where before this phase it would not have.
 
-### 5.2 Report function signatures — unchanged
+### 5.2 Report function signatures unchanged — but the behaviour changes must be stated in full, not minimised (corrected, Amendment 2)
 
-`balance`/`register`/`accounts`/`stats`/`balance_from_spec`/`to_
-dataframe`'s public signatures (`query: Query | None = None`) are
-**not** proposed to change — only their internal implementation. This
-keeps the change inside the Unauthorised Change Rule's safe zone for
-`dev-docs/api-spec.md` (no signature to re-approve) as long as
-implementation confirms no observable-from-outside change beyond the
-regex-strictness question in §6 below. The private `_query_ast`
-parameter's own fate (kept as-is, or folded away now that `Query` also
-compiles to the same AST type) is left to implementation planning —
-not a design-level decision, since either choice is purely internal.
+**Signatures**: `balance`/`register`/`accounts`/`stats`/`balance_from_
+spec`/`to_dataframe`'s public signatures (`query: Query | None = None`)
+are **not** proposed to change — only their internal implementation.
+This keeps the change inside the Unauthorised Change Rule's safe zone
+for `dev-docs/api-spec.md` (no signature to re-approve). The private
+`_query_ast` parameter's own fate (kept as-is, or folded away now that
+`Query` also compiles to the same AST type) is left to implementation
+planning — not a design-level decision, since either choice is purely
+internal.
+
+**Behaviour, corrected this pass**: the original claim of "no
+observable-from-outside change beyond the regex-strictness question"
+was no longer accurate once §5.1b/§5.1c/§5.1d/§5.1a(zero-accounts) are
+all accounted for — replaced here with the **complete, explicit list**
+of every intentional behavioural change this phase makes, so none of
+them is later discovered as an unexplained surprise:
+
+1. **`Query.account`/`.not_account`/`.payee` become `HledgerRegex`-
+   strict** (§6, Option A) — an excluded construct or an empty pattern
+   now raises `QueryParseError`, where before it either "worked" via
+   raw Python `re` semantics or (empty pattern) matched everything.
+2. **`stats(query=Query(account=..., not_account=...))` now applies
+   those filters** (§5.1c) — previously silently ignored; now excludes
+   transactions with no matching posting, matching what `-q "acct:..."
+   stats` already does.
+3. **`ReportSection.accounts`/`.exclude` become `HledgerRegex`-
+   validated** (§5.1b) — via the same retained-but-refactored
+   `_matches_pattern`; an excluded construct or empty pattern here now
+   raises too, where before it used the same permissive Python-regex
+   fallback `Query`'s fields used to.
+4. **`balance_from_spec`'s outer `query.account`/`.not_account`/
+   `.payee` now evaluate through the canonical engine** (§5.1b) — same
+   `HledgerRegex`-strictness consequence as point 1, extended to this
+   call site.
+5. **`Journal.to_dataframe(query=...)` now evaluates through the
+   canonical engine** (§5.1d) — same consequence as point 1, extended
+   to this call site; existing valid filters keep producing the same
+   rows.
+6. **The deprecated `Journal.balance`/`.register(accounts=[...])`
+   wrapper's *internal* mechanism changes** (§5.1a) — `accounts=[]`
+   stays "no filter," a single account stays a raw regex passthrough
+   (now `HledgerRegex`-validated, point 1's consequence), and two-or-
+   more accounts now builds an `Or(...)` AST instead of a `(?:...)`-
+   based string. **Public behaviour is preserved** for every input this
+   wrapper could previously accept without raising (per §5.3's
+   inventory) — the wrapper's own public signature and its "no filter
+   for `[]`, regex-passthrough for one, OR-of-literals for many"
+   contract are unchanged; only its internal `(?:...)`-based mechanism,
+   which was never itself part of any documented contract, changes.
+
+None of these six are incidental side effects — each is named,
+disclosed, and has a required test (§11) and a compat-register
+`reason:` line (§9).
+
+### 5.3 Complete public-path inventory — every `Query` consumer accounted for (new, Amendment 2)
+
+**Both prior versions of this document made completeness claims based
+on grepping direct `Query(...)` construction in `tests/` — never on an
+actual inventory of every function that *accepts* a `Query`.** That gap
+is exactly what produced §2's/§5.1a's/§5.1d's missed cases. This section
+is the actual inventory, built by grepping every `query: Query` /
+`accounts:` parameter across `ledgerkit/models.py`/`ledgerkit/
+reports.py`, not by re-deriving it from test usage:
+
+| Consumer | Reaches canonical engine via | Section |
+|---|---|---|
+| `reports.balance` | `_query_to_ast(query)` → `matches_posting`, AND'd with any `_query_ast` | §5.1a |
+| `reports.register` | same as `balance` | §5.1a |
+| `reports.accounts` | same as `balance` (plus its own narrower `_accounts_effective_tags`-style dispatch for `Tag` nodes, unrelated to this phase) | §5.1a |
+| `reports.stats` | `_query_to_ast(query)` → `matches_transaction`, AND'd with any `_query_ast` (**new** — previously only `date`/`payee` via inline check) | §5.1c |
+| `reports.balance_from_spec` | outer `query` → `_query_to_ast` → `matches_posting` (**new** — previously `_matches_pattern` inline); `ReportSection.accounts`/`.exclude` → refactored `_matches_pattern` (**the one retained, deliberately separate construct**) | §5.1b |
+| `Journal.to_dataframe` | `_query_to_ast(query)` → `matches_posting` (**new** — previously `_posting_matches` directly) | §5.1d |
+| `Journal.balance`/`.register`'s deprecated `accounts=[...]` wrapper | zero → no filter; one → `Query(account=...)` → same path as `balance`/`register` above; many → direct `Or(Acct(...))` AST via `_query_ast`, bypassing `Query` entirely | §5.1a |
+
+**Every** `Query`-shaped filtering path in `ledgerkit/` reaches either
+`ledgerkit.query.eval.matches_posting`/`matches_transaction` directly,
+or (for `ReportSection` only) the retained, refactored, canonically-
+`HledgerRegex`-backed `_matches_pattern` — there is no eighth path.
+`_posting_matches` (the old `Query`-specific wrapper around
+`_matches_pattern`, distinct from `_matches_pattern` itself) has
+exactly **four** call sites, confirmed by grep, not assumed: one each
+in `accounts`/`balance`/`register` (`reports.py:384,442,499` — each
+its own separate call site, one per function) and one in `to_dataframe`
+(`models.py:461`). `stats` never called it (its own inline `date`/
+`payee`-only check, §5.1c). All four convert to `_query_to_ast`/
+`matches_posting` by the end of this phase, so `_posting_matches` is
+fully retired, with nothing left calling it.
 
 ## 6. [UNRESOLVED] Regex strictness for `Query`'s string fields
 
@@ -618,12 +850,13 @@ narrower, still-verified conclusion:
   explicit regression tests and its own line in the new entry's
   `reason:` field — exactly the kind of silent off-by-one/overflow a
   differential test must specifically target, not merely stumble onto.
-- **New this pass**: the entry's `reason:` field must also disclose
-  §5.1c's `stats` behaviour correction (account/not_account now
-  affecting the counted transaction subset) and §5.1a's deprecated
-  multi-account shim fix — both are real, user-observable behaviour
-  changes this entry needs to own, not just the headline `Query.
-  account`/`.payee`/`.not_account` `HledgerRegex`-strictness change.
+- **Amended this pass**: the entry's `reason:` field must disclose all
+  six behaviour changes §5.2 now lists explicitly — `stats`'s account/
+  not_account correction (§5.1c), the deprecated multi-account shim fix
+  including its zero-accounts case (§5.1a), `balance_from_spec`'s outer-
+  query convergence (§5.1b), `ReportSection`'s `HledgerRegex`-validation
+  (§5.1b), and `Journal.to_dataframe`'s migration (§5.1d) — not just the
+  headline `Query.account`/`.payee`/`.not_account` strictness change.
 - Per the standing process: first-time promotion of the new entry to
   `status: verified` requires a genuinely separate `compat-
   differential-tester` dispatch (`09-compatibility-system.md` §9.6).
@@ -633,19 +866,25 @@ narrower, still-verified conclusion:
 - `dev-docs/api-spec.md` — `Query`'s own entry gains a note that its
   fields now evaluate via the same engine `-q` uses (no signature
   change, per §5.2); `stats`'s entry gets the before/after account/
-  not_account note (§5.1c); `Journal.balance`/`.register`'s `accounts=`
-  entry notes the `Or`-based multi-account fix (§5.1a); `_posting_
-  matches` removed from any documentation that mentions it —
+  not_account note (§5.1c); `balance_from_spec`'s entry notes its outer
+  query now converges too (§5.1b); `to_dataframe`'s entry notes its
+  migration (§5.1d); `Journal.balance`/`.register`'s `accounts=` entry
+  notes the `Or`-based multi-account fix, including the zero-accounts
+  case (§5.1a); `_posting_matches` removed from any documentation that
+  mentions it (confirmed **zero** remaining callers, §5.3) —
   `_matches_pattern` is **retained** in documentation, noted as now
-  `HledgerRegex`-backed (§5.1b), not removed (check `architecture.md`
-  too).
+  `HledgerRegex`-backed and used **only** for `ReportSection` (§5.1b),
+  not removed (check `architecture.md` too).
 - `dev-docs/architecture.md` — `reports.py`'s filtering description
-  updated: `balance`/`register`/`accounts`/`stats` now share one
-  evaluation path via `ledgerkit.query.compat._query_to_ast`;
-  `balance_from_spec`/`ReportSection` keep their own control flow but
-  now share the same regex dialect via a refactored `_matches_pattern`
-  (§5.1b) — described accurately as two flows, one shared dialect, not
-  overstated as fully unified.
+  updated: `balance`/`register`/`accounts`/`stats`/`balance_from_spec`'s
+  outer query/`to_dataframe` **all** share one evaluation path via
+  `ledgerkit.query.compat._query_to_ast` (§5.3's full inventory) —
+  `ReportSection.accounts`/`.exclude` is the **only** remaining
+  deliberately separate construct, keeping its own OR/exclude control
+  flow but sharing the same `HledgerRegex` dialect via a refactored
+  `_matches_pattern` (§5.1b). Described accurately as one canonical
+  evaluation path plus exactly one named exception, not overstated as
+  fully unified and not understated as still two parallel systems.
 - `dev-docs/hledger-compatibility.md` — a note that `Query`'s `account`/
   `not_account`/`payee` fields (and, via §5.1b, `ReportSection.
   accounts`/`.exclude`) are now `HledgerRegex`-validated exactly like
@@ -657,10 +896,13 @@ narrower, still-verified conclusion:
   account/not_account before/after (§5.1c).
 - `knowledge/DECISIONS.md` — Option A chosen over B, why, and the
   **corrected** (§8) blast-radius conclusion (no external consumer, but
-  three internal paths needed explicit handling); the `_query_to_ast`
-  module-placement decision (§5.1, `query/compat.py` not `models.py`,
-  and why); the deprecated `accounts=[...]` shim's `Or`-based fix (why
-  direct AST construction was chosen over a re-escaped joined string).
+  multiple internal paths needed explicit handling, enumerated in
+  §5.3); the `_query_to_ast` module-placement decision (§5.1, `query/
+  compat.py` not `models.py`, and why); the deprecated `accounts=
+  [...]` shim's `Or`-based fix for all three cases, **including the
+  zero-accounts-must-not-become-`Or(())` bug** found this pass; the
+  decision to converge `balance_from_spec`'s outer query too rather
+  than leaving it on `_matches_pattern` as Amendment 1 had.
 - `knowledge/DOMAIN_RULES.md` — the `Query.date_to` (inclusive) vs
   `DateSpan.end` (exclusive) translation trap, **including the
   `date.max` overflow edge case** (§4/§5.1a) — a genuinely non-obvious,
@@ -695,21 +937,43 @@ narrower, still-verified conclusion:
 - **New, Stage-C-Phase-7-consistency**: `Query(account="")` now raises,
   matching `-q "acct:"`'s own Phase 7 behaviour, rather than silently
   matching every posting.
-- **New this pass, the deprecated multi-account shim (§5.1a)**:
-  `Journal.balance(accounts=["food"])`/`.register(accounts=["food"])`
-  (single account) still work exactly as today. `Journal.balance(
-  accounts=["food", "transport"])`/`.register(...)` (two or more
-  accounts) now build an `Or(...)` AST instead of a `(?:...)`-based
-  string and **do not raise** under Option A (regression guard — this
-  is the real bug this pass found and fixed, and currently has **zero**
-  existing test coverage per §2, so these tests are net-new, not
-  rewrites).
-- **New this pass, `_matches_pattern` retention (§5.1b)**: every
-  existing `balance_from_spec`/`ReportSection` test continues passing;
-  a new test confirms `ReportSection(accounts=(r"\d+",))` (an excluded
-  construct) now raises, and `ReportSection(accounts=("",))` (empty
-  pattern) now raises too — confirming `_matches_pattern`'s refactor
-  actually took effect for `ReportSection`, not just for `Query`.
+- **Amended this pass, the deprecated multi-account shim (§5.1a) — now
+  all three cases, not two**: `Journal.balance(accounts=[])`/`.register(
+  accounts=[])` (**zero** accounts, new required case) behaves as no
+  filter at all — explicitly **not** `Or(())` (regression guard for the
+  empty-`Or`-matches-nothing bug this pass found). `Journal.balance(
+  accounts=["food"])`/`.register(accounts=["food"])` (single account)
+  still work exactly as today. `Journal.balance(accounts=["food",
+  "transport"])`/`.register(...)` (two or more accounts) now build an
+  `Or(...)` AST instead of a `(?:...)`-based string and **do not raise**
+  under Option A — this and the zero-account case currently have
+  **zero** existing test coverage per §2, so all three are net-new
+  tests, not rewrites.
+- **New this pass, `balance_from_spec` outer-query convergence
+  (§5.1b)**: `balance_from_spec(query=Query(account="food"))` produces
+  identical `ReportSectionResult`s to the pre-migration implementation
+  for every existing test case; a new test confirms `balance_from_spec(
+  query=Query(account=r"\d+"))` (excluded construct) now raises, exactly
+  like `balance`/`register` already do.
+- **New this pass, `ReportSection`-only retention of `_matches_pattern`
+  (§5.1b)**: every existing `balance_from_spec`/`ReportSection` test
+  continues passing; a new test confirms `ReportSection(accounts=
+  (r"\d+",))` (an excluded construct) now raises, and `ReportSection(
+  accounts=("",))` (empty pattern) now raises too — confirming
+  `_matches_pattern`'s refactor took effect for `ReportSection`
+  specifically, now that it's the *only* remaining caller.
+- **New this pass, `Journal.to_dataframe` migration (§5.1d)**: every
+  existing `to_dataframe(query=...)` test continues passing (parity
+  with the pre-migration `_posting_matches`-based implementation); a
+  new test confirms an excluded construct or empty pattern in
+  `to_dataframe(query=...)` now raises **deterministically before any
+  row is built**, even against an empty journal (zero transactions) —
+  regression guard for the same eager-validation guarantee §5.1a's
+  `Query.account` test already requires, extended to this call site;
+  a new test confirms `ledgerkit.reports._posting_matches` has no
+  remaining importers anywhere in `ledgerkit/` (a static/grep-based
+  confirmation, not just "existing tests still pass," since a stale but
+  unused import could otherwise go unnoticed).
 - **New this pass, `stats` behaviour correction (§5.1c)**: `stats(
   query=Query(account=X))` now excludes transactions with no posting
   matching `X` from `account_count`/`account_depth`/etc. — an explicit,
@@ -718,40 +982,49 @@ narrower, still-verified conclusion:
 - **Differential** (mandatory, genuinely separate `compat-
   differential-tester` dispatch before any compat-register promotion):
   confirm `Query`-based filtering and `-q`-string-based filtering now
-  produce identical results for equivalent queries (e.g. `Query
-  (account="food")` vs `-q "acct:food"`) on a shared fixture — this is
-  the actual, executable proof of "one evaluation path," not merely an
-  implementation-detail claim. Include the multi-account shim and
-  `stats` correction in the same differential pass.
+  produce identical results for equivalent queries across **every**
+  converged path named in §5.3 — `balance`, `register`, `accounts`,
+  `stats`, `balance_from_spec`'s outer query, and `to_dataframe` — not
+  only `balance`/`register` as originally scoped. Include the
+  multi-account shim (all three cases) and the `stats` correction in
+  the same differential pass.
 
-## 12. Summary of what needs explicit approval (gate)
+## 12. Summary of what needs explicit approval (gate) — reduced to the actual remaining decisions (Amendment 2)
 
-1. **§6 — regex strictness**: Option A (full `HledgerRegex` convergence,
-   recommended) vs Option B (preserve the permissive fallback,
-   contradicts the pre-approved architecture). Lead recommends A. This
-   is the one genuinely blocking fork, unchanged by this amendment.
-2. **§5.1c — `stats` behaviour correction**: confirm that closing the
-   existing `Query.account`/`.not_account`-ignored-by-`stats` gap, as a
-   natural consequence of convergence, is wanted as part of this phase
-   (recommended — it makes the legacy path match what `-q` already
-   does) rather than deferred as its own separate, later fix. Lead
-   recommends resolving it here, now that it's explicitly named rather
-   than an incidental side effect.
-3. **§5.1b — `_matches_pattern`/`ReportSection` scope**: confirm the
-   chosen scope (refactor `_matches_pattern` to be `HledgerRegex`-backed,
-   keep `balance_from_spec`/`ReportSection`'s own control flow as-is;
-   full `ReportSpec`/`ReportSection` AST convergence stays a named,
-   separate future item) rather than expanding this phase to cover it.
-4. **§9 — compat-register entry** naming/scope for the new `LK-COMPAT-
-   QUERY-SHIM-001`-shaped entry — a naming detail, not a blocking fork,
-   flagged for awareness.
-5. **§5.1a — reusing `QueryParseError`** for a `Query` field's invalid
-   regex (vs. a new, `Query`-specific exception) — a naming/exception-
-   type detail, not a blocking fork, flagged for awareness (mirrors
-   Stage C Phase 7's own precedent of reusing an existing exception
-   type rather than adding a new one).
-6. **General approval** to proceed to implementation planning once §6
-   (and, ideally, §5.1c/§5.1b) are resolved.
+Every item below now states the recommended choice explicitly, per
+explicit instruction — nothing here is left as an open-ended question
+without a lead position:
 
-No implementation begins until this section's items are explicitly
-decided.
+1. **§6 — Regex strictness.** Approve **Option A** — full `HledgerRegex`
+   convergence. This is the one genuinely blocking fork; everything
+   else in this gate is either already-resolved-by-recommendation or a
+   non-blocking naming detail.
+2. **§5.1c — `stats` correction.** **Include it in Phase 8.** Closing
+   the existing `Query.account`/`.not_account`-ignored-by-`stats` gap is
+   a natural, in-scope consequence of convergence (it makes the legacy
+   path match what `-q "acct:..." stats` already does), not separate
+   feature work to defer.
+3. **§5.1b — `ReportSection` scope.** **Keep `ReportSection`'s own
+   separate OR/exclude control flow; converge only its regex dialect**
+   via the retained, refactored `_matches_pattern`. Defer full
+   `ReportSpec`/`ReportSection` AST conversion to a distinct, not-yet-
+   scoped future item (§7) — it is a different public surface from
+   `Query` with its own combination semantics, not this phase's scope.
+4. **§5.1a — Exception type.** **Reuse `QueryParseError`** for a
+   `Query`/deprecated-shim field's invalid regex, rather than inventing
+   a new exception type — mirrors Stage C Phase 7's own precedent
+   (reusing `UnsupportedRegexConstructError`) for the same underlying
+   condition.
+5. **§9 — Compat-register naming.** The exact name/scope of the new
+   `LK-COMPAT-QUERY-SHIM-001`-shaped entry is an **implementation-detail
+   naming choice, not a blocker** — proceed with the lead's proposed
+   name unless the implementer finds a reason to rename it.
+6. **General approval to proceed** — conditioned explicitly on the
+   design now reflecting §5.3's complete public-path inventory (all
+   seven `Query` consumers named, each with a stated convergence path)
+   rather than the incomplete, grep-derived completeness claims either
+   prior version made.
+
+No implementation begins until item 1 (the one blocking fork) is
+explicitly decided; items 2-5 have stated recommendations the
+implementer proceeds with unless told otherwise.

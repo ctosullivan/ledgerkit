@@ -196,3 +196,66 @@ Approval gate grew from three items to six (§12) — reflecting genuinely
 new, named decision points (the `stats` behaviour correction, the
 `_matches_pattern`/`ReportSection` scope, the `QueryParseError`-reuse
 naming choice), not scope creep in the fix itself.
+
+## Addendum 2 (2026-09-26, same day) — a second design-review correction pass
+
+The first correction pass (Addendum 1) fixed a real, verified gap in
+the original blast-radius analysis but, on a further review, was itself
+still incomplete — it fixed the one deprecated-shim regression it found,
+but never checked whether the *scope decision* it made for `_matches_
+pattern` (keep it for **everything** `balance_from_spec` touches) was
+actually the right boundary, and never built the systematic per-
+consumer inventory that would have caught two more real gaps directly.
+
+**The two most consequential findings this pass**:
+
+1. **`Journal.to_dataframe(query=...)` was missed by both the original
+   document and Addendum 1** — it imports and calls `_posting_matches`
+   directly, a live, public, pandas-integrated method. Retiring
+   `_posting_matches`, as both prior versions proposed, would have
+   broken it outright. Found only by building the actual per-consumer
+   inventory (§5.3, new) the design should have had from the start,
+   not by re-grepping `Query(...)` test construction again.
+2. **Addendum 1's own `accounts=[...]` fix had a second bug**: it
+   handled "one account" vs. "more than one," silently routing **zero**
+   accounts into the many-accounts branch, producing `Or(())` — an
+   empty `Or`, which evaluates to matching *nothing*, the opposite of
+   the intended "no filter" behaviour. A real regression inside a fix
+   for a real regression, caught only because this pass re-examined
+   every case (0, 1, many) explicitly rather than trusting the
+   two-case split already in place.
+
+A third, more architectural correction: Addendum 1 drew the `_matches_
+pattern`-retention boundary around all of `balance_from_spec`, including
+its **outer** `query.account`/`.payee`/`.not_account` — which is not
+actually a distinct construct from `Query`, unlike `ReportSection`'s own
+OR/exclude semantics. On review, only `ReportSection` needed the
+exception; `balance_from_spec`'s outer query converges onto the
+canonical engine like everything else, leaving `ReportSection` as the
+**one** genuinely separate filtering construct in the entire codebase —
+a materially cleaner, more defensible end state than "keep `_matches_
+pattern` for this whole function."
+
+**Process observation, now three levels deep on this exact document**:
+this is the second correction pass on Phase 8's design (fourth
+consecutive phase, counting Stage C 6/7, where review caught something
+a design's own author missed) and the second time in this project's
+history that a completeness claim based on grepping direct construction
+sites (`Query(...)` in tests) turned out to be systematically
+incomplete — the first time (Addendum 1) for the deprecated-shim
+producer, this time for a whole missed *consumer* (`to_dataframe`). The
+generalizable lesson, worth stating plainly for any future phase
+touching a value with multiple producers/consumers: build the complete
+inventory of every producer and every consumer explicitly (a table, not
+a grep result) before making any completeness claim — a grep answers
+"where does this literal pattern appear," not "where does this data
+flow." §5.3 now exists specifically so this phase doesn't need to
+re-derive that inventory a third time.
+
+Corrected in the design document itself (§5.1b rewritten, §5.1d added,
+§5.1a's multi-account fix extended to three explicit cases, §5.2
+rewritten with a complete six-item change list, §5.3 added, §9/§10/§11/
+§12 updated accordingly). The core decision is unchanged throughout.
+Approval gate reduced from six open-ended items to six items each with
+an explicit stated recommendation, per direct instruction — genuinely
+only one (§6, regex strictness) remains a blocking human decision.
