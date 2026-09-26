@@ -9,6 +9,53 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 8 — Query-as-compatibility-shim convergence, implementation] — 2026-09-26
+
+Full detail: [dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md](dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md)
+
+**Human:** directed implementation of the fully-approved, twice-amended
+design (Option A regex strictness, the `stats` correction, the
+`ReportSection` scope boundary, and `QueryParseError` reuse all locked
+in) via a fresh coding agent, per this project's design → approval →
+fresh-agent → independent-verification process.
+
+**Claude:** implemented `ledgerkit/query/compat.py` (new module:
+`_query_to_ast`, `_validated`, `_exclusive_end`) and converged all seven
+`Query`-shaped filtering paths onto it: `reports.balance`/`register`/
+`accounts`/`stats` (the `stats` convergence closing a pre-existing
+`account`/`not_account`-ignored gap — an intentional, disclosed
+correction, not incidental), `reports.balance_from_spec`'s outer query,
+`Journal.to_dataframe` (migrated off `reports._posting_matches`, which
+is now retired — zero remaining callers anywhere in `ledgerkit/`,
+confirmed by grep and a dedicated static test), and `Journal.balance`/
+`.register`'s deprecated `accounts=[...]` shim (explicit zero/one/many
+handling — zero stays "no filter" without ever constructing `Or(())`,
+one stays a raw regex passthrough, two-or-more builds an `Or(Acct(...),
+...)` AST directly instead of the `(?:...)`-based string synthesis
+`HledgerRegex` rejects). `reports._matches_pattern` is retained — not
+retired — as the one deliberately separate construct for
+`ReportSection.accounts`/`.exclude`, refactored to route through
+`ledgerkit.query.regex.compile_hledger_regex` instead of its own ad hoc
+Python-regex-metacharacter heuristic. `Query.account`/`.not_account`/
+`.payee` are now `HledgerRegex`-strict (Option A) — an excluded
+construct or empty pattern now raises `QueryParseError`, reusing that
+existing exception type rather than a new one. `Query.date_to`
+(inclusive) translates to `DateSpan.end` (exclusive) via `_exclusive_end`,
+with the `datetime.date.max` overflow case mapped to `end=None` instead
+of raising. This is a disclosed, intentional set of **breaking** changes
+(all six enumerated in the design's own §5.2), made pre-`1.0.0`, not
+described as "no observable change." Added `tests/test_query/test_compat.py`
+(translator unit tests) and extensive new integration coverage in
+`tests/test_reports.py`/`tests/test_dataframe.py`; the full suite
+(897 tests, `29` skipped — pandas-optional — up from 844) passes. Synced
+`dev-docs/api-spec.md`, `dev-docs/architecture.md`,
+`dev-docs/hledger-compatibility.md`, `docs/python-api.md`,
+`knowledge/DECISIONS.md`, `knowledge/DOMAIN_RULES.md`. Filed
+`dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml` at
+`status: proposed` — promotion to `verified` is a separate,
+independently-dispatched `compat-differential-tester` step, not done
+here.
+
 ### [Stage C Phase 8 — design document: second targeted correction pass] — 2026-09-26
 
 Full detail: [dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md](dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-PLAN.md)'s second addendum
