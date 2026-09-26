@@ -149,5 +149,134 @@ class TestEmptyMatchingPatternsRemainAccepted(unittest.TestCase):
         self.assertTrue(pattern.search(""))
 
 
+class TestEmptyAlternationBranchRejected(unittest.TestCase):
+    """Stage C Phase 9 (28-empty-alternation-regex-design.md): a pattern
+    with an unescaped '|' that has nothing (zero raw characters)
+    immediately on one side of it is rejected, matching real hledger's
+    own regex-tdfa parse-time rejection of the same family
+    (LK-MISMATCH-QUERY-REGEX-EMPTYALT-001's 18-pattern reject-list,
+    freshly re-verified 2026-09-27). Each pattern gets its own named
+    test, per this project's established matrix-testing convention."""
+
+    def test_both_sides_empty_in_group(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(|)")
+
+    def test_trailing_pipe(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("a|")
+
+    def test_leading_pipe(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("|a")
+
+    def test_right_side_empty_in_group(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(a|)")
+
+    def test_left_side_empty_in_group(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(|a)")
+
+    def test_middle_branch_empty(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("a||b")
+
+    def test_empty_group_alternation_then_more(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(a|)|b")
+
+    def test_bare_double_pipe(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("||")
+
+    def test_bare_single_pipe(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("|")
+
+    def test_empty_group_alternation_before_more(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(|)|c")
+
+    def test_nested_empty_alternation_in_group(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("a|(|b)")
+
+    def test_group_with_double_pipe(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(||)")
+
+    def test_triple_pipe(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("a|||b")
+
+    def test_empty_group_alternation_then_quantifier(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(|)*")
+
+    def test_group_then_trailing_pipe(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(a)|")
+
+    def test_leading_pipe_then_group(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("|(a)")
+
+    def test_empty_group_alternation_between_literals(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("a(|)b")
+
+    def test_group_alternation_then_second_group(self):
+        with self.assertRaises(UnsupportedRegexConstructError):
+            validate_hledger_regex("(a|)(b)")
+
+
+class TestEmptyAlternationBranchAccepted(unittest.TestCase):
+    """Regression guards for Stage C Phase 9: patterns that look
+    superficially similar to the rejected family above but must remain
+    accepted, per LK-MISMATCH-QUERY-REGEX-EMPTYALT-001's 13-pattern
+    accept-list (freshly re-verified 2026-09-27). Each pattern gets its
+    own named test, matching the reject-list's own convention."""
+
+    def test_empty_non_alternation_group(self):
+        validate_hledger_regex("()")  # does not raise
+
+    def test_plain_group(self):
+        validate_hledger_regex("(a)")
+
+    def test_plain_alternation(self):
+        validate_hledger_regex("a|b")
+
+    def test_plain_group_alternation(self):
+        validate_hledger_regex("(a|b)")
+
+    def test_empty_group_then_alternation(self):
+        validate_hledger_regex("()|a")
+
+    def test_alternation_then_empty_group(self):
+        validate_hledger_regex("a|()")
+
+    def test_empty_group_then_quantifier(self):
+        validate_hledger_regex("()*")
+
+    def test_space_is_real_content(self):
+        validate_hledger_regex("a| |b")
+
+    def test_anchor_only_left_branch(self):
+        validate_hledger_regex("^|a")
+
+    def test_anchor_only_right_branch(self):
+        validate_hledger_regex("a|$")
+
+    def test_escaped_pipes_are_literal(self):
+        validate_hledger_regex(r"a\|\|b")
+
+    def test_escaped_left_paren_then_real_branch(self):
+        validate_hledger_regex(r"\(|a")
+
+    def test_real_branch_then_escaped_right_paren(self):
+        validate_hledger_regex(r"a|\)")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -480,6 +480,19 @@ class TestQueryFlag(unittest.TestCase):
         self.assertEqual(out, "")
         self.assertIn("invalid query", err)
 
+    def test_empty_alternation_branch_exits_one(self):
+        # Stage C Phase 9 (28-empty-alternation-regex-design.md): an
+        # empty-alternation-branch regex ('a|') is rejected at parse
+        # time, matching real hledger's own regex-tdfa rejection --
+        # previously accepted and matched every transaction, since an
+        # empty branch matches the empty string.
+        code, out, err = self._run(
+            "-f", str(FILTERED_JOURNAL), "-q", "acct:a|", "balance"
+        )
+        self.assertEqual(code, 1)
+        self.assertEqual(out, "")
+        self.assertIn("invalid query", err)
+
     def test_print_query_filters_whole_transactions(self):
         # print shows the WHOLE matching transaction (all its postings),
         # not just the matching posting -- matches hledger's own print

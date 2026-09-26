@@ -364,6 +364,30 @@ class TestEmptyPatternRejected(unittest.TestCase):
             self.fail("expected QueryParseError")
 
 
+class TestEmptyAlternationBranchRejectedAtParseTime(unittest.TestCase):
+    """Stage C Phase 9 (28-empty-alternation-regex-design.md): an
+    empty-alternation-branch regex (e.g. 'a|', matching real hledger's
+    own regex-tdfa rejection) fails at parse time with QueryParseError,
+    reached through the same acct:/desc:/tag:/depth: chokepoint as
+    Stage C Phase 7's empty-pattern-string fix."""
+
+    def test_acct_trailing_pipe_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("acct:a|")
+
+    def test_desc_empty_alternation_group_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("desc:(|)")
+
+    def test_tag_value_trailing_pipe_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("tag:rate=a|")
+
+    def test_depth_regex_form_trailing_pipe_rejected(self):
+        with self.assertRaises(QueryParseError):
+            parse("depth:a|=2")
+
+
 class TestEmptyQuery(unittest.TestCase):
     def test_empty_string_matches_everything(self):
         plan = parse("")
