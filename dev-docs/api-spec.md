@@ -240,9 +240,21 @@ def stats(self, query: Query | None = None) -> JournalStats: ...
 The `accounts` parameter on `balance()` and `register()` is deprecated — use `query=`
 for new code. When both are supplied, `query` takes precedence.
 
+**`accounts=[...]` internal mechanism, Stage C Phase 8** `[UPDATED]`: zero
+accounts is explicit "no filter" (not routed through `Query` at all); one
+account stays an unchanged raw regex passthrough (`Query(account=accounts[0])`,
+now `HledgerRegex`-validated like any other `Query.account` value); two or
+more accounts now build an `Or(Acct(...), ...)` AST directly (bypassing
+`Query` entirely) instead of the old `Query(account="a|(?:b)|...")`
+non-capturing-group synthesis, which `HledgerRegex` would otherwise reject.
+Public behaviour for every input this wrapper could previously accept
+without raising is unchanged — only the internal mechanism changed. See
+`dev-docs/planning/core-redefinition/
+27-query-shim-convergence-design.md` §5.1a.
+
 ---
 
-### `Query` `[IMPLEMENTED — Milestone 2]`
+### `Query` `[IMPLEMENTED — Milestone 2; matching engine converged — Stage C Phase 8]`
 
 ```python
 @dataclass
@@ -256,9 +268,31 @@ class Query:
 ```
 
 All fields are optional and default to `None`. `Query()` with all `None` fields is
-semantically equivalent to `query=None` (no filter). `account`, `not_account`, and
-`payee` patterns are matched as plain case-insensitive substrings unless the string
-contains a regex metacharacter, in which case `re.search` is used.
+semantically equivalent to `query=None` (no filter). Dataclass shape/defaults are
+frozen v1 API and unchanged by Stage C Phase 8 (`06-core-architecture.md` §6.5).
+
+**Matching engine, Stage C Phase 8** `[BREAKING CHANGE — see dev-docs/versioning.md's
+pre-1.0.0 breaking-change policy]`: `account`, `not_account`, and `payee` no longer
+use the old ad hoc "plain substring unless a Python regex metacharacter is present,
+then raw `re.search`" heuristic. They are translated once, per call
+(`ledgerkit.query.compat._query_to_ast`), into the same `QueryNode` predicate tree
+`-q`/`--query` string terms produce, and evaluated by the same
+`ledgerkit.query.eval` engine — the identical `HledgerRegex`-validated
+(`ledgerkit.query.regex.compile_hledger_regex`), case-insensitive, infix (`.search()`)
+dialect `acct:`/`desc:` already use. A pattern using an excluded `HledgerRegex`
+construct (Perl classes, lookaround, backreferences, etc.) or the empty string now
+raises `QueryParseError` — previously it either "worked" via raw Python `re`
+semantics (possibly diverging from real hledger) or, for an empty pattern, matched
+everything. `Query.date_to` (inclusive) is translated to the AST's exclusive
+`DateSpan.end` by adding one day, except at `datetime.date.max`, which maps to
+`end=None` (unbounded) rather than overflowing. `Query.depth` is never part of this
+translation — it is never a selection predicate; report functions read it directly
+via `_effective_depth_spec`. Every report function/method that accepts a `Query`
+converges through this same translator — see each one's own entry
+(`balance`/`register`/`accounts`/`stats`/`balance_from_spec`/`to_dataframe` below,
+and the deprecated `accounts=[...]` wrapper above) and
+`dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md` §5.3 for
+the complete inventory.
 
 Re-exported from `ledgerkit.__init__` as `ledgerkit.Query`.
 
@@ -851,6 +885,12 @@ bal = journal.balance()["assets:bank"]["£"]  # Decimal
 `balance_from_spec` retains its `dict[str, Decimal]` return type (multi-commodity
 support for spec-based reports is deferred).
 
+**Matching engine, Stage C Phase 8** `[UPDATED]`: `balance`/`register`/`accounts`
+below all translate `query` once via `ledgerkit.query.compat._query_to_ast` and
+evaluate through `ledgerkit.query.eval.matches_posting` — see `Query`'s own entry
+above for the full behaviour-change writeup (`HledgerRegex` strictness, the
+`date_to` inclusive/exclusive translation). No signature change.
+
 ---
 
 ### `register` `[IMPLEMENTED — Milestone 2]`
@@ -906,18 +946,26 @@ def stats(journal: Journal, query: Query | None = None) -> JournalStats:
     """Return summary statistics for the journal."""
 ```
 
-When `query` is non-`None`, transaction-level filters (date range, payee) are applied
-before computing statistics. `account`/`not_account` filters are not yet applied to
-`account_count`/`account_depth` (deferred to a follow-on task); depth filters are, as
-of Stage C Phase 5 — but via exclusion, not clipping, matching a genuine hledger quirk
-specific to `stats` (see `dev-docs/planning/core-redefinition/
-21-stage-c-phase-5-depth-and-verification-plan.md`).
+When `query` is non-`None`, transaction-level filters are applied before computing
+statistics, via `ledgerkit.query.compat._query_to_ast` +
+`ledgerkit.query.eval.matches_transaction` (Stage C Phase 8).
+
+**Before/after, Stage C Phase 8** `[BREAKING CHANGE]`: previously, `account`/
+`not_account` were silently ignored by `stats` — only `date_from`/`date_to`/`payee`
+affected `account_count`/`account_depth`/etc. (a pre-existing, documented gap).
+**Now**, `stats(query=Query(account=X))` excludes transactions with no posting
+matching `X` from those fields — identical to what `-q "acct:X" stats` (via
+`_query_ast`) already did. Depth filters continue to apply via exclusion, not
+clipping, matching a genuine hledger quirk specific to `stats` (see
+`dev-docs/planning/core-redefinition/
+21-stage-c-phase-5-depth-and-verification-plan.md`); this is unrelated to and
+unchanged by the account/not_account correction above.
 
 Also accessible as `ledgerkit.JournalStats` (re-exported from `__init__.py`).
 
 ---
 
-### `balance_from_spec` `[IMPLEMENTED — Milestone 2]`
+### `balance_from_spec` `[IMPLEMENTED — Milestone 2; outer query converged — Stage C Phase 8]`
 
 ```python
 def balance_from_spec(
@@ -929,12 +977,51 @@ def balance_from_spec(
 ```
 
 Returns one `ReportSectionResult` per section in `spec.sections` order. The outer
-`query` acts as a uniform time/payee filter across all sections. Within each section,
+`query` acts as a uniform filter across all sections. Within each section,
 `section.accounts` patterns are OR-combined and `section.exclude` patterns are
 subtracted. `section.depth` overrides `query.depth` for that section only.
 `section.invert` negates all amounts after aggregation.
 
+**Stage C Phase 8** `[UPDATED]`: the outer `query.account`/`.not_account`/`.payee`/
+date fields now converge onto the same `ledgerkit.query.compat._query_to_ast` +
+`ledgerkit.query.eval.matches_posting` path `balance`/`register`/`accounts`/`stats`
+use — previously `balance_from_spec` had its own separate, inline
+`_matches_pattern`-based check for the outer query. This means the outer query's
+string fields are now `HledgerRegex`-strict too (see `Query`'s entry above).
+`section.accounts`/`.exclude` are **not** part of this convergence — they remain on
+`reports._matches_pattern` (a private helper, not part of the public API; see
+`dev-docs/architecture.md`), the one deliberately separate matching construct left in
+`ledgerkit/` after this phase. `_matches_pattern` itself was refactored to route
+through `ledgerkit.query.regex.compile_hledger_regex` instead of its own ad hoc
+heuristic, so `section.accounts`/`.exclude` are now `HledgerRegex`-validated too (an
+excluded construct or empty pattern now raises), even though their own OR/exclude
+combination logic is unchanged.
+
 Re-exported from `ledgerkit.__init__` as `ledgerkit.balance_from_spec`.
+
+---
+
+### `Journal.to_dataframe` `[IMPLEMENTED; migrated — Stage C Phase 8]`
+
+```python
+def to_dataframe(self, query: Query | None = None):
+    """Export postings to a pandas DataFrame (one row per posting)."""
+```
+
+Method on `Journal` (see `ledgerkit/models.py` above); not a `reports.py` function.
+Columns: `date`, `description`, `cleared`, `pending`, `account`,
+`amount` (`Decimal | None`), `commodity` (`str | None`), `amount_formatted`
+(`str | None`). Requires pandas (`pip install ledgerkit[pandas]`).
+
+**Stage C Phase 8** `[UPDATED]`: previously called `ledgerkit.reports.
+_posting_matches` directly; now translates `query` once via
+`ledgerkit.query.compat._query_to_ast` and evaluates per posting via
+`ledgerkit.query.eval.matches_posting` — the same canonical path
+`balance`/`register`/`accounts`/`stats`/`balance_from_spec` use. `_posting_matches`
+itself is retired (zero remaining callers anywhere in `ledgerkit/`, confirmed by
+grep and by a dedicated test). An invalid `query` field now raises `QueryParseError`
+deterministically, even against an empty journal, rather than only if and when a
+posting happened to be checked against it.
 
 ---
 
@@ -1261,3 +1348,41 @@ reports.accounts` additionally uses a private, undocumented variant
 narrower Tag-matching mode (design §2.5/§9.2) — not part of this public
 surface; `matches_posting`/`matches_transaction`'s own behaviour is
 unaffected by its existence.
+
+### `ledgerkit/query/compat.py` `[NEW — Stage C Phase 8]`
+
+Private (not re-exported, not part of the public API) — the `Query` -> `QueryNode`
+translator that ends the "two parallel filtering paths" architecture described at the
+top of this document's `Query` entry. Lives inside the `query` package rather than
+`models.py` to avoid a circular import (`ledgerkit/query/eval.py` already imports
+`models.py`); `models.py`/`reports.py` reach it via a lazy, in-function import.
+
+```python
+def _validated(prefix: str, pattern: str) -> str:
+    """compile_hledger_regex(pattern), raising QueryParseError (not a bare
+    ValueError/re.error) on failure -- mirrors _build_acct/_build_desc's own
+    parse-time-validation contract. Returns pattern unchanged on success."""
+
+def _exclusive_end(date_to: datetime.date | None) -> datetime.date | None:
+    """Query.date_to (inclusive) -> DateSpan.end (exclusive): adds one day,
+    except at datetime.date.max, which maps to None (unbounded) rather than
+    overflowing (9999-12-31 has no representable successor)."""
+
+def _query_to_ast(query: Query | None) -> QueryNode | None:
+    """Translates a Query into the equivalent QueryNode predicate tree.
+    None for query=None or an all-None Query() (both mean "no filter").
+    Every Acct/Desc/DateSpan node is built only from an already-validated
+    pattern (_validated) -- eager, deterministic validation at translation
+    time, not lazily at evaluation time. query.depth is never consulted --
+    depth is never a selection predicate."""
+```
+
+Used by (see `dev-docs/planning/core-redefinition/
+27-query-shim-convergence-design.md` §5.3 for the complete inventory):
+`reports.balance`/`register`/`accounts`/`stats` (translating `query`, AND'd with any
+`_query_ast`), `reports.balance_from_spec` (the outer query only —
+`ReportSection.accounts`/`.exclude` stay on `_matches_pattern`), `Journal.
+to_dataframe`, and `Journal.balance`/`.register`'s deprecated `accounts=[...]`
+wrapper (for the single-account case; the multi-account case bypasses `Query`
+entirely and constructs an `Or(Acct(...), ...)` AST directly, using `_validated`
+on each `re.escape`d account name).

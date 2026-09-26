@@ -909,3 +909,113 @@ a reference to satisfy the schema — an honest empty list is correct.
 **Applies to:** `dev-docs/compat-register/schema.md`,
 `dev-docs/compat-register/UNEXPLAINED.md`,
 `dev-docs/planning/core-redefinition/09-compatibility-system.md`
+
+## 2026-09-26 — `Query`-as-compatibility-shim convergence (Stage C Phase 8): Option A, and the corrected blast-radius conclusion
+
+**Decision:** `ledgerkit.models.Query`'s `account`/`not_account`/`payee`
+fields now route through `compile_hledger_regex` exactly like `acct:`/
+`desc:` (Option A — full `HledgerRegex` convergence), rather than keeping
+the old permissive, Python-native `_matches_pattern`/`_posting_matches`
+heuristic (Option B). Full detail and the two-round review that produced
+it: `dev-docs/planning/core-redefinition/
+27-query-shim-convergence-design.md`.
+
+**Why:** `07-query-regex.md` §7.2 (written at Core-redefinition planning
+time) already specified this exact end state — "`Query` becomes a
+compatibility constructor that compiles to a `QueryAST`... no report
+function embeds its own filtering logic." Option B would have left two
+permanently-different regex dialects live depending on which entry point
+a caller used for what is supposed to be the same underlying concept
+(matching an account name) — the exact architectural debt this phase
+existed to remove. No known **external** consumer is affected
+(`ledgerkit-editor` never reaches `reports.py`'s matching code at all —
+it reimplements its own predicate independently, confirmed by
+`15-editor-compat-inventory.md`).
+
+**Blast-radius conclusion, corrected mid-design (recorded here since it
+is the kind of finding future passes should not have to re-derive):**
+the original draft claimed an "empty"/effectively-zero blast radius,
+based only on grepping direct `Query(...)` test construction. That
+undersold it. The accurate conclusion: no *external* consumer is
+affected, but three *internal* Ledgerkit paths needed explicit migration
+handling, each found only by building a complete inventory of every
+`Query`-accepting function rather than trusting a "no test constructs a
+bad pattern" grep: (1) `Journal.balance`/`.register`'s deprecated
+`accounts=[...]` shim, which synthesized `Query.account` via `(?:...)`
+non-capturing-group alternation internally — an `HledgerRegex`-excluded
+construct nobody wrote directly in a test, produced by the wrapper's own
+code; (2) `balance_from_spec`'s and `ReportSection`'s separate inline
+`_matches_pattern` reliance; (3) `stats`'s pre-existing `account`/
+`not_account`-ignored gap, closed as an intentional side effect of
+convergence rather than separately-scoped feature work.
+
+**The deprecated `accounts=[...]` shim's `Or`-based fix, all three cases
+explicit:** `len(accounts) == 0` stays "no filter" (query/`_query_ast`
+both left unset — **not** routed through `Or(())`, which is `any(())` =
+`False`, i.e. matches nothing, the exact opposite of "no filter"; this
+exact bug was introduced by an intermediate draft's own fix and caught
+on the design's own second review round before any code was written).
+`len(accounts) == 1` is unchanged: `Query(account=accounts[0])`, a raw
+regex passthrough, now `HledgerRegex`-validated like any other
+`Query.account` value. `len(accounts) >= 2` builds
+`Or(tuple(Acct(_validated("account", re.escape(a))) for a in accounts))`
+directly via the private `_query_ast` parameter, bypassing `Query`
+entirely — simpler and more obviously correct than re-deriving a
+`(?:...)`-free string-joining scheme, and each `re.escape`d literal is
+still explicitly validated via `_validated` even though `re.escape`
+output is expected to always be `HledgerRegex`-safe (the standing
+"never construct an AST node from unvalidated text, even when reasoned
+safe elsewhere" invariant this phase establishes project-wide).
+
+**Module placement:** the translator (`_query_to_ast`/`_validated`/
+`_exclusive_end`) lives in a new module, `ledgerkit/query/compat.py`,
+not `ledgerkit/models.py`. `ledgerkit/query/eval.py` already imports
+`from ledgerkit.models import Journal, Posting, Transaction` — a
+top-level import the other direction (`models.py` importing
+`query/compat.py`'s dependencies) would be genuinely circular.
+`compat.py` avoids even a runtime import of `ledgerkit.models.Query`
+(it only does attribute access, so a `TYPE_CHECKING`-guarded import
+suffices for the type hint) — this sidesteps the circularity question
+entirely rather than merely reasoning it away. `models.py`/`reports.py`
+reach `compat.py` via a lazy, in-function import, mirroring the existing
+pattern `models.py` already used to reach `reports.py` itself.
+
+**`balance_from_spec`'s outer query converges too** (not left on
+`_matches_pattern`, as an intermediate draft had it): `query.account`/
+`.not_account`/`.payee`/dates are translated once via `_query_to_ast`
+and evaluated per-posting via `matches_posting` — the same path
+`balance`/`register`/`accounts`/`stats` use. `ReportSection.accounts`/
+`.exclude` is the **one** remaining deliberately separate construct
+(its own OR-across-`accounts`/exclude-across-`exclude` combination
+logic has no `Query` equivalent) — `_matches_pattern` is retained, not
+retired, but its *implementation* is refactored to route through
+`compile_hledger_regex`/`.search()` instead of the old ad hoc
+metacharacter-sniffing heuristic, so it shares the same dialect as
+everything else. Full `ReportSpec`/`ReportSection` AST convergence
+(rebuilding its own combination logic as `QueryNode`/`Or`/`Not` terms)
+is a named non-goal — a distinct, larger, not-yet-scoped item.
+
+**Implementer judgment calls made during this phase, not fully
+specified by the design (recorded per this project's ambiguity-handling
+convention):**
+- `_posting_matches` was **deleted outright**, not merely left unused.
+  The design's own required test only asks for "zero remaining
+  importers," which a dead-but-present function would also satisfy —
+  but CLAUDE.md's general dead-code-removal instruction (given
+  explicitly for `_REGEX_META` in the same design) generalises cleanly
+  to this case too: a fully unreferenced private helper is dead code,
+  not a preserved API surface, and this project's convention is to
+  remove it rather than let it accumulate.
+- `_matches_pattern`'s refactored implementation raises
+  `UnsupportedRegexConstructError`/`re.error` directly from
+  `compile_hledger_regex`, **not** wrapped in `QueryParseError` via
+  `_validated`. The design's exception-type decision (§5.1a/§12 item 4)
+  is scoped explicitly to "a `Query`/deprecated-shim field's invalid
+  regex" — `ReportSection.accounts`/`.exclude` are a different public
+  surface with no `Query` equivalent, so extending that same wrapping
+  to them was judged an unforced scope extension, not a requirement.
+
+**Applies to:** `ledgerkit/query/compat.py` (new), `ledgerkit/models.py`,
+`ledgerkit/reports.py`, `dev-docs/api-spec.md`,
+`dev-docs/architecture.md`, `dev-docs/hledger-compatibility.md`,
+`dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml`

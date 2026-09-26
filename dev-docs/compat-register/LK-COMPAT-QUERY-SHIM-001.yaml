@@ -1,0 +1,159 @@
+# Proposed by the implementing session, Stage C Phase 8
+# (dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md).
+# status: proposed -- not yet executable-verified against a real hledger
+# 1.52.4 binary; that is compat-differential-tester's job (a genuinely
+# separate dispatch, per 09-compatibility-system.md §9.6). This entry
+# must NOT be self-promoted past `proposed` by the implementing session.
+
+id: LK-COMPAT-QUERY-SHIM-001
+area: query.shim
+kind: compatible
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  `ledgerkit.models.Query` (the typed, `-q`-string-free Python compatibility
+  constructor, `07-query-regex.md` §7.2) previously matched
+  `account`/`not_account`/`payee` via `reports.py`'s own ad hoc,
+  non-hledger-faithful `_posting_matches`/`_matches_pattern` helpers -- a
+  second, parallel filtering path alongside the real, differentially-verified
+  `ledgerkit.query` AST/parser/evaluator (Stage C Phases 1-7). This entry
+  documents Stage C Phase 8's convergence: `Query` now compiles to the same
+  `QueryNode` predicate tree a `-q`/`--query` string produces (via the new
+  `ledgerkit.query.compat._query_to_ast` translator) and is evaluated by the
+  exact same `ledgerkit.query.eval.matches_posting`/`matches_transaction`
+  engine `acct:`/`desc:`/etc. already use -- eliminating the second dialect
+  entirely, per `07-query-regex.md` §7.2's original instruction ("no report
+  function embeds its own filtering logic").
+
+  This is a disclosed, intentional set of BREAKING behaviour changes (not
+  backward-compatible), made while Ledgerkit is still pre-`1.0.0`
+  (`1.0.0.dev1`; see `dev-docs/versioning.md`'s "Breaking changes during the
+  `1.0.0.dev1` pre-release" section) -- exactly like Stage C Phase 7's own
+  empty-regex-pattern rejection fix. All six intentional changes this phase
+  makes, disclosed in full (not just the headline one):
+
+  1. `Query.account`/`.not_account`/`.payee` become `HledgerRegex`-strict
+     (Option A, `27-query-shim-convergence-design.md` §6): a pattern using an
+     excluded construct (Perl shorthand classes, `(?...)` forms, backreferences,
+     GNU word-boundary anchors, POSIX named classes, lazy quantifiers) or the
+     empty string now raises `QueryParseError`, where it previously either
+     "worked" via raw Python `re` semantics (possibly diverging from real
+     hledger for the same text) or, for an empty pattern, matched everything.
+
+  2. `stats(query=Query(account=..., not_account=...))` now applies those two
+     fields -- previously silently ignored (a pre-existing, documented gap,
+     `reports.py`'s own former inline TODO). Now excludes transactions with no
+     matching posting, identical to what `-q "acct:..." stats` (via
+     `_query_ast`) already did before this phase.
+
+  3. `ReportSection.accounts`/`.exclude` become `HledgerRegex`-validated too,
+     via the same retained-but-refactored `_matches_pattern` (now routes
+     through `ledgerkit.query.regex.compile_hledger_regex`/`.search()` instead
+     of its own ad hoc Python-regex-metacharacter heuristic) -- an excluded
+     construct or empty pattern here now raises as well.
+
+  4. `balance_from_spec`'s outer `query.account`/`.not_account`/`.payee` now
+     evaluate through the canonical engine (`_query_to_ast` +
+     `matches_posting`) instead of `balance_from_spec`'s own separate inline
+     check -- same `HledgerRegex`-strictness consequence as item 1, extended
+     to this call site.
+
+  5. `Journal.to_dataframe(query=...)` now evaluates through the canonical
+     engine too (previously called `reports._posting_matches` directly) --
+     same consequence as item 1; existing valid filters keep producing the
+     same rows.
+
+  6. The deprecated `Journal.balance`/`.register(accounts=[...])` wrapper's
+     *internal* mechanism changes: `accounts=[]` stays "no filter" (fixed to
+     NOT fall through to an `Or(())`, which would match nothing -- a real bug
+     found and fixed during this phase's own design review, before any code
+     was written); a single account stays a raw regex passthrough (now
+     `HledgerRegex`-validated, item 1's consequence); two-or-more accounts now
+     build an `Or(Acct(...), ...)` AST directly instead of the old
+     `(?:...)`-based string synthesis, which `HledgerRegex` would otherwise
+     reject outright. Public behaviour (the wrapper's own "no filter for `[]`,
+     regex-passthrough for one, OR-of-literals for many" contract) is
+     preserved for every input the wrapper could previously accept without
+     raising -- only the internal mechanism, never itself part of any
+     documented contract, changes.
+
+  `_posting_matches` (the old `Query`-specific wrapper, distinct from
+  `_matches_pattern`) is fully retired -- zero remaining callers anywhere in
+  `ledgerkit/`, confirmed by grep and by a dedicated static test. The one
+  remaining deliberately separate construct is `ReportSection.accounts`/
+  `.exclude`'s own OR-across-`accounts`/exclude-across-`exclude` control flow
+  (item 3 above) -- a distinct public surface from `Query` with no `QueryNode`
+  equivalent; full `ReportSpec`/`ReportSection` AST convergence is a named,
+  not-yet-scoped non-goal.
+
+  `Query.date_to` (inclusive) is translated to the AST's exclusive
+  `DateSpan.end` by adding one day (`ledgerkit.query.compat._exclusive_end`),
+  except at `datetime.date.max`, which has no representable successor and
+  maps to `end=None` (unbounded) instead of overflowing -- a genuine
+  correctness trap, not merely a cosmetic one, with its own dedicated
+  regression tests.
+
+  No known EXTERNAL consumer of `ledgerkit.Query` is affected: the one real
+  external consumer (`ledgerkit-editor`, per `15-editor-compat-inventory.md`)
+  constructs `Query` as a plain data container and passes it to its own,
+  independently-implemented `query_match.build_transaction_predicate()` --
+  it never reaches any `ledgerkit` report function with a `Query` at all.
+
+implementation:
+  - ledgerkit/query/compat.py:_query_to_ast
+  - ledgerkit/query/compat.py:_validated
+  - ledgerkit/query/compat.py:_exclusive_end
+  - ledgerkit/reports.py:balance
+  - ledgerkit/reports.py:register
+  - ledgerkit/reports.py:accounts
+  - ledgerkit/reports.py:stats
+  - ledgerkit/reports.py:balance_from_spec
+  - ledgerkit/reports.py:_matches_pattern
+  - ledgerkit/models.py:Journal.balance
+  - ledgerkit/models.py:Journal.register
+  - ledgerkit/models.py:Journal.to_dataframe
+
+tests:
+  - tests/test_query/test_compat.py
+  - tests/test_reports.py::TestQueryHledgerRegexStrictness
+  - tests/test_reports.py::TestStatsAccountFilterCorrection
+  - tests/test_reports.py::TestBalanceFromSpecOuterQueryConvergence
+  - tests/test_reports.py::TestReportSectionHledgerRegexValidation
+  - tests/test_reports.py::TestDeprecatedAccountsShim
+  - tests/test_reports.py::TestPostingMatchesRetired
+  - tests/test_dataframe.py::TestJournalToDataFrameQueryConvergence
+
+evidence:
+  - kind: source
+    ref: >
+      dev-docs/planning/core-redefinition/07-query-regex.md §7.2 (the
+      original, pre-existing design commitment this phase executes);
+      dev-docs/planning/core-redefinition/
+      27-query-shim-convergence-design.md (this phase's own design document,
+      human-approved after two rounds of correction, §5/§6/§12).
+    pinned_at: "27-query-shim-convergence-design.md, Amendment 2"
+  - kind: test
+    ref: >
+      Full ledgerkit test suite (tests/test_query/test_compat.py, the new
+      unit tests for _query_to_ast/_validated/_exclusive_end; the new
+      integration test classes listed under `tests` above, covering Option A
+      strictness across balance/register/accounts/stats/balance_from_spec/
+      to_dataframe, the stats before/after correction, the deprecated
+      accounts=[...] shim's zero/one/many cases, ReportSection's
+      HledgerRegex validation, and the zero-remaining-callers confirmation
+      for _posting_matches) all pass, run by the implementing session (not a
+      separately-dispatched compat-differential-tester -- this evidence
+      supports `status: proposed`, not `verified`).
+    pinned_at: "Stage C Phase 8 implementation session"
+
+status: proposed

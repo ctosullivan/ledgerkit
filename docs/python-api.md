@@ -153,9 +153,25 @@ top_level = journal.balance(query=Query(depth=1))
 | `date_to` | `date \| None` | Include only transactions on or before this date |
 | `depth` | `int \| None` | For `balance()`: roll up to this depth. For `accounts()`/`register()`: exclude deeper accounts |
 
-Patterns in `account`, `not_account`, and `payee` are matched as plain
-case-insensitive substrings unless they contain a regex metacharacter (e.g. `^`,
-`$`, `.`, `*`), in which case `re.search` is used.
+**Pattern matching (breaking change, Stage C Phase 8):** `account`,
+`not_account`, and `payee` values are compiled as a case-insensitive,
+infix (`re.search`-style) regex against the same `HledgerRegex`-compatible
+subset the CLI's `-q "acct:..."`/`-q "desc:..."` terms use — a plain
+string like `"expenses"` behaves exactly as a substring check would, but a
+handful of constructs Python's `re` supports are **rejected** with
+`QueryParseError` because real hledger's regex engine doesn't have them
+(or interprets the same text differently): Perl-style shorthand classes
+(`\d`, `\w`, `\s`), lookaround and other `(?...)` constructs, backreferences
+(`\1`), GNU word-boundary anchors (`\<`/`\>`), POSIX named classes
+(`[[:alpha:]]`), and lazy quantifiers (`*?`, `+?`, `??`). **An empty string
+(`Query(account="")`) now raises too**, rather than matching every
+posting as it previously did — use a pattern that actually matches
+everything (e.g. `".*"`) if that's genuinely what you want. This applies
+identically to `ReportSection.accounts`/`.exclude` (used with
+`balance_from_spec`/`ReportSpec`, below). See `dev-docs/
+hledger-compatibility.md`'s Query Language section for the full construct
+list and rationale; this is a disclosed, intentional change made while
+ledgerkit is still pre-`1.0.0`.
 
 ---
 

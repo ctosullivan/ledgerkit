@@ -4,25 +4,37 @@ Tacit knowledge about the hledger journal format and ledgerkit's implementation 
 
 ---
 
-## `ledgerkit.query`'s `date:` range end is exclusive — `Query.date_to` is not
+## `ledgerkit.query`'s `date:` range end is exclusive — `Query.date_to` is not (and the `date.max` translation trap)
 
-`ledgerkit.query.DateSpan.end` (the new Stage C query engine) is
-EXCLUSIVE, matching hledger's actual `date:` term semantics: a single
-date resolves to a one-day span `[d, d+1)`, and a written range's second
-date is the exclusive upper bound exactly as written (`date:2024-01-01
--2024-01-31` does **not** include Jan 31). This is deliberately different
-from the existing `ledgerkit.models.Query.date_to`, which is **inclusive**
-(`reports.py`'s `_posting_matches`: `txn.date > query.date_to` excludes).
+`ledgerkit.query.DateSpan.end` (the Stage C query engine) is EXCLUSIVE,
+matching hledger's actual `date:` term semantics: a single date resolves
+to a one-day span `[d, d+1)`, and a written range's second date is the
+exclusive upper bound exactly as written (`date:2024-01-01..2024-01-31`
+does **not** include Jan 31). This is deliberately different from
+`ledgerkit.models.Query.date_to`, which is **inclusive** (`txn.date >
+query.date_to` excludes) — the two representations are not
+interchangeable on their own.
 
-**Why it matters:** the two are not interchangeable, and it's easy to
-port a date filter from one to the other and silently get an off-by-one-
-day result. `Query` is not touched by Stage C Phase 1's introduction of
-`ledgerkit.query` — it remains its own, separately-behaving thing until
-Stage C explicitly turns it into a compatibility shim over the new AST.
+**Stage C Phase 8 (`27-query-shim-convergence-design.md`) made this a
+solved, not merely a documented, trap**: `ledgerkit.query.compat.
+_exclusive_end` performs the translation for every `Query`-accepting
+report function/method — `DateSpan(end=query.date_to + timedelta(days=1))`
+for an ordinary date. **The overflow edge case**: `datetime.date.max`
+(`9999-12-31`) has no representable successor, so a naive `+
+timedelta(days=1)` raises `OverflowError`. `date.max` as an *inclusive*
+upper bound already means "no upper bound in practice" (nothing sorts
+after it), so `_exclusive_end` maps it to `DateSpan`'s own "unbounded"
+representation (`end=None`) instead of adding a day — `Query(date_to=
+datetime.date.max)` must not raise, and must still match a transaction
+dated `datetime.date.max` exactly (both cases have dedicated regression
+tests, `tests/test_query/test_compat.py`).
 
 **Implication:** never assume `Query.date_to` semantics apply to
-`ledgerkit.query.DateSpan`, or vice versa, without checking which one a
-piece of code is actually using.
+`ledgerkit.query.DateSpan` directly, or vice versa — always go through
+`_exclusive_end`/`_query_to_ast` for the conversion, and remember the
+`date.max` case specifically the next time this translation is touched
+(a naive re-derivation of the "add one day" rule will silently
+reintroduce the overflow).
 
 ---
 

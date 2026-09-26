@@ -123,6 +123,51 @@ once at journal-read time) so as not to silently break Phase 4's own
 already-documented "own tags only" contract for those two fields. All
 four are private (no new public API surface — design §9.3's resolution).
 
+**Stage C Phase 8** (`dev-docs/planning/core-redefinition/
+27-query-shim-convergence-design.md`) ended the "two parallel filtering
+paths" architecture described at the top of this file: `ledgerkit.models.
+Query` — previously matched by `reports.py`'s own ad hoc, non-hledger-
+faithful `_posting_matches`/`_matches_pattern` helpers (any Python regex
+metacharacter switched into raw, unvalidated `re.search` mode) — is now a
+**compatibility constructor** that translates onto the exact same
+`QueryNode` AST/evaluator `-q`/`--query` string terms use. A new module,
+`ledgerkit/query/compat.py` (`_query_to_ast`, `_validated`,
+`_exclusive_end`), does this translation; it lives inside the `query`
+package (not `models.py`) to avoid a circular import (`query/eval.py`
+already imports `models.py`), and `models.py`/`reports.py` reach it via a
+lazy, in-function import — the same pattern `models.py` already used to
+reach `reports.py` itself.
+
+**One canonical evaluation path, plus exactly one named exception.**
+Every one of the seven `Query`-shaped filtering call sites in
+`ledgerkit/` now reaches `ledgerkit.query.eval.matches_posting`/
+`matches_transaction`, via `_query_to_ast`, AND'd with any `_query_ast`
+already present: `reports.balance`/`register`/`accounts`/`stats`
+(`stats` closing a pre-existing gap — `account`/`not_account` were
+previously silently ignored there), `reports.balance_from_spec`'s outer
+query, and `Journal.to_dataframe` (migrated off `_posting_matches`,
+which is now retired — zero remaining callers anywhere in `ledgerkit/`).
+The **one** deliberately separate construct left is
+`ReportSection.accounts`/`.exclude` (`balance_from_spec`'s own
+OR-across-`accounts`/exclude-across-`exclude` combination logic, a
+distinct public surface from `Query` with no equivalent AST shape) —
+still evaluated by `reports._matches_pattern`, but that helper's
+*implementation* was itself refactored to route through
+`ledgerkit.query.regex.compile_hledger_regex`/`.search()` instead of its
+own ad hoc heuristic, so it shares the exact same `HledgerRegex` dialect
+and validation as everything else. This is deliberately **not** described
+as fully unified (one real exception remains) nor as still-two-parallel-
+systems (that exception now shares the same regex dialect) — see the
+design's own §5.1b/§5.3 for the full worked-through scope boundary.
+
+This is a disclosed, intentional set of **breaking** behaviour changes
+(Option A — full `HledgerRegex` convergence for `Query.account`/
+`.not_account`/`.payee`, made while Ledgerkit is still pre-`1.0.0`; see
+`dev-docs/versioning.md`), not "no observable change" — see the design's
+own §5.2 for the complete list of six, and `dev-docs/api-spec.md`'s
+`Query`/`stats`/`balance_from_spec`/`to_dataframe` entries for the
+per-consumer detail.
+
 ---
 
 ## Module Responsibilities
@@ -211,8 +256,15 @@ Reports:
 - `register(journal, ...)` → list of register rows (date, description, amount, balance)
 - `accounts(journal)` → sorted list of account names
 - `stats(journal)` → `JournalStats` dataclass with summary statistics
+- `balance_from_spec(journal, spec, ...)` → structured, section-based balance report
 
 Reports do **not** print to stdout — they return data that `cli.py` formats.
+
+`query: Query | None` filtering (Stage C Phase 8) is translated once per call via
+`ledgerkit.query.compat._query_to_ast` and evaluated through
+`ledgerkit.query.eval.matches_posting`/`matches_transaction` — see the "Stage C
+Phase 8" paragraph above for the full picture, including the one remaining
+exception (`ReportSection.accounts`/`.exclude`, still `reports._matches_pattern`).
 
 ### `ledgerkit/cli.py`
 
