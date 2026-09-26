@@ -26,7 +26,7 @@ files themselves changing first; the two must always agree.
 
 | ID | Area | Opened | Summary | Owner |
 |---|---|---|---|---|
-| `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` | query.regex.emptyalternation | 2026-09-25 | Empty-alternation-branch regex syntax (`(|)`, confirmed both sides; `a\|`/`\|a`/`(a\|)`/`(\|a)`, hledger-side only confirmed) errors on real hledger 1.52.4 but `(|)` at least is accepted by ledgerkit — found as a related-but-separate observation while scoping `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`; explicitly out of Stage C Phase 7's own scope | unassigned |
+| `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` | query.regex.emptyalternation | 2026-09-25 | Empty-alternation-branch regex syntax — confirmed on BOTH sides for the full family as of 2026-09-27 re-verification: `(|)`, `a\|`, `\|a`, `(a\|)`, `(\|a)`, plus generalised cases (`a\|\|b`, `(a\|)\|b`, `\|\|`, `(\|\|)`, `a\|(\|b)`, `(a)\|`, `\|(a)`, `a(\|)b`, `(a\|)(b)`) all error on real hledger 1.52.4 (regex-tdfa rejects any branch of `\|` with zero atoms) but are ALL accepted by Ledgerkit's `ledgerkit.query.regex.validate_hledger_regex` (no `\|`-aware check exists); found as a related-but-separate observation while scoping `LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001`; still not resolved into a fix — a fix must be escape-aware (`a\|\|b`-style escaped literal pipes must stay accepted) and must not affect `()`, `(a)`, `a\|b`, `(a\|b)`, `()\|a`, `a\|()` which hledger and Ledgerkit both already accept correctly | unassigned |
 
 ## Resolved entries
 

@@ -1,81 +1,75 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C Phase 8 (`Query`-as-compatibility-shim convergence) is **`[DONE]`**
-(user-confirmed 2026-09-26) — design, implementation, independent
-verification, a compat-register overclaim correction with its own
-independent re-verification, `docs-maintainer` reconciliation,
-`docs-reconstructor` drift audit (NO DRIFT), and `release-phase-auditor`
-Definition-of-Done audit (PASS) are all complete. Stage C itself remains
-`[IN PROGRESS]`; not marked done.
+Stage C closeout (multi-step): Phase 7 is now `[DONE]` (its outstanding
+docs-reconstructor + release-phase-auditor gates both ran clean).
+`LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` re-established fresh and a design
+written — **implementation not started yet.** `PythonRegex` explicitly
+resolved as deferred. Remaining Stage C backlog items confirmed
+genuinely deferred/non-blocking. Stage C itself still `[IN PROGRESS]`.
 
 ## Where We Are
-Everything committed and pushed to `main`. Full commit sequence for this
-phase: `fbde262`→`baace1a` (design + amendments)→`dcac520`/`0852c6f`/
-`7b9b358`/`a4c5917` (implementation/tests/docs/retro)→`38eefe0`
-(independent verification)→`d12e24e` (overclaim correction + re-
-verification + 2 new tests)→`12af5cf` (docs-maintainer reconciliation)→
-this response's commit (closeout: `[DONE]` marking, knowledge entry).
-
-899 tests passing throughout; unaffected by this closeout pass.
+About to commit the Phase 7 closeout + Phase 9 planning + PythonRegex
+disposition batch, then dispatch a fresh coding agent to implement
+`28-empty-alternation-regex-design.md`, then independently verify, then
+run the FULL Stage C completion audit sequence (compat-register review,
+docs-maintainer, Stage-C-wide docs-reconstructor NO DRIFT,
+roadmap/knowledge reconciliation, Stage-C-wide release-phase-auditor
+against every exit criterion, closeout retro) before reporting whether
+Stage C's Definition of Done is met.
 
 ## Decisions In Flight
-None. Phase 8 is closed. Next open decision is which Stage C backlog
-item to scope next — not started here, per explicit instruction not to
-begin the next phase in this task.
-
-## Remaining Stage C backlog (unchanged, none scoped yet)
-1. `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` — the empty-alternation-branch
-   divergence (`(|)` confirmed both sides; `a|`/`|a`/`(a|)`/`(|a)`
-   hledger-side only) — still open, still out of scope.
-2. Explicitly resolve the planned `PythonRegex` extension syntax
-   (implement / defer-with-reason / drop — currently just undecided).
-Non-blocking, unscoped unless separately promoted: `cur:`, smart/period
-dates, a standalone `--depth`/`-N` CLI flag.
-
-One further, genuinely unrelated, pre-existing, out-of-scope item noted
-by `docs-reconstructor` during Phase 8's drift audit (not caused by
-Phase 8, not fixed here): `docs/python-api.md` line ~154's `Query`
-field-table wording says depth "excludes deeper accounts" for
-`accounts()`/`register()` — this predates Stage C Phase 5's `depth:`
-redesign (which made depth a display-clipping option, never an
-exclusion, for `register`) and was never corrected when that redesign
-landed. Worth its own small fix, whenever convenient — not blocking
-anything.
+None blocking. `PythonRegex` decision made (deferred). The empty-
+alternation fix's design is fully specified (doubles as its own
+implementation plan, per Phase 7's precedent) — next is implementation,
+not a further design decision.
 
 ## Files Currently Relevant
-- `dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml` — final state:
-  `kind: compatible`, `status: verified`, corrected item-6 claim,
-  independently re-verified twice.
-- `dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md` —
-  base + two addenda (independent verification; overclaim-correction
-  cycle).
-- `knowledge/DECISIONS.md` — new entry on the process lesson from this
-  phase's overclaim (verification checks what's tested, not every
-  written claim — write narrower, more falsifiable compat-register
-  claims going forward).
+- `dev-docs/planning/core-redefinition/28-empty-alternation-regex-design.md`
+  — the fix spec: a dedicated, escape-aware scanning function
+  (`_has_empty_alternation_branch`) in `ledgerkit/query/regex.py`,
+  wired into `validate_hledger_regex` alongside the existing
+  `pattern == ""` check and `_EXCLUDED_CONSTRUCT` scan.
+- `dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml`
+  — freshly re-verified (2026-09-27), now has the complete 18-pattern
+  reject-list and 13-pattern accept-list, plus the regex-tdfa root-cause
+  citation. Still `kind: unexplained_mismatch`/`status: verified` (not
+  yet resolved into a fix) — resolution happens via the schema.md
+  lifecycle mechanism once implemented and independently verified.
+- `dev-docs/retros/STAGE-C-PHASE-9-EMPTY-ALTERNATION-PLAN.md` — this
+  phase's planning retro.
+- `knowledge/DECISIONS.md` — new PythonRegex-deferral entry (2026-09-27).
+
+## Remaining Stage C backlog after this fix lands
+None substantive — this is the last item from Stage C Phase 6's own
+backlog. Non-blocking, confirmed-deferred items (not exit-criteria
+gaps): `cur:`, smart/period dates, a standalone `--depth`/`-N` CLI flag,
+`PythonRegex` (now explicitly deferred, not ambiguous).
 
 ## Blockers / Open Questions
-None blocking. The `docs/python-api.md` depth-wording item above is
-open but non-blocking and unrelated to Phase 8.
+None. Proceeding directly to implementation per the user's explicit
+"implement through the normal fresh-agent workflow" instruction — no
+separate approval gate needed for this fully-specified fix.
 
 ## What NOT To Revisit
-- Don't re-open Phase 8 — fully closed, user-confirmed `[DONE]`.
-- Don't re-verify the Query-shim convergence or the corrected wrapper
-  claim again — both independently confirmed clean, twice each.
-- Don't mark Stage C itself `[DONE]` — only Phase 8 is done.
-- Don't fix the pre-existing `docs/python-api.md` depth-wording drift as
-  part of "Phase 8 cleanup" — it's unrelated, predates this phase, and
-  was correctly left out of scope by the drift audit and release audit
-  alike. Fix it separately if/when asked.
-- When writing a future compat-register `reason:` field, avoid broad
-  unfalsified claims ("preserved for every X") — name the specific
-  cases actually verified instead (see the new `knowledge/DECISIONS.md`
-  entry for the full rationale).
+- Don't re-derive the empty-alternation detection rule — hand-verified
+  against all 31 test cases (18 reject, 13 accept) already; it's a
+  purely local, single-character-adjacency, escape-aware check, no
+  nesting-depth tracking needed.
+- Don't fold the new detection into `_EXCLUDED_CONSTRUCT`'s single
+  regex — Python's `re` can't correctly count variable-length escape
+  runs via lookbehind; a dedicated scanning function is the right shape.
+- Don't re-litigate PythonRegex — explicitly resolved as deferred,
+  reasoned, recorded. Don't implement it as part of this closeout.
+- Don't treat `cur:`/smart-dates/`--depth`-flag/`check`-non-wiring as
+  open questions — all four confirmed already-documented, deliberate,
+  non-blocking deferrals.
+- Don't mark Stage C `[DONE]` — only the user's explicit confirmation
+  does that, after the full closeout audit sequence completes.
 
 ## Recent Git State (before this response's commit)
+c5e4185 docs: close out Stage C Phase 8, mark [DONE]
 12af5cf docs: reconcile Phase 8 docs after compat-register correction (Stage C Phase 8)
 d12e24e fix: correct Stage C Phase 8 compat-register overclaim on accounts=[...]
 38eefe0 test: independently verify Stage C Phase 8 Query-shim convergence
 a4c5917 docs: retro, changelog, and roadmap for Query-shim implementation (Stage C Phase 8)
-7b9b358 docs: sync docs and compat-register for Query-shim convergence (Stage C Phase 8)

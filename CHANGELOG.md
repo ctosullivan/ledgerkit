@@ -9,6 +9,33 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C closeout — Phase 7 gates, Phase 9 planning, PythonRegex disposition] — 2026-09-27
+
+**Human:** directed closing out Stage C: finish Phase 7's outstanding
+`docs-reconstructor`/`release-phase-auditor` gates, resolve
+`LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`, explicitly resolve `PythonRegex`,
+confirm the remaining query-language backlog is genuinely deferred, and
+run final Stage C completion audits.
+
+**Claude:** ran Phase 7's missing closeout gates — an independent
+`docs-reconstructor` audit (NO DRIFT) and `release-phase-auditor` audit
+(PASS) — and marked Phase 7 `[DONE]`. Re-established `LK-MISMATCH-
+QUERY-REGEX-EMPTYALT-001` fresh from source and a live pinned-hledger
+run (not trusted from its prior notes, which predated Stage C Phase 7's
+own code changes): found the divergence is larger than originally filed
+(18 confirmed patterns, not 5) and traced the root cause to hledger's
+own regex-tdfa delegation with zero pre-validation. Produced a design
+(`28-empty-alternation-regex-design.md`) specifying an escape-aware,
+single-character-adjacency detection rule, hand-verified against the
+full 31-pattern matrix. Resolved `PythonRegex` as explicitly deferred
+(`knowledge/DECISIONS.md`) — no implementation, not dropped either; no
+concrete syntax was ever finalised, no code exists, no consumer has
+asked for it. Confirmed `cur:`, smart/period dates, a standalone
+`--depth`/`-N` flag, and `check`'s non-wiring from `-q` are all
+genuinely, already-documented deferred/non-blocking items, not
+accidentally incomplete Stage C exit criteria. No `ledgerkit/`/`tests/`
+code touched by this pass.
+
 ### [Stage C Phase 8 — marked `[DONE]`] — 2026-09-26
 
 Full detail: `ROADMAP.md`'s Stage C row

@@ -26,6 +26,18 @@
 # independently checked. Whoever picks this entry up should verify
 # Ledgerkit's side of all four before broadening this entry's own
 # claims to cover them.
+#
+# UPDATE (2026-09-27, independent compat-differential-tester
+# re-verification dispatch, see evidence entry below): all four of
+# `a|`/`|a`/`(a|)`/`(|a)` are now independently confirmed on BOTH sides,
+# alongside `(|)` -- the entire five-pattern family is a confirmed,
+# symmetric divergence: hledger rejects every one of them, Ledgerkit's
+# `ledgerkit.query.regex.validate_hledger_regex` accepts every one of
+# them. The family was also generalised well beyond the original five
+# examples (nested/repeated/nested-in-group alternation, e.g. `a||b`,
+# `(a|)|b`, `(||)`, `a|(|b)`) and confirmed to follow one uniform rule,
+# not five isolated cases -- see the new evidence entry for the full
+# matrix and the regex-tdfa-grammar-level explanation.
 
 id: LK-MISMATCH-QUERY-REGEX-EMPTYALT-001
 area: query.regex.emptyalternation
@@ -63,6 +75,32 @@ reason: >
   reject empty-alternation-branch syntax the way hledger's regex-tdfa
   does -- not adopted or implemented here.
 
+  UPDATE (2026-09-27): fresh independent re-verification (not a
+  rubber-stamp of the note above -- re-run from scratch against the
+  pinned binary and the CURRENT `ledgerkit/query/regex.py`, which
+  changed during Stage C Phase 7's empty-pattern-string fix since this
+  entry was first filed) confirms Ledgerkit's `validate_hledger_regex`
+  accepts ALL FIVE of `(|)`, `a|`, `|a`, `(a|)`, `(|a)` -- not just
+  `(|)` -- because Stage C Phase 7's fix only added a check for the
+  literal empty string (`pattern == ""`); `_EXCLUDED_CONSTRUCT` has no
+  branch that inspects `|` at all, so it was never going to catch this
+  family regardless of that fix. The divergence is confirmed symmetric
+  and total across the whole family, and generalises further: any
+  pattern where a `|` is adjacent (with nothing but another such
+  delimiter in between) to start-of-pattern, `(`, another `|`, `)`, or
+  end-of-pattern is rejected by hledger and accepted by Ledgerkit (see
+  evidence entry for the full matrix, including `a||b`, `(a|)|b`,
+  `(||)`, `a|(|b)`, `(a|)(b)`, `a(|)b`). Conversely, `()` (empty
+  non-alternation group), `(a)`, `a|b`, `(a|b)`, `()|a`, `a|()`, and
+  escaped-literal-pipe patterns like `a\|\|b` are all accepted by BOTH
+  hledger and Ledgerkit and must remain accepted by any fix -- these are
+  not part of the divergence and a naive textual "reject any `|` next to
+  `(`/`)`/`|`" scan would need to be escape-aware to avoid wrongly
+  rejecting `a\|\|b`-style patterns (see evidence entry). Still not
+  resolved into a settled `kind` here per the original instruction not
+  to fix it in this dispatch -- this update only sharpens the ground
+  truth for whoever designs the fix next.
+
 implementation: []
 
 tests: []
@@ -83,6 +121,147 @@ evidence:
       -q 'acct:(|)' print` -> exit 0, matches every transaction (Python's
       `re.compile("(|)")` succeeds). Ledgerkit-side behaviour for `a|`,
       `|a`, `(a|)`, `(|a)` was not run this session.
+    pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+
+  - kind: executable
+    ref: >
+      Independent re-verification dispatch, 2026-09-27 (compat-
+      differential-tester, requested specifically to re-establish this
+      mismatch from a live pinned-hledger run rather than trust the
+      2026-09-25 note above as still accurate). Fixture reused unchanged:
+      `tests/fixtures/query_regex_empty_pattern_matrix.journal`. Commands
+      run: `hledger -f tests/fixtures/query_regex_empty_pattern_matrix
+      .journal print '<prefix><pattern>'` for the hledger side, and both
+      a direct `ledgerkit.query.regex.validate_hledger_regex(pattern)`
+      Python call and `python -m ledgerkit -f tests/fixtures/
+      query_regex_empty_pattern_matrix.journal -q '<prefix><pattern>'
+      print` for the Ledgerkit side, against the CURRENT
+      `ledgerkit/query/regex.py` (post Stage C Phase 7).
+
+      Part 1 -- the original five, `acct:`/`desc:`/`tag:project=` cross-
+      check: `(|)`, `a|`, `|a`, `(a|)`, `(|a)` each produce, for ALL
+      THREE prefixes tested, exit 1 and byte-identical stderr shape:
+      line 1 `hledger: Error: This regular expression is invalid or
+      unsupported, please correct it:`, line 2 the offending pattern
+      echoed verbatim (confirmed via `cat -A`: line 1 ends `it:$`, line 2
+      is exactly the pattern text with no extra characters). All five are
+      confirmed identical in error shape to each other and across all
+      three prefixes -- this is one uniform hledger rule, not per-prefix
+      or per-pattern-shape special-casing. Ledgerkit-side: all five are
+      ACCEPTED by both `validate_hledger_regex` (no exception raised) and
+      the full CLI path (exit 0, matches every transaction, since an
+      empty alternation branch matches the empty string which is a
+      substring of everything under infix/case-insensitive semantics).
+      Confirmed divergence for all five, not just `(|)`.
+
+      Part 2 -- broader family, `acct:` only (hledger exit/stderr shape
+      shown; Ledgerkit's `validate_hledger_regex` result shown alongside):
+        - `()`             hledger exit 0 (accepted)  | Ledgerkit: accepted (correct, no divergence)
+        - `(a)`            hledger exit 0 (accepted)  | Ledgerkit: accepted (correct)
+        - `a|b`            hledger exit 0 (accepted)  | Ledgerkit: accepted (correct)
+        - `(a|b)`          hledger exit 0 (accepted)  | Ledgerkit: accepted (correct)
+        - `a||b`           hledger exit 1 (rejected, pattern echoed) | Ledgerkit: accepted -- DIVERGENT
+        - `(a|)|b`         hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `||`             hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `|`              hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `(|)|c`          hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `a|(|b)`         hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `(||)`           hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `a|||b`          hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `a| |b` (space, not empty) hledger exit 0 (accepted) | Ledgerkit: accepted (correct, no divergence -- a space is real content)
+        - `()|a`           hledger exit 0 (accepted!) | Ledgerkit: accepted (correct, no divergence)
+        - `a|()`           hledger exit 0 (accepted!) | Ledgerkit: accepted (correct, no divergence)
+        - `(|)*`           hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `()*`            hledger exit 0 (accepted)  | Ledgerkit: accepted (correct)
+        - `(a)|`           hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `|(a)`           hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `a(|)b`          hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `(a|)(b)`        hledger exit 1 (rejected)  | Ledgerkit: accepted -- DIVERGENT
+        - `a\|\|b` (escaped literal pipes, not alternation) hledger exit 0 (accepted) | Ledgerkit: accepted (correct, no divergence)
+        - `\(|a` (escaped literal paren + real 2nd branch) hledger exit 0 (accepted) | Ledgerkit: accepted (correct)
+        - `a|\)` (real 1st branch + escaped literal paren) hledger exit 0 (accepted) | Ledgerkit: accepted (correct)
+        - `^|a` (anchor as sole content of branch 1) hledger exit 0 (accepted) | Ledgerkit: accepted (correct)
+        - `a|$` (anchor as sole content of branch 2) hledger exit 0 (accepted) | Ledgerkit: accepted (correct)
+        - literal empty string `""` (separate, already-tracked cause -- LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001, not this entry's family) hledger exit 1, stderr line 1 only, nothing on line 2 | Ledgerkit: rejected (already fixed, unaffected by this entry)
+
+      Root-cause finding, from reading `/home/cormac/projects/hledger`
+      (a local clone pinned to commit `33fa849e7`, matching the pinned
+      binary's `1.52.4-g33fa849e7-20260910` build exactly -- confirmed
+      via `git log -1` in the clone): `hledger-lib/Hledger/Utils/
+      Regex.hs`'s `toRegex`/`toRegexCI` (lines ~135-140) call regex-tdfa's
+      `makeRegexM`/`makeRegexOptsM` directly on the raw query-term string,
+      with NO pre-validation of any kind in hledger's own code --
+      `Hledger/Query.hs`'s `parseQueryTerm` (e.g. line 304, `acct:` ->
+      `Acct <$> toRegexCI s`) passes the string straight through. Every
+      rejection in this family, and the unrelated empty-pattern-string
+      rejection, is 100% delegated to regex-tdfa's own parser; hledger
+      adds no extra checks of its own. The exact error text comes from
+      `mkRegexErr` (Regex.hs line ~143-145):
+      `"This regular expression is invalid or unsupported, please
+      correct it:\n" <> s` where `s` is the original, unmodified pattern
+      string -- this is ONE format always, not two: the empty-pattern-
+      string case's apparently-different "nothing on line 2" shape is
+      not a different code path, it is the exact same interpolation with
+      `s = ""`, so there is trivially nothing to echo. This corrects a
+      framing in `25-query-regex-empty-pattern-matrix.md`'s original
+      write-up, which described the two shapes as visibly-different
+      "formats" -- they are the same format, and the difference is
+      entirely a consequence of what `s` happens to be, not a second
+      error-formatting code path.
+
+      `regex-tdfa`'s own Haskell source (`Text.Regex.TDFA.ReadRegex`) was
+      NOT directly readable this session -- only compiled `.hi`/`.dyn_hi`
+      interface files exist locally under `~/.stack/snapshots/.../
+      regex-tdfa-1.3.2.6-.../`, no `.hs` source tree, and no network
+      access was available to fetch it. The grammar-level explanation
+      below is therefore an empirically-validated MODEL inferred from
+      the behavioural matrix above (cross-checked against regex-tdfa's
+      well-documented "empty alternative" limitation from general
+      knowledge), not a line-citation of regex-tdfa's parser source --
+      flagged explicitly so this is not mistaken for a source-verified
+      claim at the same evidentiary level as the hledger-source citation
+      above. Model: regex-tdfa's ERE grammar requires every alternation
+      BRANCH (an operand of `|`) to contain at least one piece (atom +
+      optional quantifier) -- a branch with zero pieces fails to parse
+      the instant a `|` is present at that syntactic level. This explains
+      why `(|)`/`a|`/`|a`/`(a|)`/`(|a)` and all further Part-2 variants
+      fail: each has at least one `|`-delimited slot with zero pieces.
+      It equally explains why `()` (no `|` anywhere in it at all) is
+      accepted: a parenthesised group's content is allowed to be
+      genuinely absent as a distinct, non-alternation grammar production
+      (a documented regex-tdfa/GNU-ERE extension permitting `()` as a
+      trivial "matches empty string" atom) -- that same total absence is
+      never reachable once a `|` forces the parser into the alternation
+      production, which has no such empty-content escape hatch. This
+      also explains `()|a` and `a|()` being accepted: from the
+      alternation parser's point of view, `()` is a single, complete,
+      non-empty PIECE (one atom, the group), not an empty slot -- it is
+      textually short but not absent. And it explains why escape-aware
+      handling is essential for any fix: `a\|\|b` is accepted because
+      `\|` is a literal-pipe atom, not the alternation operator, so there
+      is no real `|` adjacency at all once escaping is accounted for; a
+      textual fix that scans for raw `|` adjacent to `(`/`)`/`|`/string-
+      boundaries without skipping over `\`-escaped characters first would
+      wrongly reject `a\|\|b`, `\(|a`, and `a|\)`, all of which must stay
+      accepted.
+
+      Scope for a future fix, precisely stated from this matrix (not
+      implemented in this dispatch): MUST newly reject: `(|)`, `a|`,
+      `|a`, `(a|)`, `(|a)`, `a||b`, `(a|)|b`, `||`, `|`, `(|)|c`,
+      `a|(|b)`, `(||)`, `a|||b`, `(|)*`, `(a)|`, `|(a)`, `a(|)b`,
+      `(a|)(b)`, and generally: any pattern containing an unescaped `|`
+      where the branch immediately before or after it (bounded by
+      pattern-start, an unescaped `(`, another unescaped `|`, an
+      unescaped `)`, or pattern-end) contains zero atoms. MUST NOT be
+      affected (must remain accepted): `()`, `(a)`, `a|b`, `(a|b)`,
+      `()|a`, `a|()`, `()*`, `(|)*`'s sibling `()*`, `a| |b`, and any
+      pattern where the apparent `(`/`)`/`|` adjacency is actually
+      escaped (`a\|\|b`, `\(|a`, `a|\)`) or where the branch content is
+      an anchor (`^|a`, `a|$`). The literal empty pattern string (`""`)
+      is a separate, already-resolved rejection cause
+      (LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001) and is explicitly out of
+      this entry's scope regardless of any surface similarity in error
+      message text.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
 
 status: verified

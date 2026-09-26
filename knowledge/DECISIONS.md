@@ -1064,3 +1064,63 @@ under-specify the input space a broad written claim implies.
 **Applies to:** `dev-docs/compat-register/schema.md` (the `reason:`
 field's own guidance), `09-compatibility-system.md` §9.6 (verification-
 dispatch brief-writing practice)
+
+---
+
+## 2026-09-27 — `PythonRegex` extension syntax: deferred, not implemented or dropped, as part of Stage C closeout
+
+**Decision:** `PythonRegex` (the full-power Python `re` escape hatch
+planned in `dev-docs/planning/core-redefinition/07-query-regex.md`
+§7.3/§7.4, alongside the canonical `HledgerRegex` dialect) remains
+**deferred** — not implemented as part of Stage C, and not dropped from
+the roadmap either. This resolves the item explicitly, closing an
+ambiguous "someday" backlog line into a recorded, reasoned disposition.
+
+**Why:** direct review of `07-query-regex.md` §7.4 found the feature was
+never fully specified to begin with — its own text says the invocation
+syntax ("exact syntax decided at Stage C implementation... not fixed
+here") was deliberately left open at planning time, pending a real
+implementation need. Confirmed by grep: no code anywhere in `ledgerkit/`
+implements it (`ledgerkit/query/__init__.py`/`regex.py`'s own module
+docstrings both describe it as "Stage C follow-on work," unchanged since
+Stage C Phase 1); no test references it; no compat-register entry exists
+for it beyond the single `LK-EXT-QUERY-001.yaml` under `dev-docs/
+compat-register/examples/`, itself explicitly marked "ILLUSTRATIVE...
+not yet implemented," drafted only to prove the schema shape during
+Core-redefinition planning, not a live register entry; and no known
+consumer (`ledgerkit-editor` per `15-editor-compat-inventory.md`, or any
+other) has ever asked for full Python-regex query power. The canonical
+`HledgerRegex` path is now a mature, independently-verified, stable
+subsystem (Stage C Phases 1-8) — `PythonRegex` is an optional Ledgerkit-
+only extension layered *on top of* that stable foundation, not a
+prerequisite for it, and per `07-query-regex.md`'s own architecture
+(§7.2/§7.3), it was always meant to arrive after the compatible core was
+solid, not alongside it.
+
+**What was rejected:**
+- **Implementing it now, to "finish" Stage C's query-language work
+  completely** — rejected: there is no concrete present consumer need,
+  the invocation syntax was never decided (implementing it now would
+  mean inventing that syntax under time pressure to close out a Stage,
+  not in response to a real requirement), and speculative feature work
+  is explicitly the kind of scope this project's own process (Phase 6/7/
+  8's design-approval gates) exists to avoid.
+- **Dropping it from the roadmap entirely** — rejected: it remains a
+  legitimate, already-designed extension point (`07-query-regex.md`
+  §7.3's own architecture diagram already reserves the shape for it,
+  and `LK-EXT-QUERY-001`'s illustrative entry already shows how it would
+  be classified in the compat-register once built) — there is no reason
+  to discard a sound, low-cost-to-defer design just because it isn't
+  needed yet.
+
+**Follow-up:** if a real consumer need for full Python-regex query power
+surfaces (e.g. a `ledgerkit-editor` filter feature, or a direct user
+request), scoping and implementing `PythonRegex` — including finally
+deciding its invocation syntax (`pyre:` prefix vs. a `Query(...,
+regex_dialect=...)` keyword vs. something else, per §7.4's own open
+candidates) — is a natural, evidence-backed Stage C-or-later follow-on
+phase, following this project's standard design → approval → implement
+→ verify process, not a reason to have blocked Stage C's own closeout.
+
+**Applies to:** `dev-docs/planning/core-redefinition/07-query-regex.md`,
+`ledgerkit/query/regex.py`, `ROADMAP.md`'s Stage C row
