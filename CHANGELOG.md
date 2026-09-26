@@ -9,6 +9,41 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 8 — compat-register overclaim correction] — 2026-09-26
+
+Full detail: [dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml](dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml)'s "CORRECTION, 2026-09-26" note and second evidence entry
+
+**Human:** implicit via the standing process — a compat-register claim
+found to overstate its evidence must be corrected, not left standing.
+
+**Claude:** a further review of `LK-COMPAT-QUERY-SHIM-001`'s own text
+(not a code or behaviour change, and not caught by the independent
+verification dispatch above) found item 6's `reason:` line overclaimed:
+it said the deprecated `Journal.balance`/`.register(accounts=[...])`
+wrapper's public behaviour was "preserved for every input the wrapper
+could previously accept without raising." That was too broad — a
+single-account value using a Python-only regex construct outside
+`HledgerRegex` (e.g. `accounts=[r"\d+"]`) previously reached the old
+permissive matcher and was accepted; under Option A it now intentionally
+raises `QueryParseError`, the same consequence every other `Query` field
+has. Corrected the compat-register entry, the design document (`27-
+query-shim-convergence-design.md` §5.2 item 6), and `dev-docs/
+api-spec.md`'s `accounts=[...]` note to the accurate, narrower claim:
+`accounts=[]` stays no-filter; an ordinary `HledgerRegex`-portable
+single-account pattern is unchanged; a Python-only single-account regex
+now intentionally rejects; two-or-more accounts retain their OR-matching
+behaviour via the new `Or(...)` AST. A second, genuinely separate
+`compat-differential-tester` dispatch independently re-verified all four
+corrected-claim cases (zero/ordinary-single/Python-only-single/multiple)
+via direct Python-level calls (no hledger-binary equivalent applies to
+this internal-only parameter) — confirmed exactly as stated, no mismatch
+found; `status: verified` stands on the corrected, narrower claim, with
+a new evidence entry. Added two regression tests the re-verification
+found missing (`test_balance`/`test_register_one_account_excluded_
+construct_now_raises`). 899 tests total, all passing (up from 897). No
+`ledgerkit/` behaviour changed by this correction — documentation,
+compat-register, and test-coverage closure only.
+
 ### [Stage C Phase 8 — independent verification] — 2026-09-26
 
 Full detail: [dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml](dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml), [dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md](dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md)'s addendum

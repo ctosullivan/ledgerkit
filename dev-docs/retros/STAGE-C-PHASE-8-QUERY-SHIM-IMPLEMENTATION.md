@@ -272,3 +272,43 @@ itself (the only role authorised to do so), with a new evidence entry
 citing its own fixture, commands, and results. No `unexplained_
 mismatch` entries were needed. This phase is now implementation-and-
 verification-complete; `[DONE]` remains the user's own call.
+
+## Addendum 2 (2026-09-26, same day) — post-verification overclaim correction, no behaviour change
+
+A further review of this entry's own text — not a code or behaviour
+change, and not caught by Addendum 1's independent verification dispatch
+above — found `LK-COMPAT-QUERY-SHIM-001`'s item 6 `reason:` line
+overclaimed: it said the deprecated `Journal.balance`/`.register(
+accounts=[...])` wrapper's public behaviour was "preserved for every
+input the wrapper could previously accept without raising." That was too
+broad. A single-account value using a Python-only regex construct
+outside `HledgerRegex` (e.g. `accounts=[r"\d+"]`) previously reached the
+old permissive matcher and was accepted; under Option A it now
+intentionally raises `QueryParseError`, exactly the same consequence
+every other `Query` field already has — this was never actually a
+preserved edge case, only an unexamined one.
+
+Corrected three locations to the accurate, narrower claim (`accounts=[]`
+stays no-filter; an ordinary `HledgerRegex`-portable single-account
+pattern is unchanged; a Python-only single-account regex now
+intentionally rejects; two-or-more accounts retain their OR-matching
+behaviour via the `Or(...)` AST): the compat-register entry itself,
+`27-query-shim-convergence-design.md` §5.2 item 6, and `dev-docs/
+api-spec.md`'s `accounts=[...]` note.
+
+A **second**, genuinely separate `compat-differential-tester` dispatch
+(distinct from Addendum 1's own dispatch) independently re-verified all
+four corrected-claim cases — zero accounts, an ordinary single account,
+a Python-only-regex single account, and two-or-more accounts — via
+direct Python-level calls (no hledger-binary equivalent exists for this
+internal-only parameter). All four confirmed exactly as the corrected
+text states; the re-verification also found a real, pre-existing test-
+coverage gap (no test exercised the single-account-Python-only-regex-
+raises case specifically) and two regression tests were added to close
+it (`test_balance`/`test_register_one_account_excluded_construct_now_
+raises`). `status: verified` stands on the corrected, narrower claim,
+with a new evidence entry documenting this second re-check. 899 tests
+total, all passing (up from 897). No `ledgerkit/` behaviour changed by
+this correction — documentation, compat-register, and test-coverage
+closure only. This phase remains implementation-and-verification-
+complete on the corrected claim; `[DONE]` remains the user's own call.
