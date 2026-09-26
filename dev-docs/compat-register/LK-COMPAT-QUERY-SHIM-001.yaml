@@ -8,6 +8,17 @@
 # (tests/fixtures/query_shim_differential.journal, not reused from the
 # implementing session). All six disclosed behaviour changes and the
 # complete §5.3 consumer inventory held; no mismatch found.
+#
+# CORRECTION, 2026-09-26 (same day, found on a further review of this
+# entry's own text, not a code or behaviour change): item 6's `reason:`
+# claimed public behaviour was "preserved for every input the wrapper
+# could previously accept without raising" -- that overclaimed. A
+# single-account, Python-only-regex value (e.g. `accounts=[r"\d+"]`)
+# previously worked via the old permissive matcher and now intentionally
+# raises under Option A. Corrected below, and independently re-verified
+# a second time (see the corresponding evidence entry) before this
+# entry's `status: verified` was allowed to stand on the corrected,
+# narrower claim.
 
 id: LK-COMPAT-QUERY-SHIM-001
 area: query.shim
@@ -77,19 +88,32 @@ reason: >
      same consequence as item 1; existing valid filters keep producing the
      same rows.
 
-  6. The deprecated `Journal.balance`/`.register(accounts=[...])` wrapper's
-     *internal* mechanism changes: `accounts=[]` stays "no filter" (fixed to
-     NOT fall through to an `Or(())`, which would match nothing -- a real bug
-     found and fixed during this phase's own design review, before any code
-     was written); a single account stays a raw regex passthrough (now
-     `HledgerRegex`-validated, item 1's consequence); two-or-more accounts now
-     build an `Or(Acct(...), ...)` AST directly instead of the old
-     `(?:...)`-based string synthesis, which `HledgerRegex` would otherwise
-     reject outright. Public behaviour (the wrapper's own "no filter for `[]`,
-     regex-passthrough for one, OR-of-literals for many" contract) is
-     preserved for every input the wrapper could previously accept without
-     raising -- only the internal mechanism, never itself part of any
-     documented contract, changes.
+  6. **Corrected 2026-09-26 (overclaim found on review, not by the
+     independent verification dispatch above -- see the second
+     `verified` evidence entry below for the re-check this correction
+     required):** the deprecated `Journal.balance`/`.register(
+     accounts=[...])` wrapper's *internal* mechanism changes:
+     `accounts=[]` stays "no filter" (fixed to NOT fall through to an
+     `Or(())`, which would match nothing -- a real bug found and fixed
+     during this phase's own design review, before any code was
+     written); an **ordinary, `HledgerRegex`-portable** single-account
+     pattern stays a raw regex passthrough, unchanged; two-or-more
+     accounts now build an `Or(Acct(...), ...)` AST directly instead of
+     the old `(?:...)`-based string synthesis, which `HledgerRegex`
+     would otherwise reject outright, and their literal-OR matching
+     behaviour is preserved. **Public behaviour is NOT preserved for
+     every input the wrapper could previously accept** -- this entry
+     originally claimed it was, which was too broad and has been
+     corrected here. A **single-account value using a Python-only
+     regex construct outside the `HledgerRegex` subset** (e.g.
+     `accounts=[r"\d+"]`) previously reached the old, permissive,
+     non-validating Python-`re`-based matcher and was accepted; under
+     this phase's Option A convergence it now intentionally raises
+     `QueryParseError`, exactly as `Query(account=r"\d+")`/
+     `-q "acct:\d+"` already do. This is a real, disclosed, breaking
+     narrowing for that one input shape -- the same category of change
+     as every other Option A consequence in this entry, not a
+     mechanism-only change confined to internals.
 
   `_posting_matches` (the old `Query`-specific wrapper, distinct from
   `_matches_pattern`) is fully retired -- zero remaining callers anywhere in
@@ -294,6 +318,99 @@ evidence:
 
       No mismatch found across any of the above.
     pinned_at: "1.52.4-g33fa849e7-20260910 (/home/cormac/.local/bin/hledger)"
+  - kind: executable
+    ref: >
+      SECOND, SEPARATE re-verification dispatch, 2026-09-26 (independent
+      from the dispatch above, targeted specifically at the item 6
+      overclaim correction dated the same day -- reads only source and
+      this entry's corrected text, not any implementing/reviewing session's
+      own conversation). Scope: the deprecated `Journal.balance`/
+      `.register(accounts=[...])` wrapper's Python-API behaviour only; no
+      hledger-binary equivalent exists for this internal Python parameter,
+      so this check is pure Ledgerkit-internal (no `-q`/CLI string
+      involved). Fixture: the existing
+      tests/fixtures/query_shim_differential.journal (reused as-is; its
+      shape -- assets:bank:checking, expenses:food:{groceries,coffee},
+      expenses:transport:train, income:salary, equity:opening-balances --
+      already covers zero/one/many-account and OR-matching needs, so no
+      new fixture was required), loaded via `ledgerkit.load(...)`; a small
+      ad hoc `/tmp` journal with accounts literally named `a.b`/`axb`/
+      `c(d)` was used only for the re.escape-literal-vs-wildcard check
+      (not added under tests/fixtures/ since it verifies no new claim not
+      already covered by the retained fixture, and its only purpose was a
+      throwaway metacharacter probe).
+
+      (1) Zero accounts, genuinely no filter, not Or(())-matches-nothing:
+      `j.balance() == j.balance(accounts=[])` -> True (dict equality, 6
+      accounts on both sides); `j.register() == j.register(accounts=[])`
+      -> True (12 rows on both sides, list equality of RegisterRow
+      objects, not merely equal lengths).
+
+      (2) Ordinary HledgerRegex-portable single-account patterns work, no
+      error: `j.balance(accounts=["assets:bank"])` ->
+      {'assets:bank:checking': {'£': Decimal('7800.00')}}; `j.balance(
+      accounts=["^assets"])` -> ['assets:bank:checking']; `j.register(
+      accounts=["assets:bank"])` -> 6 rows. All succeeded without raising.
+
+      (3) Single-account, Python-only-regex-construct value: CONFIRMED
+      INTENTIONAL REJECTION, matching the corrected claim exactly.
+      `j.balance(accounts=[r"\d+"])` and `j.register(accounts=[r"\d+"])`
+      both raise `ledgerkit.query.parser.QueryParseError`:
+      "account: pattern '\\d+' is outside the HledgerRegex-compatible
+      subset: Perl-style shorthand classes ('\d', '\w', '\s', etc.) are
+      not supported by hledger's regex engine". Additionally confirmed
+      raising (same exception type, via `j.balance(accounts=[pattern])`)
+      for every other excluded construct in `ledgerkit/query/regex.py`'s
+      `_EXCLUDED_CONSTRUCT` table: a named group (`(?P<x>foo)`), a
+      lookahead (`foo(?=bar)`), a backreference (`(foo)\1`), a lazy
+      quantifier (`foo+?`), a GNU word-boundary anchor (`\<food\>`), a
+      POSIX named class (`[[:alpha:]]`), and the empty string (`""`) --
+      each raised with the construct-specific message from
+      `_CONSTRUCT_MESSAGES`. (Python's own `\b` word-boundary anchor was
+      also tried and correctly does NOT raise -- it is not one of the
+      excluded constructs the source defines (only `\<`/`\>` are, per
+      `regex.py`'s own comment distinguishing hledger's GNU-style
+      boundary syntax from Python's `\b`); it simply matched zero
+      accounts, which is expected, not a mismatch.)
+
+      (4) Two-or-more literal account names retain OR-matching, no raise:
+      `j.balance(accounts=["food", "transport"])` ->
+      ['expenses:food:coffee', 'expenses:food:groceries',
+      'expenses:transport:train'] (excludes assets/equity/income, as
+      expected for OR-of-literals, not AND); `j.register(accounts=[
+      "food", "transport"])` -> 3 rows, same account set. `re.escape`
+      portability and literal (non-wildcard) semantics independently
+      confirmed with an ad hoc journal containing `expenses:a.b`,
+      `expenses:axb`, and `expenses:c(d)`: `j.balance(accounts=["a.b",
+      "c(d)"])` matched only `expenses:a.b`/`expenses:c(d)` and did NOT
+      raise despite the literal `.`/`(`/`)` metacharacters (re.escape's
+      output stays HledgerRegex-portable); critically, `expenses:axb` was
+      NOT matched, confirming `.` is escaped to a literal dot, not left
+      as a wildcard.
+
+      Full test suite re-run as part of this same dispatch: `python -m
+      unittest discover -s tests -t .` -> Ran 897 tests, OK (skipped=29);
+      independently re-counted (897 confirmed, not assumed) and all 29
+      skips independently confirmed to be exactly the
+      "skipped 'pandas not installed'" cases (`grep -c` on verbose
+      output), with `pandas` independently confirmed absent from this
+      environment (`import pandas` -> ModuleNotFoundError) -- ruling out
+      a silent, unrelated skip inflating the count.
+
+      No new unit test exists yet for case (3) specifically (grepped
+      tests/test_reports.py and tests/test_query/test_compat.py for
+      `accounts=[r"` -- zero matches); `TestDeprecatedAccountsShim` covers
+      (1), (2), and (4) but not the single-account-Python-only-regex-
+      raises case this correction is about. This is a real test-coverage
+      gap worth flagging to the lead (compat-differential-tester's write
+      scope does not extend to tests/test_reports.py to close it here),
+      but it does not change the verification outcome: the corrected
+      claim was independently re-confirmed by direct Python calls this
+      session, not merely by re-reading existing test assertions.
+
+      No mismatch found. The corrected item 6 text matches observed
+      behaviour exactly.
+    pinned_at: "hledger binary not applicable to this check (pure Python-API-internal parameter, no -q/CLI equivalent); Ledgerkit source under test at git HEAD 38eefe0, working tree with only dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml's own in-flight correction text applied (no ledgerkit/ changes); 2026-09-26"
 
 status: verified
 verified_by: "compat-differential-tester (independent dispatch, separate session from the Stage C Phase 8 implementation), per 09-compatibility-system.md §9.6"

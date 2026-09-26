@@ -687,12 +687,20 @@ them is later discovered as an unexplained surprise:
    stays "no filter," a single account stays a raw regex passthrough
    (now `HledgerRegex`-validated, point 1's consequence), and two-or-
    more accounts now builds an `Or(...)` AST instead of a `(?:...)`-
-   based string. **Public behaviour is preserved** for every input this
-   wrapper could previously accept without raising (per §5.3's
-   inventory) — the wrapper's own public signature and its "no filter
-   for `[]`, regex-passthrough for one, OR-of-literals for many"
-   contract are unchanged; only its internal `(?:...)`-based mechanism,
-   which was never itself part of any documented contract, changes.
+   based string. **Corrected — public behaviour is NOT preserved for
+   every input this wrapper could previously accept**, contrary to an
+   earlier version of this line: the wrapper's public signature and its
+   "no filter for `[]`, regex-passthrough for one, OR-of-literals for
+   many" *shape* are unchanged, but a single-account value using a
+   Python-only regex construct outside `HledgerRegex` (e.g. `accounts=
+   [r"\d+"]`) previously reached the old permissive matcher and was
+   accepted — it now intentionally raises `QueryParseError`, the same
+   Option A consequence as point 1, not a preserved edge case. Only an
+   **ordinary, `HledgerRegex`-portable** single-account pattern, and
+   `accounts=[]`/two-or-more accounts, keep their prior observable
+   behaviour; the internal `(?:...)`-based mechanism (never itself part
+   of any documented contract) is what changes for the many-account
+   case specifically.
 
 None of these six are incidental side effects — each is named,
 disclosed, and has a required test (§11) and a compat-register

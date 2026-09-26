@@ -1044,6 +1044,21 @@ class TestDeprecatedAccountsShim(unittest.TestCase):
         })
         self.assertTrue(len(rows) > 0)
 
+    def test_balance_one_account_excluded_construct_now_raises(self):
+        # Corrected compat-register claim (LK-COMPAT-QUERY-SHIM-001 item 6):
+        # a single-account value using a Python-only regex construct outside
+        # HledgerRegex previously reached the old permissive matcher and was
+        # accepted -- it now intentionally raises, the same Option A
+        # consequence as Query.account/.payee/.not_account generally. This
+        # was a real gap in test coverage found during the compat-register
+        # correction's own independent re-verification.
+        with self.assertRaises(QueryParseError):
+            self.journal.balance(accounts=[r"\d+"])
+
+    def test_register_one_account_excluded_construct_now_raises(self):
+        with self.assertRaises(QueryParseError):
+            self.journal.register(accounts=[r"\d+"])
+
     def test_balance_many_accounts_matches_union_of_single_account_queries(self):
         many = self.journal.balance(accounts=["food", "housing"])
         food = self.journal.balance(query=Query(account="food"))

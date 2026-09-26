@@ -240,17 +240,22 @@ def stats(self, query: Query | None = None) -> JournalStats: ...
 The `accounts` parameter on `balance()` and `register()` is deprecated — use `query=`
 for new code. When both are supplied, `query` takes precedence.
 
-**`accounts=[...]` internal mechanism, Stage C Phase 8** `[UPDATED]`: zero
-accounts is explicit "no filter" (not routed through `Query` at all); one
-account stays an unchanged raw regex passthrough (`Query(account=accounts[0])`,
-now `HledgerRegex`-validated like any other `Query.account` value); two or
-more accounts now build an `Or(Acct(...), ...)` AST directly (bypassing
-`Query` entirely) instead of the old `Query(account="a|(?:b)|...")`
-non-capturing-group synthesis, which `HledgerRegex` would otherwise reject.
-Public behaviour for every input this wrapper could previously accept
-without raising is unchanged — only the internal mechanism changed. See
-`dev-docs/planning/core-redefinition/
-27-query-shim-convergence-design.md` §5.1a.
+**`accounts=[...]` internal mechanism, Stage C Phase 8** `[UPDATED,
+corrected]`: zero accounts is explicit "no filter" (not routed through
+`Query` at all, unchanged); an **ordinary, `HledgerRegex`-portable**
+single-account pattern stays an unchanged raw regex passthrough
+(`Query(account=accounts[0])`); two or more accounts now build an
+`Or(Acct(...), ...)` AST directly (bypassing `Query` entirely) instead
+of the old `Query(account="a|(?:b)|...")` non-capturing-group synthesis,
+which `HledgerRegex` would otherwise reject — the literal-OR matching
+behaviour is preserved. **Public behaviour is NOT unchanged for every
+input the wrapper could previously accept** (an earlier version of this
+note overclaimed that): a single-account value using a Python-only
+regex construct outside `HledgerRegex` (e.g. `accounts=[r"\d+"]`)
+previously reached the old permissive matcher and was accepted — it now
+intentionally raises `QueryParseError`, the same Option A consequence
+as `Query.account`/`.payee`/`.not_account` generally. See `dev-docs/
+planning/core-redefinition/27-query-shim-convergence-design.md` §5.1a.
 
 ---
 
