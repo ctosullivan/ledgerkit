@@ -1264,11 +1264,14 @@ def validate_hledger_regex(pattern: str) -> None:
     the excluded-construct list: '(?...)' forms, backreferences, GNU
     '\\<'/'\\>' boundaries, Perl shorthand classes, POSIX named classes,
     lazy quantifiers). Also raises for the empty string ('') -- see
-    breaking-change note below. Does not raise for constructs within the
-    subset (literals, '.', '*', '+', '?', '{n,m}', '|', plain groups,
-    anchors, plain bracket expressions, '\\b'/'\\B'), nor for a non-empty
-    pattern whose semantics merely admit an empty match ('.*', 'a*',
-    '^$', '()' all remain accepted)."""
+    breaking-change note below. Also raises for a pattern containing an
+    unescaped '|' with an empty branch on either side (e.g. 'a|', '|a',
+    '(|)', 'a||b') -- see the Stage C Phase 9 breaking-change note below.
+    Does not raise for constructs within the subset (literals, '.', '*',
+    '+', '?', '{n,m}', '|', plain groups, anchors, plain bracket
+    expressions, '\\b'/'\\B'), nor for a non-empty pattern whose
+    semantics merely admit an empty match ('.*', 'a*', '^$', '()' all
+    remain accepted)."""
 
 def compile_hledger_regex(pattern: str) -> re.Pattern[str]:
     """validate_hledger_regex(pattern), then re.compile(pattern, re.IGNORECASE)."""
@@ -1291,6 +1294,29 @@ including empty," instead of `tag:NAME=`). The function signatures and
 `UnsupportedRegexConstructError` itself are unchanged — only the set of
 inputs `validate_hledger_regex`/`compile_hledger_regex` accept without
 raising has changed.
+
+**Breaking change from Stage C Phase 9** (`dev-docs/planning/core-
+redefinition/28-empty-alternation-regex-design.md`, resolves `LK-
+MISMATCH-QUERY-REGEX-EMPTYALT-001`): `validate_hledger_regex`/
+`compile_hledger_regex` now also raise `UnsupportedRegexConstructError`
+for a pattern containing an unescaped `|` with an empty branch on
+either side — e.g. `a|`, `|a`, `(|)`, `a||b`, `(a|)`, `(|a)` and the
+rest of the 18-pattern family named in the design document — matching
+real hledger's own regex-tdfa parse-time rejection of the same family.
+A new private helper, `_has_empty_alternation_branch` (an escape-aware
+linear scan, not a `re.compile()` pattern — see its own code comment
+and `knowledge/DECISIONS.md` for why), implements the exact adjacency
+rule: a `|` is empty on a side if that side is pattern-start/-end, or
+the nearest unescaped neighbouring character is `(`, `)`, or another
+`|`. `()`, `(a)`, `a|b`, `(a|b)`, `()|a`, `a|()`, anchor-only branches
+(`^|a`, `a|$`), and escaped pipes/parens (`a\|\|b`, `\(|a`, `a|\)`)
+remain accepted, unaffected. Same breaking-change category as the
+Stage C Phase 7 empty-pattern-string fix above — made pre-`1.0.0`, no
+version bump. Function signatures and `UnsupportedRegexConstructError`
+itself are unchanged. As of this writing, the underlying fix is
+documented at `dev-docs/compat-register/LK-COMPAT-QUERY-REGEX-
+EMPTYALT-001.yaml`, `status: proposed` — independent verification by a
+separately-dispatched `compat-differential-tester` is still pending.
 
 ### `ledgerkit/query/parser.py`
 

@@ -1,75 +1,94 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C closeout (multi-step): Phase 7 is now `[DONE]` (its outstanding
-docs-reconstructor + release-phase-auditor gates both ran clean).
-`LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` re-established fresh and a design
-written — **implementation not started yet.** `PythonRegex` explicitly
-resolved as deferred. Remaining Stage C backlog items confirmed
-genuinely deferred/non-blocking. Stage C itself still `[IN PROGRESS]`.
+Stage C closeout (multi-step): `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`'s
+fix is now **implemented and unit-tested** (Stage C Phase 9,
+`60eea4a`) — `ledgerkit.query.regex._has_empty_alternation_branch`
+wired into `validate_hledger_regex`. **Independent verification has
+NOT been performed** — this is the mandatory next step before the new
+compat-register entry can move past `status: proposed` and before the
+mismatch entry can be resolved. Stage C itself still `[IN PROGRESS]`.
 
 ## Where We Are
-About to commit the Phase 7 closeout + Phase 9 planning + PythonRegex
-disposition batch, then dispatch a fresh coding agent to implement
-`28-empty-alternation-regex-design.md`, then independently verify, then
-run the FULL Stage C completion audit sequence (compat-register review,
-docs-maintainer, Stage-C-wide docs-reconstructor NO DRIFT,
-roadmap/knowledge reconciliation, Stage-C-wide release-phase-auditor
-against every exit criterion, closeout retro) before reporting whether
-Stage C's Definition of Done is met.
+Implementation done: 935 tests passing (up from 899, +36). Next step is
+to dispatch a genuinely separate `compat-differential-tester` agent to
+independently re-run the full 18-must-reject/13-must-accept matrix
+against the real pinned hledger 1.52.4 binary and Ledgerkit's post-fix
+behaviour. Only after that confirmation can:
+1. `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml` receive
+   `resolved_into: LK-COMPAT-QUERY-REGEX-EMPTYALT-001` /
+   `resolved_date:` (not done yet — deliberately left untouched this
+   session).
+2. `LK-COMPAT-QUERY-REGEX-EMPTYALT-001.yaml` promote `status: proposed`
+   → `status: verified` (only a dispatched `compat-differential-tester`
+   agent's own output may set `verified` — never self-promoted).
+3. `dev-docs/compat-register/UNEXPLAINED.md`'s row for this mismatch
+   move from "Open entries" to "Resolved entries".
+4. The full Stage C completion audit sequence run (compat-register
+   review, `docs-maintainer`, a Stage-C-wide `docs-reconstructor`
+   NO-DRIFT pass, roadmap/knowledge reconciliation, a Stage-C-wide
+   `release-phase-auditor` pass against every exit criterion, a Stage C
+   closeout retro) before reporting whether Stage C's Definition of
+   Done is met.
 
 ## Decisions In Flight
-None blocking. `PythonRegex` decision made (deferred). The empty-
-alternation fix's design is fully specified (doubles as its own
-implementation plan, per Phase 7's precedent) — next is implementation,
-not a further design decision.
+None blocking. The empty-alternation-branch algorithm (design §3.1) was
+independently re-verified against all 31 matrix patterns during this
+implementation pass and found correct as written — no discrepancy, no
+algorithm change needed.
 
 ## Files Currently Relevant
-- `dev-docs/planning/core-redefinition/28-empty-alternation-regex-design.md`
-  — the fix spec: a dedicated, escape-aware scanning function
-  (`_has_empty_alternation_branch`) in `ledgerkit/query/regex.py`,
-  wired into `validate_hledger_regex` alongside the existing
-  `pattern == ""` check and `_EXCLUDED_CONSTRUCT` scan.
-- `dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml`
-  — freshly re-verified (2026-09-27), now has the complete 18-pattern
-  reject-list and 13-pattern accept-list, plus the regex-tdfa root-cause
-  citation. Still `kind: unexplained_mismatch`/`status: verified` (not
-  yet resolved into a fix) — resolution happens via the schema.md
-  lifecycle mechanism once implemented and independently verified.
-- `dev-docs/retros/STAGE-C-PHASE-9-EMPTY-ALTERNATION-PLAN.md` — this
-  phase's planning retro.
-- `knowledge/DECISIONS.md` — new PythonRegex-deferral entry (2026-09-27).
-
-## Remaining Stage C backlog after this fix lands
-None substantive — this is the last item from Stage C Phase 6's own
-backlog. Non-blocking, confirmed-deferred items (not exit-criteria
-gaps): `cur:`, smart/period dates, a standalone `--depth`/`-N` CLI flag,
-`PythonRegex` (now explicitly deferred, not ambiguous).
+- `ledgerkit/query/regex.py` — `_has_empty_alternation_branch` (new,
+  private) and `validate_hledger_regex` (now checks it, alongside the
+  unchanged `pattern == ""` check and unchanged `_EXCLUDED_CONSTRUCT`).
+- `tests/test_query/test_regex.py` — new `TestEmptyAlternationBranch
+  Rejected`/`TestEmptyAlternationBranchAccepted` classes (31 tests).
+- `tests/test_query/test_parser.py` — new
+  `TestEmptyAlternationBranchRejectedAtParseTime` (4 tests).
+- `tests/test_cli/test_cli.py` — new
+  `TestQueryFlag.test_empty_alternation_branch_exits_one`.
+- `dev-docs/compat-register/LK-COMPAT-QUERY-REGEX-EMPTYALT-001.yaml` —
+  new entry, `status: proposed`, `resolves: LK-MISMATCH-QUERY-REGEX-
+  EMPTYALT-001`. NOT yet promoted.
+- `dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml` —
+  deliberately left completely untouched this session (no
+  `resolved_into`/`resolved_date`).
+- `dev-docs/retros/STAGE-C-PHASE-9-EMPTY-ALTERNATION-IMPLEMENTATION.md`
+  — this phase's implementation retro (distinct from the earlier
+  `-PLAN.md` planning retro).
+- `knowledge/DOMAIN_RULES.md` / `knowledge/DECISIONS.md` — new entries
+  for the adjacency rule and the dedicated-scan-function rationale.
 
 ## Blockers / Open Questions
-None. Proceeding directly to implementation per the user's explicit
-"implement through the normal fresh-agent workflow" instruction — no
-separate approval gate needed for this fully-specified fix.
+None requiring a human decision. Proceeding to independent verification
+is a process step (dispatch a separate `compat-differential-tester`
+agent), not a decision gate — this implementation was itself already
+authorized as part of the user's "implement through the normal
+fresh-agent workflow" instruction from the prior session.
 
 ## What NOT To Revisit
-- Don't re-derive the empty-alternation detection rule — hand-verified
-  against all 31 test cases (18 reject, 13 accept) already; it's a
-  purely local, single-character-adjacency, escape-aware check, no
-  nesting-depth tracking needed.
-- Don't fold the new detection into `_EXCLUDED_CONSTRUCT`'s single
-  regex — Python's `re` can't correctly count variable-length escape
-  runs via lookbehind; a dedicated scanning function is the right shape.
-- Don't re-litigate PythonRegex — explicitly resolved as deferred,
-  reasoned, recorded. Don't implement it as part of this closeout.
-- Don't treat `cur:`/smart-dates/`--depth`-flag/`check`-non-wiring as
-  open questions — all four confirmed already-documented, deliberate,
-  non-blocking deferrals.
+- Don't re-derive or second-guess `_has_empty_alternation_branch`'s
+  algorithm — independently re-verified against all 31 test cases (18
+  reject, 13 accept) this session; correct as designed, no bug found.
+- Don't fold the detection into `_EXCLUDED_CONSTRUCT`'s single regex —
+  decided and recorded (`knowledge/DECISIONS.md`, 2026-09-27): Python's
+  `re` can't correctly count variable-length escape runs via
+  lookbehind, and `_EXCLUDED_CONSTRUCT`'s own false-positive tolerance
+  is not acceptable for this family's required-accept escaped cases.
+- Don't self-promote `LK-COMPAT-QUERY-REGEX-EMPTYALT-001` past
+  `status: proposed` — requires a genuinely separate
+  `compat-differential-tester` dispatch.
+- Don't touch `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001.yaml`'s `kind`/
+  `status`/`resolved_into` fields until that independent verification
+  lands.
+- Don't re-litigate `PythonRegex` — explicitly resolved as deferred in
+  the prior session, reasoned, recorded.
 - Don't mark Stage C `[DONE]` — only the user's explicit confirmation
   does that, after the full closeout audit sequence completes.
 
-## Recent Git State (before this response's commit)
+## Recent Git State (before this response's docs/compat-register commit)
+60eea4a feat: reject empty-alternation-branch regex patterns (Stage C Phase 9)
+39ab948 docs: close out Stage C Phase 7, plan Phase 9, defer PythonRegex
 c5e4185 docs: close out Stage C Phase 8, mark [DONE]
-12af5cf docs: reconcile Phase 8 docs after compat-register correction (Stage C Phase 8)
+12af5cf docs: reconcile current-truth docs for Stage C Phase 8 overclaim correction
 d12e24e fix: correct Stage C Phase 8 compat-register overclaim on accounts=[...]
-38eefe0 test: independently verify Stage C Phase 8 Query-shim convergence
-a4c5917 docs: retro, changelog, and roadmap for Query-shim implementation (Stage C Phase 8)

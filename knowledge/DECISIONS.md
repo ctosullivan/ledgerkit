@@ -1124,3 +1124,63 @@ phase, following this project's standard design → approval → implement
 
 **Applies to:** `dev-docs/planning/core-redefinition/07-query-regex.md`,
 `ledgerkit/query/regex.py`, `ROADMAP.md`'s Stage C row
+
+---
+
+## 2026-09-27 — Empty-alternation-branch detection: a dedicated scanning function, not an extension of `_EXCLUDED_CONSTRUCT`'s single regex
+
+**Decision:** `ledgerkit.query.regex._has_empty_alternation_branch`
+(Stage C Phase 9, resolves `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`) is a
+new, separate, hand-written linear scan function — not a new named
+alternative folded into `_EXCLUDED_CONSTRUCT`'s existing single compiled
+`re.compile()` pattern, and `_EXCLUDED_CONSTRUCT`'s own regex/branches
+were left completely untouched.
+
+**Why:** the detection rule (`knowledge/DOMAIN_RULES.md`'s "empty
+alternation branch" entry) requires telling a real, unescaped `|`/`(`/
+`)` apart from an escaped `\|`/`\(`/`\)` — which means knowing whether
+the character immediately before a given position is preceded by an
+*even* number of consecutive backslashes (unescaped) or an *odd* number
+(escaped). Python's `re` module supports only **fixed-width**
+lookbehind (`(?<=...)`); there is no way to express "an even-length run
+of backslashes precedes this position" as a lookbehind assertion,
+because that run's length is unbounded and variable. `_EXCLUDED_
+CONSTRUCT`'s own existing backreference branch (`\\[1-9]`) already
+accepts this exact limitation for a *different* construct — its own
+comment says false positives are safe there, false negatives are the
+real risk, and a double-backslash-then-digit case is explicitly not
+handled correctly. That tolerance was acceptable for backreferences (a
+rare, easily-avoided false-positive), but is not acceptable here: this
+family's own accept-list includes precisely-escaped patterns like
+`a\|\|b`, `\(|a`, `a|\)` that **must not** be rejected, so a
+false-positive-tolerant heuristic regex would actively break real,
+must-stay-accepted test cases, not just theoretically risk it.
+
+**What was rejected:**
+- **A single `re.compile()` regex, same style as `_EXCLUDED_CONSTRUCT`**
+  — rejected: cannot correctly express the escape-parity condition at
+  all (see above), and even an approximate version would misclassify
+  the exact escaped-pipe/paren cases the design's own accept-list
+  requires to stay accepted.
+- **Reusing `_EXCLUDED_CONSTRUCT`'s existing false-positive-tolerant
+  style for this new construct** — rejected: that tolerance is
+  appropriate for backreferences (where a false positive just means
+  rejecting a pattern nobody sane writes) but not here, where the
+  accept-list's escaped-pipe patterns are exactly the shape a naive scan
+  would misfire on.
+- **Nesting-depth tracking (a stack, counting group nesting)** —
+  considered and rejected as unnecessary complexity: the rule is
+  provably local (each `|`'s own immediate neighbours, independent of
+  anything else in the pattern — verified against all 31 patterns in the
+  design's matrix), so a single-character-adjacency linear scan with one
+  character of lookback/lookahead state suffices; no stack or depth
+  counter is needed.
+
+**Verification note:** the design document's own algorithm (`28-empty-
+alternation-regex-design.md` §3.1) was independently re-verified,
+character-for-character, against all 18 must-reject and all 13
+must-accept patterns before being copied into `ledgerkit/query/
+regex.py` — it was found correct as written, with zero discrepancies;
+no algorithm bug was found or needed fixing.
+
+**Applies to:** `ledgerkit/query/regex.py`

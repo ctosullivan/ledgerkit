@@ -1,0 +1,125 @@
+# Resolves LK-MISMATCH-QUERY-REGEX-EMPTYALT-001 via the compat-register's
+# resolution-lifecycle mechanism (dev-docs/compat-register/schema.md's
+# "Resolution lifecycle" section, added Stage C Phase 7,
+# 09-compatibility-system.md §9.7) -- same precedent as
+# LK-COMPAT-QUERY-TAG-EMPTYVALUE-001's own resolution of
+# LK-MISMATCH-QUERY-TAG-EMPTYVALUE-001. The old mismatch entry is
+# retained untouched (no resolved_into/resolved_date added yet -- that
+# is deliberately deferred, per this entry's own status below, until
+# independent verification lands).
+#
+# status is deliberately `proposed`, NOT self-verified or verified: this
+# entry documents an implementation whose own author has run the new
+# unit tests (35 tests, tests/test_query/test_regex.py's two new
+# classes plus integration tests in test_parser.py/test_cli.py) but has
+# NOT independently re-run the real pinned hledger binary against
+# Ledgerkit post-fix. That is a mandatory, genuinely separate
+# compat-differential-tester dispatch -- the next step, not performed by
+# this implementing session. Per schema.md, `status: proposed` is
+# explicitly permitted here ("hledger-researcher's reading; not yet run
+# against the real binary") and this entry must not be self-promoted
+# past it.
+
+id: LK-COMPAT-QUERY-REGEX-EMPTYALT-001
+area: query.regex.emptyalternation
+kind: compatible
+resolves: LK-MISMATCH-QUERY-REGEX-EMPTYALT-001
+
+upstream:
+  project: hledger
+  compatibility_target: "1.52.4"
+
+ledgerkit:
+  relationship: equivalent
+
+compatibility:
+  upstream_syntax_preserved: true
+  extension_requires_explicit_syntax: n/a
+
+reason: >
+  `ledgerkit.query.regex.validate_hledger_regex` (and therefore
+  `compile_hledger_regex`, and every query-term builder in
+  `ledgerkit/query/parser.py` that routes through them -- `acct:`,
+  `desc:`, `tag:`'s name/value halves, `depth:`'s REGEX half) now
+  rejects a pattern containing an unescaped `|` with an empty branch on
+  either side, matching real hledger 1.52.4's own regex-tdfa
+  parse-time rejection of the same family.
+
+  Root cause, source-confirmed (LK-MISMATCH-QUERY-REGEX-EMPTYALT-001's
+  second evidence entry, reading `hledger-lib/Hledger/Utils/Regex.hs`'s
+  `toRegex`/`toRegexCI` and `Hledger/Query.hs`'s `parseQueryTerm`):
+  hledger performs no validation of its own on any query-term regex
+  string -- every one is passed straight to Haskell's regex-tdfa engine
+  via `makeRegexM`, and every rejection in this family (like the
+  already-fixed empty-pattern-string case) is regex-tdfa's own ERE
+  parser failing on an alternation branch containing zero pieces. The
+  exact rule (empirically validated against 35+ patterns across three
+  query prefixes, both tools): a `|` is "empty" on a side when that side
+  is pattern-start/pattern-end, or the nearest unescaped neighbouring
+  character is `(`, `)`, or another `|`. This is a purely local,
+  single-character-adjacency rule -- no nesting-depth tracking is
+  needed, since a nested group's own internal emptiness is caught by
+  that group's own `|` against its own immediate neighbours,
+  independently of the outer pattern.
+
+  The fix must-newly-reject set (18 patterns, all confirmed rejected by
+  real hledger, all now rejected by Ledgerkit): `(|)`, `a|`, `|a`,
+  `(a|)`, `(|a)`, `a||b`, `(a|)|b`, `||`, `|`, `(|)|c`, `a|(|b)`,
+  `(||)`, `a|||b`, `(|)*`, `(a)|`, `|(a)`, `a(|)b`, `(a|)(b)`.
+
+  The fix must-not-affect (regression) set (13 patterns, all confirmed
+  accepted by both real hledger and Ledgerkit, before and after this
+  fix): `()`, `(a)`, `a|b`, `(a|b)`, `()|a`, `a|()`, `()*`, `a| |b`
+  (a space is real, non-empty content), `^|a`/`a|$` (anchors are real,
+  non-empty characters lexically, even though zero-width semantically),
+  and escaped-literal sequences `a\|\|b`, `\(|a`, `a|\)` (escaping
+  means there is no real, unescaped `|`/`(`/`)` adjacency at all).
+
+  Implemented as a new, dedicated, escape-aware linear-scan function,
+  `ledgerkit.query.regex._has_empty_alternation_branch` (private) --
+  deliberately NOT folded into the pre-existing `_EXCLUDED_CONSTRUCT`
+  single compiled regex, because correctly distinguishing an escaped
+  `\|`/`\(`/`\)` from a real one requires counting a variable-length run
+  of preceding backslashes for parity, which Python's `re` module cannot
+  express (only fixed-width lookbehind is supported). See
+  `knowledge/DECISIONS.md`'s 2026-09-27 entry for the full reasoning,
+  including why `_EXCLUDED_CONSTRUCT`'s own existing false-positive
+  tolerance (documented for its backreference branch) is NOT reused
+  here -- this family's own required-accept set includes exactly the
+  escaped-pipe/paren shapes a tolerant heuristic scan would misfire on.
+
+  This is a breaking, not backward-compatible, correction -- same
+  category as Stage C Phase 7's empty-pattern-string fix, made while
+  Ledgerkit is still pre-1.0 (`1.0.0.dev1`, see `dev-docs/
+  versioning.md`'s "Breaking changes during the 1.0.0.dev1 pre-release"
+  policy) -- no version bump. Existing code passing e.g. `acct:a|` or
+  `tag:x=(|)` will now get `QueryParseError` where it previously got a
+  (likely-unintended) match-everything result, since an empty
+  alternation branch matches the empty string, a substring of
+  everything under infix/case-insensitive semantics.
+
+implementation:
+  - ledgerkit/query/regex.py:_has_empty_alternation_branch
+  - ledgerkit/query/regex.py:validate_hledger_regex
+
+tests:
+  - tests/test_query/test_regex.py::TestEmptyAlternationBranchRejected
+  - tests/test_query/test_regex.py::TestEmptyAlternationBranchAccepted
+  - tests/test_query/test_parser.py::TestEmptyAlternationBranchRejectedAtParseTime
+  - tests/test_cli/test_cli.py::TestQueryFlag::test_empty_alternation_branch_exits_one
+
+evidence:
+  - kind: source
+    ref: "ledgerkit/query/regex.py:_has_empty_alternation_branch, validate_hledger_regex (Stage C Phase 9)"
+    pinned_at: "60eea4a"
+  - kind: test
+    ref: >
+      Full 35-test matrix (18 must-reject + 13 must-accept, each its own
+      named test per this project's convention) plus 4 parser-level
+      integration tests and 1 CLI-level integration test, all passing --
+      935 tests total in the full suite (up from 899), all passing. This
+      is the implementing session's own test run, not independent
+      differential verification against the real hledger binary.
+    pinned_at: "n/a (unittest run, not an executable hledger comparison)"
+
+status: proposed

@@ -432,3 +432,77 @@ matrix.md`).
 
 **Applies to:** `ledgerkit/query/regex.py`, `ledgerkit/query/parser.py`,
 `ledgerkit/query/depth.py`
+
+## Real hledger rejects an "empty alternation branch" — a purely local, escape-aware, single-character-adjacency rule
+
+hledger 1.52.4 rejects a query-term regex pattern containing an
+unescaped `|` that has **zero raw characters immediately on one side of
+it** — not the whole branch being semantically empty-matching (that's a
+different, unrelated concern — see the empty-pattern-string rule above),
+but the literal absence of any character in the adjacent slot. This is
+genuinely a separate rejection cause from the empty-pattern-string case,
+even though both surface through hledger's identical generic error text
+(`"This regular expression is invalid or unsupported, please correct
+it:"` plus the offending pattern echoed on line 2 — the empty-string
+case's apparently different "nothing on line 2" shape is not a separate
+format, it's the exact same interpolation with the pattern happening to
+be `""`).
+
+**The exact rule** (source-confirmed root cause: hledger adds no
+validation of its own — `hledger-lib/Hledger/Utils/Regex.hs`'s
+`toRegex`/`toRegexCI` pass every query-term string straight to Haskell's
+`regex-tdfa` engine via `makeRegexM`; every rejection in this family is
+regex-tdfa's own ERE parser failing because an alternation branch must
+contain at least one piece):
+
+- **LEFT** of a `|` is empty if the pattern starts there, or the nearest
+  preceding **unescaped** character is `(` or `|`.
+- **RIGHT** of a `|` is empty if the pattern ends there, or the nearest
+  following **unescaped** character is `)` or `|`.
+- Either side being empty rejects the whole pattern.
+- This is **purely local** — no nesting-depth tracking is needed. A
+  nested group's own internal emptiness (e.g. the inner `(a|)` inside
+  `(a|)|b`) is caught by that group's own `|` against its own immediate
+  neighbours, independently of what surrounds the group.
+- The check must be **escape-aware**: `\|`, `\(`, `\)` are literal
+  characters, not the real delimiters this rule is about, so `a\|\|b`,
+  `\(|a`, and `a|\)` must NOT be flagged. A naive raw-character scan
+  (no escape tracking) would wrongly reject all three.
+
+**The single most counter-intuitive part**: `()` (a parenthesised group
+with genuinely nothing inside, and no `|` at all) is accepted by real
+hledger — a parenthesised group is allowed to have empty content as its
+own distinct, non-alternation ERE grammar production ("matches the
+empty string" as a complete, valid atom). That same total absence is
+never reachable once a `|` forces the parser into the *alternation*
+production, which has no equivalent empty-content escape hatch. This is
+why `()`, `(a)`, `a|b`, `(a|b)`, `()|a`, `a|()`, `()*` are all correctly
+accepted (no `|`-adjacent-to-empty-slot anywhere), while `(|)`, `a|`,
+`|a`, `(a|)`, `(|a)`, and every further pattern in the same family
+(`a||b`, `(a|)|b`, `||`, `|`, `(|)|c`, `a|(|b)`, `(||)`, `a|||b`,
+`(|)*`, `(a)|`, `|(a)`, `a(|)b`, `(a|)(b)`) are rejected. Anchors (`^`,
+`$`) count as real, non-empty characters for this lexical rule even
+though they match zero-width semantically — `^|a` and `a|$` are
+accepted, because the anchor itself occupies the branch as a genuine
+piece from the parser's point of view.
+
+Ledgerkit replicates this exactly via a dedicated, escape-aware linear
+scan, `ledgerkit.query.regex._has_empty_alternation_branch` (private),
+wired into `validate_hledger_regex` alongside the pre-existing
+`pattern == ""` check — not folded into `_EXCLUDED_CONSTRUCT`'s single
+compiled regex (see `knowledge/DECISIONS.md` for why).
+
+**Why it matters:** this rule is genuinely non-obvious and is **not
+documented anywhere in hledger's own manual at all** — a future
+maintainer re-deriving query-regex behaviour from the manual alone would
+never find it; it was only established by direct, executable
+differential testing against the pinned binary plus reading hledger's
+own source (`dev-docs/compat-register/LK-MISMATCH-QUERY-REGEX-
+EMPTYALT-001.yaml`, `dev-docs/planning/core-redefinition/28-empty-
+alternation-regex-design.md`). A future change that tries to "simplify"
+this into a single regex-based check, or that broadens it into a
+general "does this branch match only the empty string" semantic check,
+would either miss escape cases or wrongly reject `()`/`a|()`/`()|a`/
+anchor-only branches — re-derive this exact adjacency rule first.
+
+**Applies to:** `ledgerkit/query/regex.py`, `ledgerkit/query/parser.py`

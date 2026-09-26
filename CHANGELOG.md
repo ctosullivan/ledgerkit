@@ -9,6 +9,42 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 9 — empty-alternation-branch regex rejection implemented] — 2026-09-27
+
+**Human:** directed implementing `28-empty-alternation-regex-design.md`
+through the normal fresh-agent design → implement → verify workflow,
+resolving `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`, the last item on
+Stage C Phase 6's own backlog.
+
+**Claude:** added `ledgerkit.query.regex._has_empty_alternation_branch`
+(a dedicated, escape-aware linear scan — not folded into
+`_EXCLUDED_CONSTRUCT`'s existing single compiled regex), wired into
+`validate_hledger_regex` alongside the pre-existing `pattern == ""`
+check. Independently re-verified the design's own hand-verified
+algorithm against all 31 matrix patterns before trusting it (found
+correct, no bug). Rejects the full 18-pattern empty-alternation-branch
+family (`(|)`, `a|`, `|a`, `(a|)`, `(|a)`, `a||b`, `(a|)|b`, `||`, `|`,
+`(|)|c`, `a|(|b)`, `(||)`, `a|||b`, `(|)*`, `(a)|`, `|(a)`, `a(|)b`,
+`(a|)(b)`), matching real hledger's regex-tdfa engine's own parse-time
+rejection; `()`, `(a)`, `a|b`, `(a|b)`, `()|a`, `a|()`, anchor-only
+branches, and escaped pipes/parens (13-pattern regression set) remain
+accepted. Breaking change, pre-`1.0.0` (`1.0.0.dev1`), same category as
+Stage C Phase 7's own empty-pattern-string fix. 36 new tests (935
+total, up from 899): 18 must-reject + 13 must-accept unit tests, 4
+parser-level integration tests, 1 CLI-level integration test. New
+compat-register entry `LK-COMPAT-QUERY-REGEX-EMPTYALT-001` created
+(`kind: compatible`, `resolves: LK-MISMATCH-QUERY-REGEX-EMPTYALT-001`,
+`status: proposed` — deliberately not self-promoted further); the
+original mismatch entry left untouched (no `resolved_into` yet —
+gated on a genuinely separate `compat-differential-tester` dispatch,
+the mandatory next step, not performed by this session). Synced
+`dev-docs/hledger-compatibility.md`, `dev-docs/api-spec.md` (docstring
+only, no signature change), `knowledge/DOMAIN_RULES.md` (the exact
+adjacency rule), and `knowledge/DECISIONS.md` (why a dedicated scan was
+chosen over extending `_EXCLUDED_CONSTRUCT`). Retro:
+`dev-docs/retros/STAGE-C-PHASE-9-EMPTY-ALTERNATION-IMPLEMENTATION.md`.
+Stage C itself remains `[IN PROGRESS]`.
+
 ### [Stage C closeout — Phase 7 gates, Phase 9 planning, PythonRegex disposition] — 2026-09-27
 
 **Human:** directed closing out Stage C: finish Phase 7's outstanding
