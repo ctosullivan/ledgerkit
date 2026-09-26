@@ -153,7 +153,7 @@ top_level = journal.balance(query=Query(depth=1))
 | `payee` | `str \| None` | Include only transactions whose description matches |
 | `date_from` | `date \| None` | Include only transactions on or after this date |
 | `date_to` | `date \| None` | Include only transactions on or before this date |
-| `depth` | `int \| None` | Roll up/clip account names to this depth for `balance()`, `register()`, and `accounts()` — a display-only truncation+aggregation, never an exclusion (matching hledger's own `depth:`/`--depth`; corrected in Stage C Phase 5 — `register()` previously excluded deeper postings entirely, a pre-existing bug) |
+| `depth` | `int \| None` | Roll up/clip account names to this depth for `balance()` and `register()` — a display-only truncation+aggregation, never an exclusion (matching hledger's own `depth:`/`--depth`; corrected in Stage C Phase 5 — `register()` previously excluded deeper postings entirely, a pre-existing bug). `Journal.accounts()` itself takes no `query=` parameter at all (it lists every account name unconditionally) — the same depth-rollup behaviour for accounts listing is reachable only through `ledgerkit.reports.accounts(journal, query=...)`, the module-level function, not the `Journal.accounts()` method |
 
 **Pattern matching (breaking change, Stage C Phase 8):** `account`,
 `not_account`, and `payee` values are compiled as a case-insensitive,

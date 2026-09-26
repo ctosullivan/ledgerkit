@@ -1371,10 +1371,10 @@ def matches_posting(node: QueryNode, txn: Transaction, posting: Posting, journal
     tag set."""
 ```
 
-`Depth`'s predicate is purely `accountNameLevel(account) <= n` (colon-
-segment count) — hledger's separate depth-driven *display* truncation/
-aggregation for `balance`/`register` is intentionally not represented
-here; that is report-layer behaviour, not a query predicate.
+`MaxAccountLevel`'s predicate is purely `accountNameLevel(account) <= n`
+(colon-segment count) — hledger's separate depth-driven *display*
+truncation/aggregation for `balance`/`register` is intentionally not
+represented here; that is report-layer behaviour, not a query predicate.
 
 **`journal` parameter** `[NEW — Stage C Phase 6]`: a real default
 (`Journal | None = None`), so every existing caller that never constructs

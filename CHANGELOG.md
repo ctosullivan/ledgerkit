@@ -9,6 +9,24 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C closeout — drift-audit fixes] — 2026-09-27
+
+**Human:** standing process — resolve genuine findings from the
+Stage-C-wide `docs-reconstructor` audit and re-audit until clean.
+
+**Claude:** fixed four findings, none affecting actual query-system
+behaviour: `dev-docs/api-spec.md`'s `matches_posting` docstring context
+still referenced the pre-Phase-5-rename `Depth` class instead of
+`MaxAccountLevel`; `docs/python-api.md`'s `Query.depth` field
+documentation claimed `accounts()` accepts depth rollup, but `Journal.
+accounts()` takes no `query=` parameter at all (the module-level
+`ledgerkit.reports.accounts()` does) — clarified; commit `301a42d`
+(removing a stale duplicate ROADMAP paragraph) had no corresponding
+`CHANGELOG.md` entry, contrary to the standing same-response rule —
+added retroactively here; `CONTEXT.md` had not been updated across the
+two most recent commits, wrongly implying the Stage-wide `docs-
+maintainer` pass hadn't run yet — refreshed.
+
 ### [Stage C — full, Stage-wide docs-maintainer reconciliation] — 2026-09-27
 
 **Human:** directed a full, Stage-C-wide reconciliation of every
