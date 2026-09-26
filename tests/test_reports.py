@@ -28,10 +28,10 @@ from ledgerkit.loader import load_journal
 from ledgerkit.models import Amount, Journal, Posting, Query, Transaction
 from ledgerkit.parser import parse_string
 from ledgerkit.query.eval import matches_posting, matches_transaction
+from ledgerkit.query.parser import QueryParseError
 from ledgerkit.reports import (
     JournalStats,
     _matches_pattern,
-    _posting_matches,
     accounts,
     balance,
     balance_from_spec,
@@ -122,76 +122,42 @@ class TestMatchesPattern(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# _posting_matches
+# _posting_matches -- retired, Stage C Phase 8 (§5.1d): the old Query-
+# specific wrapper around _matches_pattern has been fully replaced by
+# ledgerkit.query.compat._query_to_ast + ledgerkit.query.eval.matches_posting
+# across all four of its former callers (accounts/balance/register in
+# reports.py, to_dataframe in models.py). Its own unit-test coverage above
+# is superseded by tests/test_query/test_compat.py (translator unit tests)
+# plus the TestQueryAstIntegration/TestDeprecatedAccountsShim/
+# TestBalanceFromSpecOuterQueryConvergence classes below (integration-level
+# coverage of the same Query-filtering semantics through the public
+# report functions). See TestPostingMatchesRetired below for the static
+# zero-remaining-callers confirmation.
 # ---------------------------------------------------------------------------
 
-class TestPostingMatches(unittest.TestCase):
-    """Unit tests for the _posting_matches helper."""
+class TestPostingMatchesRetired(unittest.TestCase):
+    """Stage C Phase 8 (§5.1d): _posting_matches must have zero remaining
+    callers/importers anywhere in ledgerkit/ -- confirmed statically, not
+    merely by "existing tests still pass" (a stale but unused import could
+    otherwise go unnoticed)."""
 
-    def setUp(self):
-        self.txn = _txn("2024-02-10", "Supermarket", [
-            ("expenses:food:groceries", "£150.00"),
-            ("assets:bank:checking", "-£150.00"),
-        ])
-        self.food_posting = self.txn.postings[0]
-        self.bank_posting = self.txn.postings[1]
+    def test_no_references_anywhere_in_ledgerkit_package(self):
+        pkg_dir = os.path.dirname(ledgerkit.__file__)
+        offenders = []
+        for root, _dirs, files in os.walk(pkg_dir):
+            for name in files:
+                if not name.endswith(".py"):
+                    continue
+                path = os.path.join(root, name)
+                with open(path, encoding="utf-8") as fh:
+                    text = fh.read()
+                if "_posting_matches(" in text or "import _posting_matches" in text:
+                    offenders.append(path)
+        self.assertEqual(offenders, [], f"_posting_matches still referenced in: {offenders}")
 
-    def test_none_query_matches_all(self):
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, None))
-        self.assertTrue(_posting_matches(self.bank_posting, self.txn, None))
-
-    def test_empty_query_matches_all(self):
-        q = Query()
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
-
-    def test_account_filter_match(self):
-        q = Query(account="expenses")
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
-
-    def test_account_filter_no_match(self):
-        q = Query(account="expenses")
-        self.assertFalse(_posting_matches(self.bank_posting, self.txn, q))
-
-    def test_not_account_filter(self):
-        q = Query(not_account="assets")
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
-        self.assertFalse(_posting_matches(self.bank_posting, self.txn, q))
-
-    def test_depth_filter_includes_shallow(self):
-        # expenses:food:groceries has depth 3; depth=3 should include it
-        q = Query(depth=3)
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
-
-    def test_depth_is_never_excluded_by_posting_matches(self):
-        # Stage C Phase 5: query.depth must NEVER exclude a posting —
-        # depth is a display option (see reports._effective_depth_spec/
-        # ledgerkit.query.depth.clip_account_name), applied by the report
-        # functions themselves, not by this shared matching helper. Before
-        # this phase, register()/accounts() (unlike balance()) incorrectly
-        # excluded via this exact code path — a real pre-existing bug,
-        # distinct from the -q "depth:" divergence; see
-        # dev-docs/planning/core-redefinition/
-        # 21-stage-c-phase-5-depth-and-verification-plan.md §1.2b.
-        q = Query(depth=2)
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
-
-    def test_date_from_filter(self):
-        q = Query(date_from=datetime.date(2024, 2, 10))
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
-        q_after = Query(date_from=datetime.date(2024, 2, 11))
-        self.assertFalse(_posting_matches(self.food_posting, self.txn, q_after))
-
-    def test_date_to_filter(self):
-        q = Query(date_to=datetime.date(2024, 2, 10))
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
-        q_before = Query(date_to=datetime.date(2024, 2, 9))
-        self.assertFalse(_posting_matches(self.food_posting, self.txn, q_before))
-
-    def test_payee_filter(self):
-        q = Query(payee="Supermarket")
-        self.assertTrue(_posting_matches(self.food_posting, self.txn, q))
-        q_no = Query(payee="Coffee")
-        self.assertFalse(_posting_matches(self.food_posting, self.txn, q_no))
+    def test_function_no_longer_exists_on_reports_module(self):
+        import ledgerkit.reports as reports_module
+        self.assertFalse(hasattr(reports_module, "_posting_matches"))
 
 
 # ---------------------------------------------------------------------------
@@ -627,6 +593,48 @@ class TestStatsModuleLevel(unittest.TestCase):
         self.assertEqual(result.transaction_count, 2)
 
 
+class TestStatsAccountFilterCorrection(unittest.TestCase):
+    """Stage C Phase 8 (§5.1c): stats(query=Query(account=...)) now applies
+    account/not_account filters -- previously a silently-ignored, documented
+    gap. filtered.journal: 6 transactions; only "Supermarket" (2024-02-10)
+    and "Coffee" (2024-02-20) have a posting touching "food"; every
+    transaction has an assets:bank:checking posting.
+
+    A before/after pair, as required by the design's own §11: one confirming
+    the old silently-ignored behaviour no longer applies, one confirming the
+    new filtered count.
+    """
+
+    def setUp(self):
+        self.journal = load_journal(FILTERED_JOURNAL)
+
+    def test_account_filter_no_longer_silently_ignored(self):
+        # Before this phase, Query(account=...) had zero effect on stats --
+        # transaction_count would equal the full, unfiltered 6. That must no
+        # longer be true.
+        full_count = stats(self.journal).transaction_count
+        filtered_count = stats(self.journal, query=Query(account="food")).transaction_count
+        self.assertNotEqual(filtered_count, full_count)
+
+    def test_account_filter_matches_acct_query_ast_semantics(self):
+        # New behaviour: identical to what -q "acct:food" stats (via
+        # _query_ast) already did before this phase -- "any posting matches"
+        # per-transaction semantics.
+        from ledgerkit.query.ast import Acct
+        result = stats(self.journal, query=Query(account="food"))
+        expected = stats(self.journal, _query_ast=Acct("food"))
+        self.assertEqual(result.transaction_count, 2)
+        self.assertEqual(result.transaction_count, expected.transaction_count)
+
+    def test_not_account_filter_now_applied(self):
+        # Every transaction in filtered.journal has an assets:bank:checking
+        # posting, so excluding "assets" now excludes every transaction --
+        # previously this field had no effect at all (transaction_count
+        # would have stayed 6).
+        result = stats(self.journal, query=Query(not_account="assets"))
+        self.assertEqual(result.transaction_count, 0)
+
+
 # ---------------------------------------------------------------------------
 # ReportSpec and ReportSection dataclasses
 # ---------------------------------------------------------------------------
@@ -837,6 +845,301 @@ class TestBalanceFromSpec(unittest.TestCase):
         results = balance_from_spec(self.journal, spec)
         self.assertEqual(results[0].subtotal, Decimal("0"))
         self.assertEqual(results[0].rows, {})
+
+
+# ---------------------------------------------------------------------------
+# balance_from_spec() — outer query convergence (Stage C Phase 8, §5.1b):
+# the outer query.account/.not_account/.payee now reach the same canonical
+# ledgerkit.query.compat._query_to_ast + matches_posting engine as balance/
+# register/accounts/stats, replacing balance_from_spec's own separate inline
+# _matches_pattern-based check. ReportSection.accounts/.exclude remain the
+# one deliberately separate construct (still _matches_pattern, refactored
+# to route through compile_hledger_regex -- see TestReportSectionHledger
+# RegexValidation below).
+# ---------------------------------------------------------------------------
+
+class TestBalanceFromSpecOuterQueryConvergence(unittest.TestCase):
+
+    def setUp(self):
+        self.journal = load_journal(FILTERED_JOURNAL)
+
+    def _expenses_spec(self) -> ledgerkit.ReportSpec:
+        return ledgerkit.ReportSpec(
+            name="Expenses only",
+            sections=(
+                ledgerkit.ReportSection("Expenses", accounts=("expenses",)),
+            ),
+        )
+
+    def test_outer_query_account_filter_still_works(self):
+        # Parity check: an ordinary outer query.account filter still narrows
+        # results exactly as before the migration to the canonical engine.
+        spec = self._expenses_spec()
+        results = balance_from_spec(self.journal, spec, query=Query(account="food"))
+        section_result = results[0]
+        self.assertIn("expenses:food:groceries", section_result.rows)
+        self.assertIn("expenses:food:coffee", section_result.rows)
+        self.assertNotIn("expenses:housing:rent", section_result.rows)
+
+    def test_outer_query_not_account_filter_still_works(self):
+        spec = self._expenses_spec()
+        results = balance_from_spec(self.journal, spec, query=Query(not_account="food"))
+        section_result = results[0]
+        self.assertIn("expenses:housing:rent", section_result.rows)
+        self.assertNotIn("expenses:food:groceries", section_result.rows)
+        self.assertNotIn("expenses:food:coffee", section_result.rows)
+
+    def test_outer_query_payee_filter_still_works(self):
+        spec = self._expenses_spec()
+        results = balance_from_spec(self.journal, spec, query=Query(payee="Coffee"))
+        section_result = results[0]
+        self.assertIn("expenses:food:coffee", section_result.rows)
+        self.assertNotIn("expenses:food:groceries", section_result.rows)
+        self.assertNotIn("expenses:housing:rent", section_result.rows)
+
+    def test_outer_query_date_filter_parity_with_prior_behaviour(self):
+        # Existing coverage (TestBalanceFromSpec.
+        # test_outer_query_date_filter_applies_to_all_sections) already
+        # exercises this; repeated here to anchor it explicitly to the
+        # outer-query convergence (date filtering moved from a per-
+        # transaction short-circuit to a per-posting DateSpan check --
+        # a disclosed, harmless performance difference only, per §5.1b).
+        spec = self._income_expenses_spec_compat()
+        results = balance_from_spec(
+            self.journal,
+            spec,
+            query=Query(date_from=datetime.date(2024, 1, 1), date_to=datetime.date(2024, 1, 31)),
+        )
+        income_result, expense_result = results
+        self.assertEqual(income_result.subtotal, Decimal("3000.00"))
+        self.assertEqual(expense_result.subtotal, Decimal("0"))
+
+    def _income_expenses_spec_compat(self) -> ledgerkit.ReportSpec:
+        return ledgerkit.ReportSpec(
+            name="Income Statement",
+            sections=(
+                ledgerkit.ReportSection("Income",   accounts=("income",),   invert=True),
+                ledgerkit.ReportSection("Expenses", accounts=("expenses",)),
+            ),
+        )
+
+    def test_excluded_construct_in_outer_query_raises(self):
+        # Option A convergence: an excluded HledgerRegex construct in the
+        # outer query now raises here too, exactly like balance()/register().
+        spec = self._expenses_spec()
+        with self.assertRaises(QueryParseError):
+            balance_from_spec(self.journal, spec, query=Query(account=r"\d+"))
+
+    def test_excluded_construct_raises_even_with_zero_sections(self):
+        # Eager validation: the outer query is translated once, before the
+        # per-section loop -- it must raise even when spec.sections is empty.
+        spec = ledgerkit.ReportSpec(name="Empty", sections=())
+        with self.assertRaises(QueryParseError):
+            balance_from_spec(self.journal, spec, query=Query(account=r"\d+"))
+
+
+# ---------------------------------------------------------------------------
+# ReportSection.accounts/.exclude -- the one construct still using
+# _matches_pattern, now HledgerRegex-validated (Stage C Phase 8, §5.1b).
+# ---------------------------------------------------------------------------
+
+class TestReportSectionHledgerRegexValidation(unittest.TestCase):
+
+    def setUp(self):
+        self.journal = load_journal(FILTERED_JOURNAL)
+
+    def test_excluded_construct_in_section_accounts_raises(self):
+        spec = ledgerkit.ReportSpec(
+            name="Bad",
+            sections=(ledgerkit.ReportSection("Bad", accounts=(r"\d+",)),),
+        )
+        with self.assertRaises(Exception):
+            balance_from_spec(self.journal, spec)
+
+    def test_empty_pattern_in_section_accounts_raises(self):
+        spec = ledgerkit.ReportSpec(
+            name="Bad",
+            sections=(ledgerkit.ReportSection("Bad", accounts=("",)),),
+        )
+        with self.assertRaises(Exception):
+            balance_from_spec(self.journal, spec)
+
+    def test_excluded_construct_in_section_exclude_raises(self):
+        spec = ledgerkit.ReportSpec(
+            name="Bad",
+            sections=(
+                ledgerkit.ReportSection("Bad", accounts=("expenses",), exclude=(r"\d+",)),
+            ),
+        )
+        with self.assertRaises(Exception):
+            balance_from_spec(self.journal, spec)
+
+    def test_ordinary_patterns_still_accepted(self):
+        # Regression guard: the refactor to compile_hledger_regex must not
+        # break any ordinary, already-portable pattern.
+        spec = ledgerkit.ReportSpec(
+            name="Food",
+            sections=(ledgerkit.ReportSection("Food", accounts=("expenses",), exclude=("housing",)),),
+        )
+        results = balance_from_spec(self.journal, spec)
+        self.assertIn("expenses:food:groceries", results[0].rows)
+        self.assertNotIn("expenses:housing:rent", results[0].rows)
+
+
+# ---------------------------------------------------------------------------
+# Deprecated Journal.balance(accounts=[...])/.register(accounts=[...]) shim
+# (Stage C Phase 8, §5.1a) -- zero/one/many, all three explicit cases.
+# Previously untested for the zero- and many-accounts cases (§2 of the
+# design), which is exactly where a real bug (Or(()) matching nothing for
+# accounts=[], and a (?:...)-based synthesis rejected outright by
+# HledgerRegex for two-or-more accounts) was found and fixed.
+# ---------------------------------------------------------------------------
+
+class TestDeprecatedAccountsShim(unittest.TestCase):
+
+    def setUp(self):
+        self.journal = load_journal(FILTERED_JOURNAL)
+
+    def test_balance_zero_accounts_is_no_filter(self):
+        # Must behave exactly like query=None/no filter -- explicitly NOT
+        # Or(()), which would match nothing (the opposite of "no filter").
+        via_shim = self.journal.balance(accounts=[])
+        via_no_filter = self.journal.balance()
+        self.assertEqual(via_shim, via_no_filter)
+        self.assertTrue(len(via_shim) > 0)
+
+    def test_register_zero_accounts_is_no_filter(self):
+        via_shim = self.journal.register(accounts=[])
+        via_no_filter = self.journal.register()
+        self.assertEqual(len(via_shim), len(via_no_filter))
+        self.assertTrue(len(via_shim) > 0)
+
+    def test_balance_one_account_unchanged_regex_passthrough(self):
+        via_shim = self.journal.balance(accounts=["food"])
+        via_query = self.journal.balance(query=Query(account="food"))
+        self.assertEqual(via_shim, via_query)
+        self.assertIn("expenses:food:groceries", via_shim)
+        self.assertIn("expenses:food:coffee", via_shim)
+
+    def test_register_one_account_unchanged_regex_passthrough(self):
+        via_shim = self.journal.register(accounts=["food"])
+        via_query = self.journal.register(query=Query(account="food"))
+        self.assertEqual([r.account for r in via_shim], [r.account for r in via_query])
+
+    def test_balance_many_accounts_or_union_does_not_raise(self):
+        # Two-or-more accounts: previously synthesized a (?:...)-based regex
+        # string, which HledgerRegex now rejects outright (Option A) -- this
+        # must NOT raise, and must build an Or(...) AST instead.
+        result = self.journal.balance(accounts=["food", "housing"])
+        self.assertIn("expenses:food:groceries", result)
+        self.assertIn("expenses:food:coffee", result)
+        self.assertIn("expenses:housing:rent", result)
+        self.assertNotIn("assets:bank:checking", result)
+
+    def test_register_many_accounts_or_union_does_not_raise(self):
+        rows = self.journal.register(accounts=["food", "housing"])
+        accounts_seen = {r.account for r in rows}
+        self.assertTrue(accounts_seen <= {
+            "expenses:food:groceries", "expenses:food:coffee", "expenses:housing:rent",
+        })
+        self.assertTrue(len(rows) > 0)
+
+    def test_balance_many_accounts_matches_union_of_single_account_queries(self):
+        many = self.journal.balance(accounts=["food", "housing"])
+        food = self.journal.balance(query=Query(account="food"))
+        housing = self.journal.balance(query=Query(account="housing"))
+        expected_keys = set(food.keys()) | set(housing.keys())
+        self.assertEqual(set(many.keys()), expected_keys)
+
+    def test_many_accounts_with_metacharacter_names_escaped_and_valid(self):
+        # re.escape'd literals must themselves remain HledgerRegex-portable
+        # (plain backslash-escaped literals are not an excluded construct)
+        # and must not raise even though the account names below contain
+        # regex metacharacters.
+        journal = _journal(
+            _txn("2024-01-01", "x", [
+                ("assets.cash", "£10.00"),
+                ("equity.open", "-£10.00"),
+            ])
+        )
+        result = journal.balance(accounts=["assets.cash", "equity.open"])
+        self.assertIn("assets.cash", result)
+        self.assertIn("equity.open", result)
+
+
+# ---------------------------------------------------------------------------
+# Query -- Option A HledgerRegex strictness (Stage C Phase 8, §6): Query.
+# account/.not_account/.payee now converge onto the same compile_hledger_
+# regex validation acct:/desc: already use, across every converged consumer.
+# ---------------------------------------------------------------------------
+
+class TestQueryHledgerRegexStrictness(unittest.TestCase):
+
+    def setUp(self):
+        self.journal = load_journal(FILTERED_JOURNAL)
+        self.empty_journal = parse_string("")
+
+    def test_balance_excluded_construct_raises(self):
+        with self.assertRaises(QueryParseError):
+            balance(self.journal, query=Query(account=r"\d+"))
+
+    def test_register_excluded_construct_raises(self):
+        with self.assertRaises(QueryParseError):
+            register(self.journal, query=Query(account=r"\d+"))
+
+    def test_accounts_excluded_construct_raises(self):
+        with self.assertRaises(QueryParseError):
+            accounts(self.journal, query=Query(account=r"\d+"))
+
+    def test_stats_excluded_construct_raises(self):
+        with self.assertRaises(QueryParseError):
+            stats(self.journal, query=Query(account=r"\d+"))
+
+    def test_matches_same_error_as_query_ast_string_form(self):
+        # Genuine convergence, not merely "similar-looking" behaviour: a
+        # Query.account value using an excluded construct now raises the
+        # same kind of error a `-q "acct:\d+"` query already does.
+        from ledgerkit.query.parser import parse as parse_query_string
+        with self.assertRaises(QueryParseError):
+            parse_query_string(r"acct:\d+")
+        with self.assertRaises(QueryParseError):
+            balance(self.journal, query=Query(account=r"\d+"))
+
+    def test_raises_deterministically_even_against_empty_journal(self):
+        # Eager validation regression guard (§5.1a): the old bare-Acct(...)
+        # design would only have failed lazily, at evaluation time -- which,
+        # for an empty journal (zero transactions/postings), would never be
+        # reached at all, silently masking an invalid pattern.
+        self.assertEqual(len(self.empty_journal.transactions), 0)
+        with self.assertRaises(QueryParseError):
+            balance(self.empty_journal, query=Query(account=r"\d+"))
+        with self.assertRaises(QueryParseError):
+            register(self.empty_journal, query=Query(account=r"\d+"))
+        with self.assertRaises(QueryParseError):
+            accounts(self.empty_journal, query=Query(account=r"\d+"))
+        with self.assertRaises(QueryParseError):
+            stats(self.empty_journal, query=Query(account=r"\d+"))
+
+    def test_empty_account_pattern_raises_stage_c_phase_7_consistency(self):
+        # Matches -q "acct:"'s own Phase 7 behaviour -- rather than silently
+        # matching every posting, as Query(account="") used to.
+        with self.assertRaises(QueryParseError):
+            balance(self.journal, query=Query(account=""))
+
+    def test_empty_payee_pattern_raises(self):
+        with self.assertRaises(QueryParseError):
+            balance(self.journal, query=Query(payee=""))
+
+    def test_empty_not_account_pattern_raises(self):
+        with self.assertRaises(QueryParseError):
+            balance(self.journal, query=Query(not_account=""))
+
+    def test_ordinary_valid_patterns_are_unaffected(self):
+        # Regression guard: every existing direct Query(...) construction in
+        # this file (plain substrings and HledgerRegex-portable anchors)
+        # must continue to work unchanged.
+        result = balance(self.journal, query=Query(account="^expenses"))
+        self.assertIn("expenses:food:groceries", result)
 
 
 # ---------------------------------------------------------------------------

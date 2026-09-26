@@ -98,6 +98,56 @@ class TestJournalToDataFrame(unittest.TestCase):
         for _, row in df.iterrows():
             self.assertLessEqual(row["date"], datetime.date(2024, 1, 31))
 
+    def test_query_date_to_still_includes_transaction_dated_exactly_date_to(self):
+        # Query.date_to is inclusive; confirms the migration to
+        # ledgerkit.query.compat._query_to_ast preserved that semantics
+        # (DateSpan.end is exclusive -- the translator adds one day).
+        import datetime
+        from ledgerkit.models import Query
+        df = self.journal.to_dataframe(query=Query(date_to=datetime.date(2024, 1, 15)))
+        self.assertTrue((df["date"] == datetime.date(2024, 1, 15)).any())
+
+
+@unittest.skipUnless(HAS_PANDAS, "pandas not installed")
+class TestJournalToDataFrameQueryConvergence(unittest.TestCase):
+    """Stage C Phase 8 (§5.1d): to_dataframe migrated from reports.
+    _posting_matches to ledgerkit.query.compat._query_to_ast + matches_posting."""
+
+    def setUp(self):
+        self.journal = _make_journal(_SAMPLE_JOURNAL)
+        self.empty_journal = _make_journal("")
+
+    def test_excluded_construct_raises(self):
+        from ledgerkit.models import Query
+        from ledgerkit.query.parser import QueryParseError
+        with self.assertRaises(QueryParseError):
+            self.journal.to_dataframe(query=Query(account=r"\d+"))
+
+    def test_excluded_construct_raises_deterministically_before_any_row_built(self):
+        # Eager-validation regression guard: must raise even against an
+        # empty journal (zero transactions/postings), where the old
+        # _posting_matches-based per-posting loop would never have run at
+        # all, silently never validating anything.
+        from ledgerkit.models import Query
+        from ledgerkit.query.parser import QueryParseError
+        self.assertEqual(len(self.empty_journal.transactions), 0)
+        with self.assertRaises(QueryParseError):
+            self.empty_journal.to_dataframe(query=Query(account=r"\d+"))
+
+    def test_empty_pattern_raises(self):
+        from ledgerkit.models import Query
+        from ledgerkit.query.parser import QueryParseError
+        with self.assertRaises(QueryParseError):
+            self.journal.to_dataframe(query=Query(account=""))
+
+    def test_valid_query_still_produces_expected_rows(self):
+        # Parity with the pre-migration _posting_matches-based implementation.
+        from ledgerkit.models import Query
+        df = self.journal.to_dataframe(query=Query(account="expenses"))
+        self.assertTrue(len(df) > 0)
+        for _, row in df.iterrows():
+            self.assertIn("expenses", row["account"])
+
 
 @unittest.skipUnless(HAS_PANDAS, "pandas not installed")
 class TestBalanceResultToDataFrame(unittest.TestCase):
