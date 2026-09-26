@@ -1,72 +1,28 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Stage C Phase 8 (`Query`-as-compatibility-shim convergence) — implementation,
-independent verification, AND a post-verification overclaim correction
-(with its own second independent re-verification) are all complete.
-`LK-COMPAT-QUERY-SHIM-001` is `status: verified` on the corrected, narrower
-claim. `docs-maintainer` has just reconciled all current-truth docs against
-this final state. `[DONE]` for the phase (and for Stage C) remains the
-user's own call, not inferred here.
+Stage C Phase 8 (`Query`-as-compatibility-shim convergence) is **`[DONE]`**
+(user-confirmed 2026-09-26) — design, implementation, independent
+verification, a compat-register overclaim correction with its own
+independent re-verification, `docs-maintainer` reconciliation,
+`docs-reconstructor` drift audit (NO DRIFT), and `release-phase-auditor`
+Definition-of-Done audit (PASS) are all complete. Stage C itself remains
+`[IN PROGRESS]`; not marked done.
 
 ## Where We Are
-Everything committed and pushed to `main` through `d12e24e`:
-- `dcac520`/`0852c6f`/`7b9b358`/`a4c5917` — implementation, tests, doc sync,
-  retro/changelog/roadmap (implementing agent)
-- `38eefe0` — independent verification (`compat-differential-tester`):
-  `LK-COMPAT-QUERY-SHIM-001` promoted `proposed` → `verified`, new fixture
-  `tests/fixtures/query_shim_differential.journal`, retro Addendum 1
-- `d12e24e` — post-verification correction: item 6's "preserved for every
-  input" claim was overbroad (a single-account, Python-only-regex value
-  like `accounts=[r"\d+"]` now intentionally raises `QueryParseError`,
-  where it previously worked via the old permissive matcher). Corrected
-  the compat-register entry, the design doc (§5.2 item 6), and
-  `dev-docs/api-spec.md`; a second, separate `compat-differential-tester`
-  dispatch re-verified all four shim cases directly; two missing
-  regression tests added.
-- This response's commit (about to land) — `docs-maintainer` pass:
-  confirmed `dev-docs/architecture.md`, `dev-docs/hledger-compatibility.md`,
-  `docs/python-api.md`, `knowledge/DECISIONS.md`, `knowledge/DOMAIN_RULES.md`
-  needed no changes (no overclaim repeated, all accurate against source);
-  added the missing `CHANGELOG.md` entry for the `d12e24e` correction;
-  updated `ROADMAP.md`'s Stage C row with the correction + re-verification;
-  added Addendum 2 to `STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md`
-  retro; rewrote this file.
+Everything committed and pushed to `main`. Full commit sequence for this
+phase: `fbde262`→`baace1a` (design + amendments)→`dcac520`/`0852c6f`/
+`7b9b358`/`a4c5917` (implementation/tests/docs/retro)→`38eefe0`
+(independent verification)→`d12e24e` (overclaim correction + re-
+verification + 2 new tests)→`12af5cf` (docs-maintainer reconciliation)→
+this response's commit (closeout: `[DONE]` marking, knowledge entry).
 
-899 tests passing throughout (up from 897 after Phase 8 implementation,
-up from 844 before Phase 8).
+899 tests passing throughout; unaffected by this closeout pass.
 
 ## Decisions In Flight
-None blocking. Two things await a human call, neither urgent:
-- Whether/when to mark Stage C Phase 8 `[DONE]` in `ROADMAP.md` — user's
-  own call, not inferred by Claude.
-- What Stage C's next phase should be — the backlog (below) has two
-  named items, none yet scoped.
-
-## Compat-register final state (this phase)
-- `LK-COMPAT-QUERY-SHIM-001` — `kind: compatible`, `status: verified`,
-  on the **corrected** claim: `accounts=[]` stays no-filter, an ordinary
-  `HledgerRegex`-portable single-account pattern is unchanged, a
-  Python-only single-account regex now intentionally rejects, and
-  two-or-more accounts retain OR-matching via the `Or(...)` AST — NOT
-  "preserved for every input," the original, now-corrected overclaim.
-  Independently confirmed twice: the design's eight highest-risk claims
-  (Addendum 1) and, separately, all four deprecated-shim cases
-  specifically (Addendum 2/the second evidence entry).
-
-## Files Currently Relevant
-- `dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml` — `status:
-  verified` on the corrected claim; not touched by docs-maintainer
-  (compat-differential-tester's domain).
-- `dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md` —
-  implementation retro + Addendum 1 (verification) + Addendum 2
-  (correction cycle), all dated 2026-09-26.
-- `dev-docs/api-spec.md` — `accounts=[...]` note corrected in `d12e24e`;
-  confirmed accurate against source this pass.
-- `ledgerkit/query/compat.py` — the translator module
-  (`_query_to_ast`/`_validated`/`_exclusive_end`), independently verified.
-- `ledgerkit/models.py` — `Journal.balance`/`.register`'s deprecated
-  `accounts=[...]` shim, zero/one/many handling (lines ~401-466).
+None. Phase 8 is closed. Next open decision is which Stage C backlog
+item to scope next — not started here, per explicit instruction not to
+begin the next phase in this task.
 
 ## Remaining Stage C backlog (unchanged, none scoped yet)
 1. `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` — the empty-alternation-branch
@@ -77,29 +33,49 @@ None blocking. Two things await a human call, neither urgent:
 Non-blocking, unscoped unless separately promoted: `cur:`, smart/period
 dates, a standalone `--depth`/`-N` CLI flag.
 
+One further, genuinely unrelated, pre-existing, out-of-scope item noted
+by `docs-reconstructor` during Phase 8's drift audit (not caused by
+Phase 8, not fixed here): `docs/python-api.md` line ~154's `Query`
+field-table wording says depth "excludes deeper accounts" for
+`accounts()`/`register()` — this predates Stage C Phase 5's `depth:`
+redesign (which made depth a display-clipping option, never an
+exclusion, for `register`) and was never corrected when that redesign
+landed. Worth its own small fix, whenever convenient — not blocking
+anything.
+
+## Files Currently Relevant
+- `dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml` — final state:
+  `kind: compatible`, `status: verified`, corrected item-6 claim,
+  independently re-verified twice.
+- `dev-docs/retros/STAGE-C-PHASE-8-QUERY-SHIM-IMPLEMENTATION.md` —
+  base + two addenda (independent verification; overclaim-correction
+  cycle).
+- `knowledge/DECISIONS.md` — new entry on the process lesson from this
+  phase's overclaim (verification checks what's tested, not every
+  written claim — write narrower, more falsifiable compat-register
+  claims going forward).
+
 ## Blockers / Open Questions
-None blocking further work on this phase — it's complete, including the
-correction cycle.
+None blocking. The `docs/python-api.md` depth-wording item above is
+open but non-blocking and unrelated to Phase 8.
 
 ## What NOT To Revisit
-- Don't re-verify the Query-shim convergence — independently confirmed
-  clean, twice (the original 8-point matrix, and the corrected item 6's
-  own dedicated second re-check).
-- Don't re-derive the zero-accounts-must-not-become-`Or(())` fix — now
-  confirmed independently, three times over (design review, first
-  verification dispatch, second verification dispatch).
-- Don't re-litigate whether the deprecated `accounts=[...]` shim
-  "preserves all previous behaviour" — it does NOT, for the
-  Python-only-regex single-account case; this is now the settled,
-  corrected, doubly-verified claim.
-- Don't touch `LK-MISMATCH-QUERY-REGEX-EMPTYALT-001` — separate,
-  unrelated, explicitly out of scope, still open.
-- Don't mark Stage C Phase 8 `[DONE]` unilaterally — only the user's
-  explicit statement does that, per `CLAUDE.md`'s standing rule.
+- Don't re-open Phase 8 — fully closed, user-confirmed `[DONE]`.
+- Don't re-verify the Query-shim convergence or the corrected wrapper
+  claim again — both independently confirmed clean, twice each.
+- Don't mark Stage C itself `[DONE]` — only Phase 8 is done.
+- Don't fix the pre-existing `docs/python-api.md` depth-wording drift as
+  part of "Phase 8 cleanup" — it's unrelated, predates this phase, and
+  was correctly left out of scope by the drift audit and release audit
+  alike. Fix it separately if/when asked.
+- When writing a future compat-register `reason:` field, avoid broad
+  unfalsified claims ("preserved for every X") — name the specific
+  cases actually verified instead (see the new `knowledge/DECISIONS.md`
+  entry for the full rationale).
 
 ## Recent Git State (before this response's commit)
+12af5cf docs: reconcile Phase 8 docs after compat-register correction (Stage C Phase 8)
 d12e24e fix: correct Stage C Phase 8 compat-register overclaim on accounts=[...]
 38eefe0 test: independently verify Stage C Phase 8 Query-shim convergence
 a4c5917 docs: retro, changelog, and roadmap for Query-shim implementation (Stage C Phase 8)
 7b9b358 docs: sync docs and compat-register for Query-shim convergence (Stage C Phase 8)
-0852c6f test: cover Query-shim convergence (Stage C Phase 8)

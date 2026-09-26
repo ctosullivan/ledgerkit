@@ -1019,3 +1019,48 @@ convention):**
 `ledgerkit/reports.py`, `dev-docs/api-spec.md`,
 `dev-docs/architecture.md`, `dev-docs/hledger-compatibility.md`,
 `dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml`
+
+---
+
+## 2026-09-26 — An independently-verified compat-register entry can still overclaim; verification checks the claims tested, not every claim written
+
+**Decision:** no code or process change — this is a recorded process
+lesson from Stage C Phase 8. `LK-COMPAT-QUERY-SHIM-001` reached
+`status: verified` (a genuinely separate `compat-differential-tester`
+dispatch, real fixture, real commands) with one sentence in its `reason:`
+field still overclaiming: "public behaviour is preserved for every input
+the wrapper could previously accept without raising." The first
+verification dispatch never specifically tested a single-account,
+Python-only-regex value (`accounts=[r"\d+"]`) against the deprecated
+`Journal.balance`/`.register(accounts=[...])` wrapper — it verified the
+zero/one/many cases and the multi-account literal-OR behaviour, all of
+which held, but the broader "every input" claim was never itself an
+individual test target. A later review caught the mismatch between what
+was written and what was actually true; a second, targeted independent
+re-verification confirmed the corrected, narrower claim and closed a
+real gap in test coverage the first pass had also missed
+(`test_balance`/`test_register_one_account_excluded_construct_now_raises`).
+
+**Why this matters:** `status: verified` certifies that the claims a
+dispatch actually tested are true, not that every sentence in the
+entry's prose is true — a broad summary sentence ("preserved for every
+input") is itself a claim that needs its own explicit test, not an
+inference from several narrower passing tests. The gap here was not a
+failure of independence (the dispatch was genuinely separate and did
+real work) — it was a gap in what the dispatch's own brief asked it to
+check.
+
+**Implication:** when writing a compat-register entry's `reason:` field,
+avoid unfalsified summary claims ("preserved for every X") unless a
+specific test/differential run actually targets that exact claim: prefer
+naming the specific cases verified (e.g. "zero accounts: no filter;
+ordinary single account: unchanged; two-or-more accounts: OR-matching")
+over a single broad sentence that sounds like it covers more ground than
+was actually tested. When dispatching `compat-differential-tester` for
+verification, enumerate the exact claims to check rather than a general
+"confirm this entry is accurate" brief — a broad brief is more likely to
+under-specify the input space a broad written claim implies.
+
+**Applies to:** `dev-docs/compat-register/schema.md` (the `reason:`
+field's own guidance), `09-compatibility-system.md` §9.6 (verification-
+dispatch brief-writing practice)

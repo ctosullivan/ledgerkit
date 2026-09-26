@@ -9,6 +9,21 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Stage C Phase 8 — marked `[DONE]`] — 2026-09-26
+
+Full detail: `ROADMAP.md`'s Stage C row
+
+**Human:** confirmed Stage C Phase 8 (`Query`-as-compatibility-shim
+convergence) complete.
+
+**Claude:** marked Phase 8 `[DONE]` in `ROADMAP.md` (Stage C row itself
+stays `[IN PROGRESS]`). This followed a `docs-maintainer` reconciliation
+pass, an independent `docs-reconstructor` drift audit (NO DRIFT for
+this phase), and an independent `release-phase-auditor` Definition-of-
+Done audit (PASS, all nine checklist items independently confirmed) —
+all run after the compat-register overclaim correction below. No
+`ledgerkit/`/`tests/` code touched by this closeout.
+
 ### [Stage C Phase 8 — compat-register overclaim correction] — 2026-09-26
 
 Full detail: [dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml](dev-docs/compat-register/LK-COMPAT-QUERY-SHIM-001.yaml)'s "CORRECTION, 2026-09-26" note and second evidence entry
