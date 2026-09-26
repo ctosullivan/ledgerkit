@@ -397,14 +397,42 @@ class Journal:
                   dict[str, dict[str, Decimal]] (account → commodity → net).
         """
         from ledgerkit.reports import balance as _balance
-        # Deprecated 'accounts' param: convert to Query for backward compat.
+        # Deprecated 'accounts' param: convert to Query (or, for two-or-more
+        # accounts, a direct Or(...) AST bypassing Query entirely) for
+        # backward compat -- Stage C Phase 8, see
+        # ledgerkit/query/compat.py and knowledge/DECISIONS.md. Three
+        # explicit cases, not two -- see the len(accounts) == 0 comment
+        # below for why that case can't be folded into the "many accounts"
+        # branch.
         if accounts is not None and query is None:
-            import re as _re
-            if len(accounts) == 1:
-                query = Query(account=accounts[0])
+            if len(accounts) == 0:
+                pass  # No accounts given -- preserve today's effective
+                      # no-filter behaviour explicitly. Do NOT fall through
+                      # to the Or(...) branch below: Or(()) matches
+                      # nothing, the opposite of "no filter" (a real bug
+                      # found and fixed during this phase's own design
+                      # review -- see knowledge/DECISIONS.md). query stays
+                      # None, so _balance(self, None, tree=tree) below is
+                      # reached, matching query=None's own "no filter"
+                      # meaning everywhere else.
+            elif len(accounts) == 1:
+                query = Query(account=accounts[0])   # unchanged: single-
+                                                      # account case stays a
+                                                      # raw, unescaped regex
+                                                      # passthrough -- now
+                                                      # HledgerRegex-
+                                                      # validated via
+                                                      # _query_to_ast like
+                                                      # any other
+                                                      # Query.account value.
             else:
-                pattern = "|".join(f"(?:{_re.escape(a)})" for a in accounts)
-                query = Query(account=pattern)
+                from ledgerkit.query.ast import Acct, Or
+                from ledgerkit.query.compat import _validated
+                import re as _re
+                terms = tuple(
+                    Acct(_validated("account", _re.escape(a))) for a in accounts
+                )
+                return _balance(self, query=None, _query_ast=Or(terms), tree=tree)
         return _balance(self, query, tree=tree)
 
     def register(
@@ -421,14 +449,21 @@ class Journal:
                    accounts when both are supplied.
         """
         from ledgerkit.reports import register as _register
-        # Deprecated 'accounts' param: convert to Query for backward compat.
+        # Deprecated 'accounts' param: same zero/one/many handling as
+        # balance() above -- see its comments for the rationale.
         if accounts is not None and query is None:
-            import re as _re
-            if len(accounts) == 1:
+            if len(accounts) == 0:
+                pass  # No accounts given -- no filter (see balance() above).
+            elif len(accounts) == 1:
                 query = Query(account=accounts[0])
             else:
-                pattern = "|".join(f"(?:{_re.escape(a)})" for a in accounts)
-                query = Query(account=pattern)
+                from ledgerkit.query.ast import Acct, Or
+                from ledgerkit.query.compat import _validated
+                import re as _re
+                terms = tuple(
+                    Acct(_validated("account", _re.escape(a))) for a in accounts
+                )
+                return _register(self, query=None, _query_ast=Or(terms))
         return _register(self, query)
 
     def accounts(self) -> list[str]:
@@ -448,17 +483,26 @@ class Journal:
                  amount (Decimal|None), commodity (str|None),
                  amount_formatted (str|None).
 
-        Accepts an optional Query to pre-filter the data.
+        Accepts an optional Query to pre-filter the data -- translated once
+        via ledgerkit.query.compat._query_to_ast and evaluated through
+        ledgerkit.query.eval.matches_posting, the same canonical path
+        balance()/register()/accounts()/stats() use (Stage C Phase 8;
+        previously this called reports._posting_matches directly). An
+        invalid Query field (an excluded HledgerRegex construct, or an
+        empty pattern) now raises QueryParseError deterministically here,
+        even against an empty journal -- see knowledge/DECISIONS.md.
         Requires pandas: pip install ledgerkit[pandas]
         """
         from ledgerkit._pandas_compat import require_pandas
         pd = require_pandas()
-        from ledgerkit.reports import _posting_matches
+        from ledgerkit.query.compat import _query_to_ast
+        from ledgerkit.query.eval import matches_posting as _matches_posting
         styles = self.commodity_styles
+        _ast = _query_to_ast(query)
         rows = []
         for txn in self.transactions:
             for p in txn.postings:
-                if not _posting_matches(p, txn, query):
+                if _ast is not None and not _matches_posting(_ast, txn, p, journal=self):
                     continue
                 amt = p.amount
                 if amt is not None:

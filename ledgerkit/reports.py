@@ -7,7 +7,6 @@ strings. Formatting is handled by cli.py.
 from __future__ import annotations
 
 import datetime
-import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -30,6 +29,7 @@ from ledgerkit.query.depth import DepthSpec, account_excluded_by_depth, clip_acc
 from ledgerkit.query.eval import matches_posting as _query_ast_matches_posting
 from ledgerkit.query.eval import matches_transaction as _query_ast_matches_transaction
 from ledgerkit.query.eval import _matches_posting_for_accounts as _query_ast_matches_posting_accounts_mode
+from ledgerkit.query.regex import compile_hledger_regex
 
 
 # ---------------------------------------------------------------------------
@@ -210,70 +210,33 @@ class JournalStats:
 # Private helpers
 # ---------------------------------------------------------------------------
 
-# Detects whether a user-supplied pattern contains any regex metacharacter,
-# used to decide between plain substring matching and re.search().
-#
-# Purpose: distinguish plain strings like "expenses:food" from regex patterns
-#          like "^expenses" or "food.*". Any character that has special meaning
-#          in a Python regex triggers regex mode.
-#
-# Group breakdown: no capture groups — result used only as a boolean via .search().
-#
-# Edge cases:
-#   - A lone '.' is treated as a regex wildcard (matches any character), matching
-#     hledger's behaviour where '.' in an account filter is a metacharacter.
-#   - Backslash sequences like '\\(' are detected because '\\' is in the set,
-#     so escaped literals always go through regex mode.
-#   - An empty pattern never contains a metacharacter → plain substring mode.
-_REGEX_META = re.compile(r'[\\^$.()\[\]{}*+?|]')
-
-
 def _matches_pattern(pattern: str, value: str) -> bool:
-    """Return True if pattern matches value using hledger substring/regex rules.
+    """Return True if pattern matches value using hledger's HledgerRegex rules.
 
-    If pattern contains any regex metacharacter it is compiled as a regex and
-    matched via re.search (partial match, case-insensitive). Otherwise it is
-    treated as a plain case-insensitive substring match.
+    Stage C Phase 8: previously an ad hoc, Python-native heuristic (any
+    Python regex metacharacter switched into raw `re.search` mode, no
+    HledgerRegex-subset validation at all — a second, non-hledger-faithful
+    regex dialect living alongside the real one in `ledgerkit.query.regex`).
+    Now always compiles `pattern` via `ledgerkit.query.regex.
+    compile_hledger_regex` (case-insensitive, infix `.search()`) — the same
+    dialect and validation `acct:`/`desc:` query terms already use. This
+    is behaviour-preserving for every pattern that was already
+    HledgerRegex-portable (a plain string compiles to a regex matching
+    exactly the same characters a case-insensitive substring check would),
+    and now raises `UnsupportedRegexConstructError` for an excluded
+    construct or an empty pattern, where it previously matched via raw
+    Python `re` semantics (excluded construct) or matched everything
+    (empty pattern).
+
+    This function's only remaining callers are `ReportSection.accounts`/
+    `.exclude` (`balance_from_spec`) — the one deliberately separate
+    matching construct left in `ledgerkit/` after Stage C Phase 8's
+    convergence; every other `Query`-shaped filter now reaches
+    `ledgerkit.query.eval.matches_posting`/`matches_transaction` via
+    `ledgerkit.query.compat._query_to_ast` instead (see
+    `dev-docs/architecture.md`).
     """
-    if _REGEX_META.search(pattern):
-        return bool(re.search(pattern, value, re.IGNORECASE))
-    return pattern.lower() in value.lower()
-
-
-def _posting_matches(
-    posting: Posting,
-    txn: Transaction,
-    query: Query | None,
-) -> bool:
-    """Return True if the posting should be included given the query.
-
-    Transaction-level filters (date, payee) are checked against txn.
-    Posting-level filters (account, not_account) are checked against posting.
-
-    `query.depth` is deliberately NOT checked here — depth is never a
-    selection/exclusion criterion in hledger (confirmed across every real
-    command; see `dev-docs/planning/core-redefinition/
-    21-stage-c-phase-5-depth-and-verification-plan.md` §1.3) and callers
-    must never exclude a posting based on it. Report functions that
-    support depth (`balance`/`register`/`accounts`/`stats`) apply it
-    afterwards, purely as a display-name transform, via
-    `_effective_depth_spec`/`ledgerkit.query.depth.clip_account_name`.
-
-    A None query or a Query() with all None fields always returns True.
-    """
-    if query is None:
-        return True
-    if query.date_from is not None and txn.date < query.date_from:
-        return False
-    if query.date_to is not None and txn.date > query.date_to:
-        return False
-    if query.payee is not None and not _matches_pattern(query.payee, txn.description):
-        return False
-    if query.account is not None and not _matches_pattern(query.account, posting.account):
-        return False
-    if query.not_account is not None and _matches_pattern(query.not_account, posting.account):
-        return False
-    return True
+    return bool(compile_hledger_regex(pattern).search(value))
 
 
 def _effective_depth_spec(query: Query | None, _query_depth: DepthSpec | None) -> DepthSpec:
@@ -284,7 +247,9 @@ def _effective_depth_spec(query: Query | None, _query_depth: DepthSpec | None) -
     non-empty — it is the richer, more recent mechanism. Otherwise falls
     back to the legacy `query.depth` (a flat int only; wrapped as
     `DepthSpec(flat=query.depth)`). Both are Ledgerkit-internal report
-    options, never a selection filter — see `_posting_matches`.
+    options, never a selection filter — see
+    `ledgerkit.query.compat._query_to_ast`, which never routes `query.depth`
+    into the predicate tree at all.
     """
     if _query_depth is not None and not _query_depth.is_empty():
         return _query_depth
@@ -377,18 +342,25 @@ def accounts(
         merging, never excluding — dev-docs/planning/core-redefinition/
         21-stage-c-phase-5-depth-and-verification-plan.md §1.3).
     """
+    from ledgerkit.query.compat import _query_to_ast
+
     depth_spec = _effective_depth_spec(query, _query_depth)
+    _outer_ast = _query_to_ast(query)
     seen: set[str] = set()
     for txn in journal.transactions:
         for posting in txn.postings:
-            if not _posting_matches(posting, txn, query):
+            if _outer_ast is not None and not _query_ast_matches_posting(
+                _outer_ast, txn, posting, journal=journal
+            ):
                 continue
             # accounts uses its own narrower Tag-matching mode (design
             # §2.5/§9.2) — transaction-own + account-inherited tags only,
             # excluding posting-own and commodity-propagated tags — rather
             # than the ordinary matches_posting every other report function
             # here uses. Every other node type behaves identically either
-            # way; see _matches_posting_for_accounts's own docstring.
+            # way; see _matches_posting_for_accounts's own docstring. (Only
+            # relevant to `_query_ast`, the CLI's own -q flag: `query`/
+            # `_outer_ast` never contain a Tag node — Query has no tag field.)
             if _query_ast is not None and not _query_ast_matches_posting_accounts_mode(
                 _query_ast, txn, posting, journal=journal
             ):
@@ -416,10 +388,12 @@ def balance(
         _query_ast: Private, internal-only filter (a ledgerkit.query.QueryNode)
             used by the CLI's -q/--query flag. Not part of the stable public
             API — see knowledge/DECISIONS.md, 2026-09-16. AND'd with `query`
-            when both are supplied. Never carries depth — depth is never a
-            selection predicate (see `_posting_matches`). A `Tag` node is
-            matched against each posting's full, four-source effective tag
-            set (Stage C Phase 6 — see `ledgerkit.tags._effective_tags`).
+            (translated via `ledgerkit.query.compat._query_to_ast`, Stage C
+            Phase 8) when both are supplied. Never carries depth — depth is
+            never a selection predicate (see `_effective_depth_spec`). A
+            `Tag` node is matched against each posting's full, four-source
+            effective tag set (Stage C Phase 6 — see
+            `ledgerkit.tags._effective_tags`).
         _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
             from the CLI's -q/--query flag's depth: term(s), added Stage C
             Phase 5. See `_effective_depth_spec` for precedence against the
@@ -435,11 +409,14 @@ def balance(
     behaviour, including custom REGEX=N depths via `_query_depth`.
     expenses:food:groceries at depth=2 contributes to expenses:food.
     """
+    from ledgerkit.query.compat import _query_to_ast
+
     depth_spec = _effective_depth_spec(query, _query_depth)
+    _outer_ast = _query_to_ast(query)
     totals: dict[str, dict[str, Decimal]] = {}
     for txn in journal.transactions:
         for posting in resolve_elision(txn):
-            if not _posting_matches(posting, txn, query):
+            if _outer_ast is not None and not _query_ast_matches_posting(_outer_ast, txn, posting, journal=journal):
                 continue
             if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting, journal=journal):
                 continue
@@ -488,15 +465,18 @@ def register(
         only its displayed account name is clipped). No posting is ever
         excluded on account of `query.depth`/`_query_depth` — fixed Stage C
         Phase 5; previously this function (unlike `balance`) applied depth
-        as an exclusion filter via `_posting_matches`, a real pre-existing
-        bug distinct from the `-q` `depth:` divergence.
+        as an exclusion filter, a real pre-existing bug distinct from the
+        `-q` `depth:` divergence.
     """
+    from ledgerkit.query.compat import _query_to_ast
+
     depth_spec = _effective_depth_spec(query, _query_depth)
+    _outer_ast = _query_to_ast(query)
     rows: list[RegisterRow] = []
     running: Decimal = Decimal(0)
     for txn in sorted(journal.transactions, key=lambda t: t.date):
         for posting in resolve_elision(txn):
-            if not _posting_matches(posting, txn, query):
+            if _outer_ast is not None and not _query_ast_matches_posting(_outer_ast, txn, posting, journal=journal):
                 continue
             if _query_ast is not None and not _query_ast_matches_posting(_query_ast, txn, posting, journal=journal):
                 continue
@@ -524,22 +504,25 @@ def stats(
     Args:
         journal: The parsed journal.
         query: Optional filter. When None or Query(), behaviour is identical to
-               the original implementation (all transactions). When a date or
-               payee filter is provided, statistics are computed over the
-               matching transaction subset.
+               the original implementation (all transactions). When any field
+               is set, statistics are computed over the matching transaction
+               subset — since Stage C Phase 8, this includes `account`/
+               `not_account` (see the behaviour-change note below), not only
+               `date_from`/`date_to`/`payee` as before.
         _query_ast: Private, internal-only filter (a ledgerkit.query.QueryNode)
             used by the CLI's -q/--query flag. Not part of the stable public
             API — see knowledge/DECISIONS.md, 2026-09-16. Applied via
             ledgerkit.query.eval.matches_transaction (stats is transaction-
             oriented — it filters the transaction list, not individual
             postings, matching its own existing query= filtering above).
-            AND'd with `query` when both are supplied. A `Tag` node matches
-            if the transaction's own tags directly match, or any of its
-            postings' full effective tags match (Stage C Phase 6, design §6).
+            AND'd with `query` (translated via
+            `ledgerkit.query.compat._query_to_ast`, Stage C Phase 8) when
+            both are supplied. A `Tag` node matches if the transaction's own
+            tags directly match, or any of its postings' full effective tags
+            match (Stage C Phase 6, design §6).
         _query_depth: Private, internal-only (a ledgerkit.query.depth.DepthSpec)
             from the CLI's -q/--query flag's depth: term(s), added Stage C
-            Phase 5 — resolves this function's own prior TODO for the depth
-            portion of "account-level query filters". Applied via
+            Phase 5. Applied via
             `ledgerkit.query.depth.account_excluded_by_depth`, NOT
             `clip_account_name` — stats is a genuine, source-confirmed
             exception where hledger EXCLUDES accounts deeper than the
@@ -547,23 +530,28 @@ def stats(
             other depth-aware report function here; see that function's
             own docstring for the full evidence.
 
-    Note: account/not_account filters in the query are still not applied to
-    account_count/account_depth — those two fields reflect every account
-    depth-exclusion already narrows to, not a further account-name-pattern
-    restriction.
-    # TODO: Apply account/not_account query filters to account_count and account_depth.
+    Behaviour change (Stage C Phase 8, intentional and disclosed — see
+    `dev-docs/planning/core-redefinition/
+    27-query-shim-convergence-design.md` §5.1c): `query.account`/
+    `.not_account` were previously silently ignored by `account_count`/
+    `account_depth` (a pre-existing, documented gap). Full convergence onto
+    `ledgerkit.query.compat._query_to_ast` closes this gap: `stats(query=
+    Query(account=X))` now excludes transactions with no posting matching
+    `X` from those two fields, matching what `-q "acct:X" stats` (via
+    `_query_ast`) already did before this phase.
     """
+    from ledgerkit.query.compat import _query_to_ast
+
     today = datetime.date.today()
     txns = journal.transactions
 
-    # Apply transaction-level query filters when provided.
-    if query is not None:
-        txns = [
-            t for t in txns
-            if (query.date_from is None or t.date >= query.date_from)
-            and (query.date_to is None or t.date <= query.date_to)
-            and (query.payee is None or _matches_pattern(query.payee, t.description))
-        ]
+    # Apply the outer query's full predicate (date/payee/account/not_account)
+    # via the canonical query engine — Stage C Phase 8; previously this only
+    # checked date_from/date_to/payee inline, silently ignoring account/
+    # not_account (see the behaviour-change note above).
+    _outer_ast = _query_to_ast(query)
+    if _outer_ast is not None:
+        txns = [t for t in txns if _query_ast_matches_transaction(_outer_ast, t, journal=journal)]
     if _query_ast is not None:
         txns = [t for t in txns if _query_ast_matches_transaction(_query_ast, t, journal=journal)]
 
@@ -617,44 +605,60 @@ def balance_from_spec(
     """Compute a structured balance report driven by a ReportSpec.
 
     For each section in spec.sections:
-      1. Apply the outer query's date and payee filters at transaction level.
+      1. Apply the outer query (date/payee/account/not_account) via the
+         canonical query engine (`ledgerkit.query.compat._query_to_ast` +
+         `ledgerkit.query.eval.matches_posting`) at posting level.
       2. Include postings whose account matches any of section.accounts (OR logic).
       3. Exclude postings whose account matches any of section.exclude.
-      4. Apply the outer query's account/not_account filters if set.
-      5. Apply depth truncation: section.depth overrides query.depth.
-      6. Aggregate using _aggregate_posting_amounts (shared with balance()).
-      7. Apply sign inversion if section.invert is True.
-      8. Return a ReportSectionResult per section.
+      4. Apply depth truncation: section.depth overrides query.depth.
+      5. Aggregate using _aggregate_posting_amounts (shared with balance()).
+      6. Apply sign inversion if section.invert is True.
+      7. Return a ReportSectionResult per section.
 
-    The outer query acts as a uniform time/payee filter across all sections.
-    Section-level account patterns are OR-combined within each section.
+    The outer query acts as a uniform filter across all sections — Stage C
+    Phase 8 converges its `account`/`not_account`/`payee`/date fields onto
+    the same canonical engine `balance`/`register`/`accounts`/`stats` use
+    (previously this was its own separate, `_matches_pattern`-based inline
+    check). Section-level account patterns are OR-combined within each
+    section, still via `_matches_pattern` — the one construct with no
+    `Query` equivalent, deliberately kept separate (see
+    `dev-docs/planning/core-redefinition/
+    27-query-shim-convergence-design.md` §5.1b).
 
     Args:
         journal: The parsed journal.
         spec: The report layout definition.
-        query: Optional uniform filter (date range, payee). Applied across all
-               sections before section-level account matching.
+        query: Optional uniform filter (date range, payee, account,
+               not_account). Applied across all sections before
+               section-level account matching.
 
     Returns:
         One ReportSectionResult per section in spec.sections order.
     """
+    from ledgerkit.query.compat import _query_to_ast
+
     results: list[ReportSectionResult] = []
     commodity_styles = journal.commodity_styles
+    _outer_ast = _query_to_ast(query)
 
     for section in spec.sections:
         pairs: list[tuple[str, Decimal]] = []
 
         for txn in journal.transactions:
-            # Apply outer query transaction-level filters.
-            if query is not None:
-                if query.date_from is not None and txn.date < query.date_from:
-                    continue
-                if query.date_to is not None and txn.date > query.date_to:
-                    continue
-                if query.payee is not None and not _matches_pattern(query.payee, txn.description):
+            for posting in resolve_elision(txn):
+                # Outer query: translated once above, evaluated per posting
+                # through the canonical engine (Stage C Phase 8) — same
+                # HledgerRegex-strictness/eager-validation guarantee every
+                # other converged consumer gets. (A minor, harmless
+                # performance difference from the old per-transaction date
+                # short-circuit: the date predicate is now re-checked per
+                # posting instead of once per transaction — not a behaviour
+                # change.)
+                if _outer_ast is not None and not _query_ast_matches_posting(
+                    _outer_ast, txn, posting, journal=journal
+                ):
                     continue
 
-            for posting in resolve_elision(txn):
                 # Section account patterns: OR logic — posting must match at least one.
                 if not any(_matches_pattern(pat, posting.account) for pat in section.accounts):
                     continue
@@ -662,13 +666,6 @@ def balance_from_spec(
                 # Section exclude patterns: posting must not match any.
                 if any(_matches_pattern(pat, posting.account) for pat in section.exclude):
                     continue
-
-                # Outer query account/not_account filters.
-                if query is not None:
-                    if query.account is not None and not _matches_pattern(query.account, posting.account):
-                        continue
-                    if query.not_account is not None and _matches_pattern(query.not_account, posting.account):
-                        continue
 
                 if posting.amount is None:
                     continue
