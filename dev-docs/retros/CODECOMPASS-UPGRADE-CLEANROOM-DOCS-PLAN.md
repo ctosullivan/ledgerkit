@@ -147,3 +147,66 @@ scratch clone of `codecompass-template`, direct `sqlite3`/`pipx`
 inspection of the live integration) followed by a single planning-
 document write. No code changed; no tests run beyond the implicit
 expectation that none were needed since nothing executable changed.
+
+## Addendum (2026-10-02) — review-findings amendment, all 5 open questions resolved
+
+A direct review of the plan (same day, fresh session with no memory of
+the above) found 8 concrete defects and asked for all 5 of this plan's
+own open questions to be resolved in the same pass, rather than left for
+Phase 1 to re-litigate. All 8 were real:
+
+1. **Clean-room leakage** — Phase 3's own acceptance criteria compared
+   reconstructed coverage against `dev-docs/api-spec.md`, i.e. consulted
+   excluded legacy narrative before any clean-room draft existed. This
+   is the one finding from this addendum that most directly contradicts
+   something the plan *itself* claimed to guarantee — worth flagging as
+   the sharpest lesson here (see below), not just one item among eight.
+2. The plan's Phase 4 drafted 4 documents while Phase 5 proposed
+   replacing 5 (and, once named concretely, really 9) — no inventory
+   tied the two together.
+3. Nothing stopped the reconstruction from quietly inferring future
+   roadmap intent from present-tense source/test evidence.
+4. The "don't import CodeCompass's validator" decision had no
+   Ledgerkit-sized replacement, so nothing actually gated a malformed
+   snapshot.
+5. "Clean-room isolation enforced" rounded a disclosed `best-effort`
+   limitation up into language implying success.
+6. "Current CodeCompass" was never pinned to a SHA, so it could have
+   silently moved across a multi-phase exercise.
+7. `dev-docs/compat-register/*.yaml` was listed flatly as "Evidence",
+   on par with source/tests, when it's actually a derived index pointing
+   at real evidence elsewhere.
+8. Two genuine "before Phase 6" phase-reference errors (should have said
+   Phase 5), plus a "nine... format skeletons" miscount of the adopted
+   template (it's seven skeletons, two guides, a worked example).
+
+All 8 are fixed in place in `29-codecompass-upgrade-and-clean-room-docs.md`
+(same file, same six-phase structure — amended, not replaced), and all 5
+of the plan's own open questions are resolved in the same pass (§8, now
+split into Part A — the 5 original questions — and Part B — the 8 review
+findings, F1–F8, to avoid a numbering collision between two lists that
+both happen to run 1–8).
+
+**What didn't work, corrected:** while fixing the review's findings, a
+second-order defect was introduced and then caught: §8's own new Part
+B/Part A split still left several of the ~18 cross-references into §8
+pointing at the wrong item (a numbering collision this session created
+itself, not one the review flagged). An explicit internal-consistency
+pass (new §12 in the plan) caught and fixed all of them, plus one
+genuine gap in acceptance-criteria demonstrability (Phase 3's
+"independence is structural" claim had no actual mechanism to check it
+by — fixed by requiring a producer header on every Phase 3 output file).
+
+**Lesson, stated plainly:** a plan that itself specifies a strict
+evidence-isolation discipline is not exempt from violating that
+discipline internally — finding #1 (comparing against `api-spec.md`
+inside the supposedly isolated Phase 3) is exactly the kind of leakage
+the plan's own hard invariant exists to prevent, and it happened anyway,
+in the plan's *first* draft, written by the same session that designed
+the invariant. Treat a clean-room plan's own drafting process as subject
+to the same scrutiny the plan applies to its subject — a self-review
+pass (§12 here) is now a standing expectation for any future amendment
+to this document, not a one-off.
+
+No code touched; no tests run beyond the implicit expectation that none
+were needed, since nothing executable changed this phase either.

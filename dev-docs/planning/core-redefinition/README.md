@@ -59,7 +59,7 @@ roadmap sequencing, each covered by one document below.
 | 12 | [`12-roadmap-migration.md`](12-roadmap-migration.md) | Where does every existing `ROADMAP.md` line item land in the new structure? |
 | 13 | [`13-risks.md`](13-risks.md) | What could go wrong, and what's the mitigation? |
 | 14 | [`14-human-decision-gates.md`](14-human-decision-gates.md) | What needs a yes/no from the human before work proceeds? |
-| 29 | [`29-codecompass-upgrade-and-clean-room-docs.md`](29-codecompass-upgrade-and-clean-room-docs.md) | How does Ledgerkit bring its CodeCompass integration current, then use it for a clean-room documentation reconstruction? (cross-cutting, not a Stage; planning only, pending approval) |
+| 29 | [`29-codecompass-upgrade-and-clean-room-docs.md`](29-codecompass-upgrade-and-clean-room-docs.md) | How does Ledgerkit bring its CodeCompass integration current, then use it for a clean-room documentation reconstruction? (cross-cutting, not a Stage; amended 2026-10-02 — all 5 open questions resolved; planning only, pending approval to begin Phase 1) |
 
 Supporting scaffolding created alongside this package (structure only, no
 content yet requiring a decision):

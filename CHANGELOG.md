@@ -9,6 +9,52 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### CodeCompass upgrade + clean-room documentation reconstruction — plan amended — 2026-10-02
+
+Full detail: [dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md](dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md)
+
+**Human:** reviewed the plan below (same day, fresh session) and reported
+8 concrete defects, plus resolutions for all 5 of the plan's own open
+questions, directing an in-place amendment — explicitly still not to
+implement Phase 1.
+
+**Claude:** fixed all 8 in `29-codecompass-upgrade-and-clean-room-docs.md`
+(same file, same six-phase structure, amended not replaced): moved every
+existing-documentation comparison (including the `api-spec.md` coverage
+check) out of Phase 3 and into Phase 5, closing a real clean-room-leakage
+defect in the plan's own first draft (§4, §6.4); added a complete
+9-document inventory/disposition table so Phase 4's drafted set matches
+Phase 5's replaced set exactly (§5.1); separated reconstructable
+current-shipped-state fact from forward-looking roadmap intent, the
+latter excluded from evidence-checking entirely and reintroduced only
+deliberately in Phase 5 (§4.1, §5.1, §6.1); added a small,
+deterministic, stdlib-only `check_snapshot.py` that fails closed on five
+named integrity conditions, gating Phase 4 (§3.7); corrected the
+isolation success criterion so a disclosed `best-effort` tier is never
+reported as "enforced" — split into three separately-reported Phase 6
+checks instead (§3.4, §7.1); added explicit revision-pinning for both
+`codecompass` and `codecompass-template` as Phase 1's first step,
+recorded in a new `PINNED-REVISIONS.md` (§2.0); reclassified
+`dev-docs/compat-register/*.yaml` as a derived evidence index rather than
+primary evidence, requiring material compatibility claims to trace to
+their underlying differential-test evidence or get a targeted re-check
+(§3.2); and restricted `ledgerkit-editor` inspection to its source/tests,
+excluding its own narrative docs. Resolved all 5 original open questions
+(ROADMAP.md placement — a new "Tooling & Process Initiatives" section,
+not a Stage letter; `knowledge/*.md` stays excluded until Phase 5;
+`CLAUDE.md`'s stale folder-structure diagram gets fixed during Phase 1;
+six-phase structure retained; `dev-docs/hledger-compatibility.md` is
+reconciliation-first, not a blind redraft). Added a new §8
+Part-A/Part-B split (the original questions vs. the review's 8 findings,
+labelled F1–F8) after finding the two lists' shared 1–8 numbering had
+caused several of this document's own cross-references to point at the
+wrong item — a self-inflicted defect, caught and fixed by a dedicated
+internal-consistency pass (new §12), not left for a future session to
+discover. No `ledgerkit/`/`tests/` code touched; no implementation begun;
+935 tests still pass (regression guard only).
+
+---
+
 ### CodeCompass upgrade + clean-room documentation reconstruction — plan — 2026-10-02
 
 Full detail: [dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md](dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md)
