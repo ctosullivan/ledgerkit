@@ -9,6 +9,46 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### CodeCompass upgrade + clean-room documentation reconstruction — plan amended again, approved to implement — 2026-10-02
+
+Full detail: [dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md](dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md)
+
+**Human:** a second review found 8 further corrections needed before the
+plan was genuinely implementation-ready, and directed amending in place
+then proceeding straight through all six phases to closeout, without a
+further planning round-trip.
+
+**Claude:** applied all 8 corrections to
+`29-codecompass-upgrade-and-clean-room-docs.md` (same file, same
+six-phase structure): assertion research is now a structurally separate
+fresh `Agent` dispatch, never a `fork`, receiving only the bounded topic,
+permitted evidence paths, and output format — never legacy docs, this
+plan's own prose, pre-existing assertions/snapshots, reconstruction
+output, or prior summaries — with the main orchestrator explicitly barred
+from authoring assertions itself (§4.2); the CodeCompass/
+`codecompass-template` pin is now mechanically enforced via a dedicated
+worktree or a guard that stops on mismatch, not merely recorded (§2.0);
+`check_snapshot.py` now resolves cited evidence against the frozen git
+revision's own historical tree (`git cat-file`/`git show
+<revision>:<path>`), never today's working tree (§3.7); every
+isolation-sensitive Phase 3/4 dispatch now gets an immediate post-dispatch
+transcript compliance check, with contamination discarded-and-rerun and
+logged to a new `compliance-log.md`, with Phase 6 auditing that log
+rather than performing the first contamination check (§4.2a, §5.4); a new
+§5.1a resolves a real contradiction between the documentation inventory's
+`intentionally retained` disposition and the Phase 5/6 acceptance
+criteria that had required reconciliation reports for those same files;
+commit-message prose is now excluded from clean-room evidence by default
+(§3.2); the template's file count is corrected to eleven files, not nine
+(§1.1); and a second, dated `§12` consistency-review addendum records
+this round's own full re-read. Resolved all 8 under a new `§8 Part C`
+(`C1`–`C8`), matching the existing `Part A`/`Part B` traceability
+discipline. 935 tests still pass (regression guard only; no
+`ledgerkit/`/`tests/` code touched). Implementation begins immediately
+following this commit, per direct instruction.
+
+---
+
 ### CodeCompass upgrade + clean-room documentation reconstruction — plan amended — 2026-10-02
 
 Full detail: [dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md](dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md)

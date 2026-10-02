@@ -210,3 +210,48 @@ to this document, not a one-off.
 
 No code touched; no tests run beyond the implicit expectation that none
 were needed, since nothing executable changed this phase either.
+
+## Addendum 2 (2026-10-02) — second review, 8 further corrections, approved to implement
+
+A second review (same day, fresh session) found the first amendment
+still implementation-unready: assertion authorship wasn't structurally
+separated from the orchestrator (the orchestrator, having read the whole
+plan, could have written "clean-room" assertions itself); the
+CodeCompass/template pin was recorded but never checked against; the
+snapshot checker validated against today's filesystem rather than the
+frozen revision's own git tree; contamination discovery was deferred to
+Phase 6 instead of happening per-dispatch; the inventory and Phase 5/6
+acceptance criteria contradicted each other over intentionally-retained
+process files; commit-message prose had no exclusion rule distinct from
+other narrative; the template's file-count arithmetic was still wrong
+(seven skeletons + two guides + one worked example is ten, not nine, and
+the directory's own README.md makes eleven); and the plan was directed
+to re-run its own consistency checks. All 8 were real and are fixed in
+place (§8 Part C, `29-codecompass-upgrade-and-clean-room-docs.md`),
+alongside a second dated `§12` consistency-review addendum.
+
+**This time the review came with explicit authorization to proceed
+straight to implementation once fixed** — no further planning
+round-trip. That work begins immediately following this commit; its own
+progress is tracked in the plan's new §13 implementation log and in each
+phase's own retro, not here (this retro's own scope stays "the planning
+phase," per the established `-PLAN`/`-IMPLEMENTATION` split used
+throughout Stage C).
+
+**Lesson, stated plainly, building on Addendum 1's own lesson:** the
+first amendment's self-review (§12) caught a numbering collision it
+introduced while fixing the review's findings — a real catch, but it
+didn't catch everything; a genuinely separate second pass, from a fresh
+session with no attachment to the first amendment's own reasoning, found
+8 more real defects, several structural (not cosmetic) and squarely in
+the areas the first amendment's own self-review had just finished
+checking. The pattern worth keeping: a self-review is valuable and
+should keep happening (§12 is now two addenda deep and will likely
+gain more), but it is not a substitute for an independent review when
+the stakes of getting a clean-room methodology's own isolation rules
+wrong are this high — exactly the same principle this whole initiative
+applies to Ledgerkit's documentation (an aligned self-check is not
+verification), now observed about the planning process that produced it.
+
+No code touched this addendum either; 935 tests still pass (regression
+guard only).

@@ -1,8 +1,10 @@
 # 29. CodeCompass upgrade + clean-room documentation reconstruction
 
-**Status:** Planning only. No `ledgerkit/`, `tests/`, or generated-docs
-content has been changed to produce this document. Stops for explicit
-human approval before any implementation sub-phase begins.
+**Status:** Amended twice (both 2026-10-02) and **approved to proceed
+directly to implementation**, per direct user instruction accompanying
+the second amendment. No further planning round-trip is required unless
+a genuinely new blocking condition makes this plan impossible to execute
+safely — see §13 for the implementation log this status now points to.
 
 **Amended 2026-10-02** per review findings, same day as the original
 plan. The six-phase structure and overall intent are unchanged. This
@@ -23,12 +25,40 @@ decisions log rather than a question list). All five of the original
 open questions are resolved by this amendment, per direct user
 instruction — none remain open.
 
+**Amended a second time, 2026-10-02**, per a second review covering 8
+further corrections, with explicit instruction to implement immediately
+afterward. The six-phase structure, hard invariant, document inventory,
+revision-pinning concept, best-effort isolation model, and Phase 5
+legacy-reconciliation placement are all **unchanged** — this amendment
+only strengthens *how* each is actually executed: assertion-research is
+now a structurally separate fresh dispatch from the main orchestrator,
+never authored by the orchestrator directly (§4.2, §8 Finding C1); the
+CodeCompass/`codecompass-template` pin is now mechanically enforced, not
+merely recorded (§2.0, §8 Finding C2); `check_snapshot.py` now validates
+against the frozen git revision's own historical tree, never today's
+working tree (§3.7, §8 Finding C3); boundary-compliance checking happens
+immediately after every isolation-sensitive Phase 3/4 dispatch, logged
+to `dev-docs/clean-room/compliance-log.md`, with Phase 6 auditing that
+log rather than performing the first contamination check itself (§4.2a,
+§5.4, §8 Finding C4); the inventory/acceptance-criteria contradiction
+around intentionally-retained process files is fixed, with ordinary
+workflow bookkeeping explicitly distinguished from clean-room
+reconstruction scope (§5.1a, §8 Finding C5); commit-message prose is
+excluded from clean-room evidence by default, narrowly exceptable and
+always flagged when used (§3.2, §8 Finding C6); the
+`codecompass-template` file count is corrected to eleven files, not nine
+(§1.1, §8 Finding C7); and a second internal-consistency pass is recorded
+(§12, §8 Finding C8).
+
 **Trigger:** direct user request (2026-10-02) to (1) bring Ledgerkit's
 CodeCompass integration current, then (2) use the upgraded tooling to
 reconstruct Ledgerkit's human-facing documentation from primary evidence
 only, with old documentation held out of the reconstruction and
-reintroduced afterward only for comparison. This amendment responds to a
-direct review of that plan (also 2026-10-02).
+reintroduced afterward only for comparison. The first amendment responded
+to a direct review of that plan (also 2026-10-02); this second amendment
+responds to a further review (also 2026-10-02) that found the first
+amendment still implementation-unready in 8 specific ways, and directs
+proceeding straight to implementation once fixed.
 
 ---
 
@@ -141,12 +171,17 @@ work is strictly cheaper than re-deriving it.
   skeletons** (`assertions/`, `snapshots/`, `coding-context-selection/`,
   `implementation-comparison/`, `propagation/`, `legacy-reconciliation/`,
   `documentation-verification/`), plus **two judgment-call guides**
-  (`mechanical-isolation.md`, `conceptual-documentation-guide.md`) and a
-  **worked example** (`worked-example.md`) — nine files in total across
-  the directory, but seven *skeletons*, not nine, correcting this plan's
-  own original miscount (§8 Finding F8). Inspected directly (read-only
-  clone,
-  scratch directory, original planning session). Its stage sequence —
+  (`mechanical-isolation.md`, `conceptual-documentation-guide.md`), a
+  **worked example** (`worked-example.md`), and the workflow directory's
+  own **`README.md`** — **eleven files in total** across the directory
+  (seven skeletons + two guides + one worked example + one README), not
+  nine as the plan's first amendment still miscounted (7+2+1 is ten, not
+  nine, and the directory's own `README.md` makes eleven — corrected this
+  second amendment, §8 Finding C7, superseding the first amendment's own
+  correction at §8 Finding F8, which fixed the "seven, not nine" skeleton
+  count but left the arithmetic wrong). Inspected directly (read-only
+  clone, scratch directory, original planning session). Its stage
+  sequence —
   **assertions → snapshot → independent implementation reconstruction →
   comparison → documentation draft → legacy reconciliation →
   documentation-verification** — maps almost one-to-one onto this task's
@@ -195,9 +230,46 @@ Before anything else in this phase:
    "Current version" does not mean "whatever `git pull` returns today";
    it means "the SHA this file names," for the duration of the
    initiative.
+5. **Enforce the pin, not merely record it (§8 Finding C2 — a recorded
+   SHA nothing ever checks against is a note, not a pin).** Preferred
+   mechanism: create a dedicated, fixed `codecompass` checkout at exactly
+   the pinned SHA — `git -C /home/cormac/projects/codecompass worktree
+   add <fixed-path> <pinned-sha>` — and point the installed
+   `codecompass` entry point at that fixed worktree (re-run `pipx install
+   -e <fixed-path> --force`, or equivalent, so the executable imports
+   from the pinned worktree, never from `/home/cormac/projects/
+   codecompass`'s own `HEAD`, which can keep moving independently of this
+   initiative). Apply the same discipline to `codecompass-template`: the
+   clone made in step 2 above *is* the fixed checkout — never
+   `git pull` it again during this initiative; every file copied/adapted
+   from it (§3.1) comes from that exact clone, confirmed by `git -C
+   <clone-path> rev-parse HEAD` matching `PINNED-REVISIONS.md`
+   immediately before each copy, not assumed to still match.
+6. **If the dedicated-worktree approach is not taken** (e.g. recreating
+   the editable install mid-initiative proves disruptive to the
+   environment), **a mechanical guard runs before every
+   `codecompass`-dependent operation in every later phase**, not just
+   once here: resolve the checkout the installed executable actually
+   imports from (`pip show -f codecompass-context`, or reading the
+   editable install's own `direct_url.json` back to its source path),
+   run `git -C <that-path> rev-parse HEAD`, and compare it byte-for-byte
+   against the SHA recorded in `PINNED-REVISIONS.md`. **If they differ,
+   stop — do not silently continue against a moved checkout.** This is a
+   short, reusable guard (`dev-docs/clean-room/check_codecompass_pin.sh`
+   or equivalent), run immediately before every `codecompass sync`/
+   `index`/`check`/`query` invocation from Phase 1 onward, with its
+   pass/fail result logged next to the command's own output, not merely
+   trusted silently.
+7. Whichever mechanism is used, Phase 6 (§7.1 item 1) independently
+   re-confirms it was actually exercised throughout this initiative — not
+   just that `PINNED-REVISIONS.md` contains correct-looking text.
 
 ### 2.1 Re-sync against current (pinned) source
 
+- **Before each command below, confirm the pin is enforced** (§2.0 steps
+  5–6: either the installed executable resolves to the dedicated
+  worktree, or the guard script has just passed) — stop rather than
+  proceed if it hasn't been confirmed this phase.
 - Run `codecompass sync` (whole-project, no vendor arg) from the
   Ledgerkit root, using the pinned revision from §2.0. Expected:
   `context-graph.db` rebuilt, `source_files`/`source_symbols` now reflect
@@ -282,6 +354,11 @@ section regardless of intent.
 
 - `dev-docs/clean-room/PINNED-REVISIONS.md` exists, naming exact SHAs for
   both `codecompass` and `codecompass-template`, with a fetch timestamp.
+- **The pin is mechanically enforced, not just recorded** (§2.0 steps
+  5–7): either a dedicated worktree exists and the installed executable
+  demonstrably resolves to it, or `check_codecompass_pin.sh` (or
+  equivalent) exists and was run successfully at least once this phase,
+  with its result logged.
 - `codecompass check` clean (no severity findings) after re-sync.
 - `codecompass query source-symbol` returns entries for `ledgerkit/query/*`
   and `ledgerkit/tags.py` (proof the re-sync actually picked up Stage C's
@@ -302,6 +379,8 @@ section regardless of intent.
 
 - `context-graph.db`, `vendor.toml` (regenerated, gitignored local state).
 - `dev-docs/clean-room/PINNED-REVISIONS.md` (new).
+- `dev-docs/clean-room/check_codecompass_pin.sh` (new, only if the guard
+  approach is used instead of a dedicated worktree).
 - `CLAUDE.md` (CodeCompass section + routing-table marker block,
   regenerated; folder-structure diagram corrected per §2.4).
 - `.claude/skills/codecompass/SKILL.md` (regenerated).
@@ -357,7 +436,7 @@ the hard invariant):
 | hledger manual / source (pinned reference) | Primary evidence (external authoritative spec) | explicitly listed in Objective 3 |
 | `ledgerkit-editor`'s own source + tests (not its docs) | Primary evidence, narrow | the one external-repo case this project already has precedent for (Stage B Phase 1's independent import inventory) — restricted to source/tests only, per §4.1 |
 | `dev-docs/compat-register/*.yaml` | **Derived evidence index, not primary evidence** | a structured pointer to real evidence (a differential-test run against the pinned hledger reference), not itself proof — a material claim sourced from a compat-register entry must trace through to that entry's own underlying verification, or get a targeted re-check (see §4.1, §7) |
-| `git log` for specific files, where behaviour can't otherwise be explained | Evidence, narrowly | Objective 3's "version history only where needed" — not a general green light to read commit messages as documentation |
+| Git history — **tree/diff/content only** (`git show <rev>:<path>`, `git diff`), used only where current behaviour cannot be established from source/tests/current CLI behaviour alone | Evidence, narrowly, **content only** | Objective 3's "version history only where needed" — prefer actual historical file contents and diffs over commit-message prose. **Resolved (§8 Finding C6): commit-message text is human-authored narrative and is excluded by default**, same reasoning as any other narrative — usable only as a narrowly-justified exception, named explicitly in the assertion's own `Evidence` field as `"commit-message exception: <reason>"`, never consumed as routine clean-room explanatory evidence |
 | `README.md`, `docs/**`, `dev-docs/architecture.md`, `dev-docs/api-spec.md`, `dev-docs/hledger-compatibility.md` | **Excluded until Phase 5** | exactly the narrative documentation the hard invariant requires held out |
 | `ROADMAP.md`'s own prose (forward-looking Stage/backlog content) | **Excluded until Phase 5** | project *intent*, not reconstructable from the current tree — see §5.1, §6.1 |
 | `CHANGELOG.md`, `CONTEXT.md`, `dev-docs/retros/**`, `dev-docs/planning/**` prose (including this document's own prose) | **Excluded until Phase 5** | historical/process narrative, not primary evidence of current behaviour |
@@ -436,7 +515,7 @@ facts, both carried through to Phase 6 (§7.1):
   record, the §3.7 checker script).
 - `CHANGELOG.md`, `CONTEXT.md`, `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-2.md`.
 
-### 3.7 Ledgerkit-specific snapshot checker (new this amendment)
+### 3.7 Ledgerkit-specific snapshot checker (new first amendment; strengthened to true historical-integrity semantics this second amendment, §8 Finding C3)
 
 A small, deterministic, stdlib-only script —
 `dev-docs/clean-room/check_snapshot.py` — **not** an import of
@@ -452,25 +531,59 @@ any of:
    must be unique within the topic and must match its filename.
 2. **Snapshot hash mismatch** — the sidecar's recorded hash of each cited
    assertion's content must match that assertion file's actual current
-   content (byte-for-byte, same discipline as CodeCompass's own
-   historical-integrity check, re-derived here rather than imported).
+   content.
 3. **Missing repository revision** — the sidecar must name the exact git
    revision the snapshot was frozen against; absent is a failure, not a
    default.
 4. **Referenced assertion records don't exist** — every assertion id the
    sidecar lists must resolve to a real file under `assertions/<topic>/`;
    a dangling reference is a failure.
-5. **Cited local evidence paths/references cannot be resolved** — every
-   assertion's own `Evidence` field that names a local file/line (a
-   source file, a test, a fixture) must resolve to something that exists
-   in the working tree at the recorded revision; an evidence citation
-   that points nowhere is a failure, not a warning.
+5. **Recorded revision does not exist as a real git object** — `git
+   cat-file -e <revision>^{commit}` (or equivalent) must succeed; a
+   sidecar naming a revision that was never committed, or has been
+   garbage-collected, is a failure — and a failure here short-circuits
+   check 6 below (there is no tree to resolve anything against).
+6. **Cited local evidence does not resolve against *that revision's own
+   tree* — never today's working tree.** This is the semantic fix §8
+   Finding C3 requires: checks 1–4 above are satisfied by comparing
+   against files as they exist on disk *right now*, which is correct for
+   them (an assertion file's own identity and the sidecar's own hash are
+   properties of the assertion, not of history) — but an assertion's
+   `Evidence` field makes a claim about the *source tree at the frozen
+   revision*, and must be checked against exactly that, not against
+   whatever the source tree happens to look like when the checker
+   happens to run. Concretely, for every assertion's `Evidence` field
+   naming a local file (and, where given, a line number or range):
+   - run `git cat-file -e <revision>:<path>` to confirm the file
+     **existed at that revision** — a file that only exists in a *later*
+     commit (e.g. added by a subsequent, unrelated phase of this same
+     initiative) is a failure, even though it exists on disk today;
+   - where a line number or range is cited, resolve it against
+     `git show <revision>:<path>`'s own content **at that revision**
+     (count lines in the historical blob returned by that command), not
+     against the file as it currently exists on disk — a citation that
+     resolves against the live filesystem but not against the frozen
+     revision's own content is a failure, not a pass, since the snapshot
+     is making a claim about a specific point in history, not about
+     "whatever this path currently contains."
+
+   **Concretely, why this matters:** a snapshot frozen against commit
+   `A` that cites `parser.py:412` is a claim about `parser.py` *as it
+   existed at `A`*. If `parser.py` is later edited by this same
+   initiative's own later work, a checker that only looks at today's
+   `parser.py` could wrongly report line 412 "missing" (a false failure
+   on an unrelated later edit) or, worse, wrongly report it "present"
+   when the line now means something the assertion never claimed (a
+   false pass on a citation that no longer actually supports it).
+   Resolving against `git cat-file`/`git show <revision>:<path>` instead
+   of the live filesystem is what prevents both failure modes.
 
 **This checker must run, and pass, before any Phase 4 drafting dispatch
-is given a snapshot to consume.** Phase 3 (§4.2) runs it as the last step
-of freezing each topic's snapshot; Phase 4 (§5) treats "checker passed"
-as a hard precondition, re-confirmed rather than assumed, before
-dispatching any drafting work against that snapshot.
+is given a snapshot to consume.** Phase 3 (§4.2) runs it as the last
+mechanical step of freezing each topic's snapshot; Phase 4 (§5.3) treats
+"checker passed, against the exact revision still current" as a hard
+precondition, re-confirmed rather than assumed, before dispatching any
+drafting work against that snapshot.
 
 ---
 
@@ -503,56 +616,173 @@ planning session: 19 modules, ~6,700 lines, 6 test directories):
 | Compatibility system | `dev-docs/compat-register/*.yaml` **as an index only** | `compat-differential-tester`'s underlying evidence trail (the actual fixture journals + hledger-binary output each entry cites) | per §3.2: a claim here must resolve to the entry's own cited differential evidence, or trigger a fresh, targeted `compat-differential-tester` re-check against the pinned hledger reference — the YAML's `kind`/`status` fields alone are not sufficient citation |
 | Current shipped state (factual only) | git tags, `pyproject.toml` version, actually-passing test count, actually-implemented CLI flags (run `--help`, don't read `ROADMAP.md`), current compat-register `unexplained_mismatch` count | live repo state | **No forward-looking content.** This topic produces facts about what exists *now* only — never a roadmap, never a "planned" item. Feeds Phase 4's current-state draft (§5.1), which is a different document from `ROADMAP.md` itself. |
 
-Each topic gets its own bounded `implementation-reconstructor` dispatch —
-same discipline as the existing per-phase agent dispatches elsewhere in
-this project, just with a stricter "never open these paths" instruction
-set derived from §3.2's table, under the hard invariant at the top of
-this document.
+Each topic gets its own bounded, **structurally separate** dispatches —
+one for assertion research, a different one for implementation
+reconstruction, never the same dispatch doing both — same discipline as
+the existing per-phase agent dispatches elsewhere in this project, just
+with a stricter "never open these paths" instruction set derived from
+§3.2's table, under the hard invariant at the top of this document. §4.2
+specifies the exact separation; **the main orchestrating session never
+authors a topic's assertions itself**, regardless of how confident it is
+that it already knows the answer.
 
-### 4.2 Per topic: assertions → snapshot → checker → reconstruction → comparison
+### 4.2 Per topic: isolated assertion research → domain-skeptic review → frozen/checker-validated snapshot → independent reconstruction → independent comparison (restructured this amendment, §8 Finding C1)
+
+**The main orchestrating session — which has read this governing plan's
+own prose in full, and may have been shown legacy documentation earlier
+in this or a prior conversation — must never directly author a topic's
+clean-room assertions.** This is a structural rule enforced by *who is
+allowed to hold the pen*, not an instruction asking the orchestrator to
+be careful. Every topic's assertions, and every topic's independent
+reconstruction, are each produced by a dispatch that starts from a
+genuinely empty context.
 
 For each topic in §4.1:
-1. **Assertions** (`dev-docs/clean-room/assertions/<topic>/<id>.md`):
-   a first pass (not model-blind — this is the "what do we currently
-   believe" pass, built from evidence, same exclusion boundary) writes
-   dated, evidence-cited claims using the template's fields (`Statement`,
-   `Kind`, `Basis`, `Evidence`, `Evidence-support state`, `Status`). Any
-   assertion whose `Evidence` is a compat-register entry additionally
-   cites that entry's own underlying differential-test evidence by id/
-   path, not just the entry's filename (per §3.2's "derived, not primary"
-   rule) — if that underlying evidence can't be located, the assertion
-   stays `Evidence-support state: uncertain` until a targeted
-   `compat-differential-tester` re-check resolves it, rather than being
-   written as supported on the YAML's say-so alone.
-2. **`domain-skeptic` adversarial review**, then **freeze** into
-   `dev-docs/clean-room/snapshots/<topic>-v1.md` (+ a machine-checkable
-   sidecar: assertion ids + content hash + repo revision — the template's
-   lighter-weight version of CodeCompass's own snapshot mechanism).
-3. **Run `check_snapshot.py` (§3.7) against the frozen snapshot.** A
-   snapshot that fails the checker is not frozen — fix the defect
-   (missing id, bad hash, dangling reference, unresolvable evidence path)
-   and re-freeze before proceeding. This is a hard gate, not advisory.
-4. **Independent `implementation-reconstructor` dispatch**, model-blind
-   and legacy-blind per §3.2's boundary, never shown the assertions, the
-   snapshot, or this plan's own prose — builds its own understanding of
-   the same topic from primary evidence alone.
-5. **`domain-skeptic` comparison**
-   (`dev-docs/clean-room/implementation-comparison/<topic>.md`):
-   classify each assertion `aligned`/`partial`/`conflicting`/
-   `not_implemented`/`insufficiently_verified` against the independent
-   reconstruction. Per the template's own rule
-   (`conceptual-documentation-guide.md`): **alignment is not
-   verification** — an `aligned` finding on a rule/invariant means the
-   current implementation matches the stated rule, not that the rule
-   itself is correct. Never auto-promote a Claim's status off an
-   `aligned` finding alone.
 
-**At no point in steps 1–5 does any dispatch read, search for, or
+1. **Dispatch a fresh, evidence-only assertion-research agent.** A brand
+   new `Agent` call — **never `subagent_type: "fork"`**, since a fork
+   inherits the orchestrator's own conversation context, carrying forward
+   exactly the things this step exists to keep out. This dispatch
+   receives, in its prompt, **only**:
+   - the bounded topic, named exactly as one row of §4.1's table;
+   - the exact permitted evidence paths/sources for that topic (the
+     `Primary source`/`Primary tests` columns, given as literal paths —
+     "look at `ledgerkit/parser.py` and `tests/test_parser/`", never
+     "use your judgement about what's relevant to parsing");
+   - the assertion output format: the template's `assertions/
+     TEMPLATE.md` fields (`Statement`, `Kind`, `Basis`, `Evidence`,
+     `Evidence-support state`, `Status`), given as a literal skeleton to
+     fill in;
+   - the git-history restriction from §3.2 (tree/content commands only;
+     commit-message text only as a named, narrow exception);
+   - a one-line restatement of the exclusion boundary itself ("do not
+     read, search for, or open any file outside the paths named above —
+     if you are unsure whether something is in scope, don't open it, and
+     say so in your output instead").
+
+   This dispatch **must not receive**, by any route the orchestrator
+   controls:
+   - legacy documentation (`README.md`, `docs/**`, `dev-docs/
+     architecture.md`, `dev-docs/api-spec.md`, `dev-docs/
+     hledger-compatibility.md`, `ROADMAP.md`'s prose);
+   - existing planning/knowledge narrative (`knowledge/*.md`,
+     `dev-docs/planning/**` prose, `dev-docs/retros/**`);
+   - **this governing plan's own prose** — the dispatch is told *what to
+     look at*, never shown *this document*;
+   - pre-existing assertions or a snapshot for this topic (none exist yet
+     on a first pass; on a re-run after contamination, the discarded
+     output is not shown to the fresh attempt either — see §4.2a);
+   - implementation-reconstruction output (step 6 below hasn't run yet,
+     and even once it has, this dispatch is never shown it — the two
+     reconstructions must stay independent of *each other*, not only of
+     legacy docs);
+   - prior agent summaries of any kind that could carry legacy framing
+     forward — a one-line "here's what the last pass found" handoff is
+     exactly the indirect leak this rule exists to prevent.
+
+   Every file this dispatch writes carries a **producer header**: role
+   (`assertion-research`), topic, a dispatch id (the `Agent` call's own
+   identifier, or a timestamp if none is exposed), and the date.
+
+2. **Immediately inspect this dispatch's real tool-call transcript** for
+   boundary compliance, per §4.2a, before anything downstream consumes
+   its output. Discard and rerun from a fresh dispatch if contaminated.
+
+3. **`domain-skeptic` adversarial review** of the resulting assertions —
+   also a fresh dispatch, also never shown legacy documentation or this
+   plan's prose (its job is scrutinising evidence sufficiency and rigour,
+   not comparing against old prose), given the assertion-research
+   dispatch's output plus the same permitted-evidence-paths list, so it
+   can independently re-check a doubtful claim against the source
+   itself. Any assertion whose `Evidence` is a compat-register entry must
+   additionally cite that entry's own underlying differential-test
+   evidence by id/path, not just the entry's filename (§3.2's
+   "derived, not primary" rule) — if that underlying evidence can't be
+   located, the assertion stays `Evidence-support state: uncertain` until
+   a targeted `compat-differential-tester` re-check resolves it.
+4. **Freeze** the reviewed assertions into
+   `dev-docs/clean-room/snapshots/<topic>-v1.md` (+ a machine-checkable
+   sidecar: assertion ids, content hash, and the exact repository
+   revision). This step is mechanical bookkeeping over already-produced,
+   already-reviewed content — the orchestrator performs it directly, no
+   further dispatch needed.
+5. **Run `check_snapshot.py` (§3.7), including its historical-integrity
+   checks, against the frozen snapshot.** A snapshot that fails the
+   checker is not frozen — fix the defect and re-freeze before
+   proceeding. Hard gate, not advisory.
+6. **Dispatch a different fresh implementation-reconstructor agent** —
+   again a brand-new `Agent` call, never a `fork`, given the same kind of
+   tightly-scoped prompt as step 1 (bounded topic + permitted evidence
+   paths + output instructions), **never shown the assertions, the
+   snapshot, this governing plan's prose, or any legacy documentation**
+   — builds its own understanding of the same topic from primary
+   evidence alone, citing file/line for every claim.
+7. **Immediately inspect this second dispatch's transcript** for
+   boundary compliance, per §4.2a. Discard and rerun from a fresh
+   dispatch if contaminated.
+8. **Independent comparison**
+   (`dev-docs/clean-room/implementation-comparison/<topic>.md`): a third
+   pass — `domain-skeptic` again, or a fresh dispatch, orchestrator's
+   choice, but **never the same dispatch that produced either the
+   snapshot or the reconstruction** — classifies each assertion
+   `aligned`/`partial`/`conflicting`/`not_implemented`/
+   `insufficiently_verified` against the independent reconstruction. Per
+   the template's own rule (`conceptual-documentation-guide.md`):
+   **alignment is not verification** — an `aligned` finding on a
+   rule/invariant means the current implementation matches the stated
+   rule, not that the rule itself is correct. Never auto-promote a
+   Claim's status off an `aligned` finding alone.
+9. **Producer metadata on every artifact.** Every file this topic
+   produced (assertions, snapshot, reconstruction record, comparison
+   report) carries the header from step 1 — independence is checkable by
+   reading headers, not by trusting a claim.
+
+**At no point in steps 1–9 does any dispatch read, search for, or
 compare against `README.md`, `docs/**`, `dev-docs/architecture.md`,
 `dev-docs/api-spec.md`, `dev-docs/hledger-compatibility.md`,
 `ROADMAP.md`'s prose, `knowledge/*.md`, or any other item the hard
 invariant excludes.** That comparison is Phase 5's entire job, not a
 thing to get a head start on here.
+
+### 4.2a Per-dispatch boundary-compliance check — immediate, not deferred to Phase 6 (new this amendment, §8 Finding C4)
+
+Contamination is discovered **immediately after each isolation-sensitive
+dispatch** in this phase (the assertion-research dispatch, step 2 above;
+the implementation-reconstructor dispatch, step 7 above) — never first
+discovered at Phase 6. Phase 6 later independently *audits that this
+check actually happened every time*, which is a different, weaker claim
+than Phase 6 performing the first contamination check itself.
+
+For each such dispatch, immediately after it returns:
+
+1. Read its real tool-call transcript — never its self-reported summary,
+   the same corrected lesson §3.3 already applies to the preflight probe
+   applies to every real dispatch too.
+2. Check every file read, every search performed, every command run,
+   every network call made, against the permitted-evidence-paths list
+   that dispatch was given. Anything outside that list — reading
+   `README.md`, searching for a phrase that only exists in an excluded
+   doc, `git show`-ing an excluded file's committed content, fetching the
+   public GitHub mirror — is contamination, regardless of whether the
+   dispatch's own written output *looks* clean.
+3. **If contaminated:** record it in `dev-docs/clean-room/
+   compliance-log.md` (one row per dispatch: topic, role, dispatch id,
+   verdict, the specific transcript line(s) that triggered it);
+   **discard the output entirely** — never edited, trimmed, or salvaged,
+   since there is no way to know how much of what it wrote was shaped by
+   what it saw; **do not use it as evidence or input to any later
+   step**; **rerun the task from a fresh context** (a new `Agent`
+   dispatch, same bounded scope), restating the boundary more explicitly
+   if the transcript suggests why it was missed (e.g. the dispatch ran an
+   unscoped `grep -r` across the whole repo — the rerun's prompt says
+   explicitly to scope searches to the named evidence paths only).
+4. **If compliant:** record that too, in the same log (verdict:
+   compliant, with a one-line note of what the transcript actually
+   showed) — a clean result needs the same evidence trail as a
+   contaminated one, or the log can't demonstrate the check actually ran.
+
+This log is the audit trail Phase 6 reads to confirm the per-dispatch
+gate was real throughout, not retrofitted after the fact.
 
 ### 4.3 Phase 3 acceptance criteria
 
@@ -575,11 +805,23 @@ thing to get a head start on here.
 - Every assertion whose evidence traces through a compat-register entry
   also names the entry's own underlying differential evidence, or is
   explicitly `uncertain` pending a targeted re-check (§3.2, §4.1).
+- **Every topic's assertion-research and implementation-reconstructor
+  dispatches each have a `compliance-log.md` entry** (§4.2a), logged
+  immediately after that dispatch, not reconstructed afterward from
+  memory. Any `contaminated` entry has a corresponding discarded-and-
+  rerun pair (the contaminated dispatch id, and the fresh dispatch id
+  that replaced it) — a contamination event is an expected, honestly
+  logged outcome if it occurs, not something to quietly avoid mentioning.
+- No topic's assertions were authored by the main orchestrating session
+  directly — every topic's `compliance-log.md` entries name a dispatch
+  id distinct from the orchestrator's own session.
 
 ### 4.4 Files/components touched
 
 - `dev-docs/clean-room/assertions/**`, `snapshots/**`,
   `implementation-comparison/**` (new content, per topic).
+- `dev-docs/clean-room/compliance-log.md` (new; one running log for the
+  whole initiative, appended to again in Phase 4).
 - `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md`.
 - No `ledgerkit/`/`tests/` code touched.
 
@@ -608,9 +850,15 @@ used *within* reconciliation (§6.1):
   directly against the relevant snapshots/evidence, claim by claim,
   preserving structure that's independently supported and correcting
   what isn't.
-- **Intentionally retained, out of this initiative's scope** — not
-  touched by either phase; a one-line rationale is still recorded so
-  nobody rediscovers it mid-phase and treats it as new scope.
+- **Intentionally retained, out of this initiative's scope** — not a
+  claim-classification or reconciliation target in either phase; a
+  one-line rationale is still recorded so nobody rediscovers it mid-phase
+  and treats it as new scope. **This does not mean these files are never
+  touched** — see §5.1a: this initiative's own ordinary workflow
+  bookkeeping (a `CHANGELOG.md` entry, a `CONTEXT.md` overwrite, a new
+  retro) continues exactly as normal throughout every phase, without that
+  bookkeeping changing this disposition or pulling these files'
+  substantive historic content into the clean-room document set.
 - **Retired/replaced** — folded into another document or removed; only
   used if Phase 5 reconciliation actually finds a document has no
   remaining reason to exist standalone (none is pre-assigned this
@@ -634,6 +882,45 @@ used *within* reconciliation (§6.1):
 this table.** If Phase 5 discovers another human-facing document this
 table missed, it is added here (with a disposition and rationale)
 *before* that document is touched, not decided in the moment.
+
+### 5.1a Disposition vs. ordinary workflow bookkeeping — not the same thing (new this amendment, §8 Finding C5)
+
+**The contradiction this fixes:** §6.6's and §7.1's original wording said
+Phase 5 classifies "every old-doc claim... across every document in
+§5.1's inventory" and that "every document in §5.1's inventory has... a
+reconciliation report" — but §5.1's inventory's fourth row
+(`CHANGELOG.md`, `CONTEXT.md`, retros, planning documents, `knowledge/
+*.md`, compat-register process material) is explicitly dispositioned
+**intentionally retained, out of scope**. Read literally, the acceptance
+criteria contradicted the disposition table one row down. Fixed here,
+not by changing the disposition (it's correct), but by scoping the two
+acceptance-criteria statements precisely (§6.6, §7.1 item 5, both
+corrected below).
+
+**The distinction, stated once, applied everywhere:**
+
+- Every phase of this initiative, including this one, still updates
+  `CHANGELOG.md`, `CONTEXT.md`, and writes a retro under `dev-docs/
+  retros/` — that is **ordinary project workflow**, required by
+  `CLAUDE.md` for *any* phase of *any* initiative, not something §5.1's
+  inventory grants or withholds. Those routine updates **never** change a
+  file's disposition from `intentionally retained` to something else,
+  and never pull a retired entry's substantive historic content into the
+  clean-room document set.
+- §6.1's five-way classification scheme and §6.6/§7.1's
+  reconciliation-report requirement apply **only** to documents §5.1
+  disposes as `clean-room redraft` or `reconciliation-only`
+  (`README.md`, `docs/getting-started.md`, `docs/usage.md`,
+  `docs/journal-format.md`, `docs/python-api.md`,
+  `dev-docs/architecture.md`, `dev-docs/api-spec.md`,
+  `dev-docs/hledger-compatibility.md`, `ROADMAP.md`) — **never** to a
+  document dispositioned `intentionally retained`, regardless of how many
+  times this initiative's own routine bookkeeping touches it.
+- Concretely: this initiative's own Phase 1–6 retros and `CHANGELOG.md`
+  entries get written exactly as every other phase in this project's
+  history has — but nobody classifies a past `CHANGELOG.md` entry's
+  claims `supported`/`stale_or_contradicted`/etc., and no retro gets a
+  `legacy-reconciliation/` report of its own.
 
 ### 5.2 What gets drafted this phase
 
@@ -672,6 +959,18 @@ before dispatching.
 
 ### 5.4 Drafting discipline
 
+- **Per-dispatch boundary-compliance check, immediately, same discipline
+  as §4.2a (new this amendment, §8 Finding C4).** Each of the six
+  drafting dispatches (one per clean-room-redraft document) and the
+  current-shipped-state dispatch is its own fresh `Agent` call — never a
+  `fork` — given only its target document's name, the snapshot(s) it may
+  cite, and drafting instructions; never the old document, never this
+  governing plan's prose. Immediately after each dispatch returns, its
+  transcript is inspected exactly as §4.2a describes; a contaminated
+  draft is discarded (never edited) and the dispatch rerun fresh. Logged
+  to the same `dev-docs/clean-room/compliance-log.md` Phase 3 started —
+  one running audit trail for the whole initiative, not a separate file
+  per phase.
 - One fresh, isolated drafting pass per document (per
   `conceptual-documentation-guide.md`: "a fresh, isolated pass... tends
   to produce a more honest fit than reusing whatever structure worked
@@ -705,12 +1004,20 @@ before dispatching.
   checker, confirmed at dispatch time, not assumed from Phase 3.
 - Drafts committed as their own files before Phase 5 touches any old
   documentation at all (enforces "draft before reconciling"; corrected
-  from the original plan's "before Phase 6" — see §8 Finding F8).
+  from the original plan's "before Phase 6" — see §8 Finding F8). **That
+  commit is the hard boundary between reconstruction/drafting and legacy
+  reconciliation.**
+- Every drafting dispatch (the six documents plus the current-state
+  artifact) has a `compliance-log.md` entry, logged immediately after
+  that dispatch (§5.4); any contamination event has a corresponding
+  discarded-and-rerun pair, same discipline as Phase 3.
 
 ### 5.6 Files/components touched
 
 - New draft documents (exact paths decided at implementation time, kept
   out of the way of `README.md`/`docs/**` until Phase 5).
+- `dev-docs/clean-room/compliance-log.md` (appended to; same file Phase 3
+  started).
 - `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-4.md`.
 
 ---
@@ -830,8 +1137,10 @@ live tree.
 
 ### 6.6 Phase 5 acceptance criteria
 
-- Every old-doc claim, across every document in §5.1's inventory,
-  classified; none silently dropped without a recorded reason.
+- Every old-doc claim, across every document §5.1 disposes as
+  `clean-room redraft` or `reconciliation-only` (never a document
+  dispositioned `intentionally retained` — §5.1a), classified; none
+  silently dropped without a recorded reason.
 - `ROADMAP.md`'s current-state claims and forward-looking intent claims
   are classified and treated separately, per §6.1.
 - Every live documentation file post-reconciliation traces its
@@ -864,17 +1173,26 @@ folded into a single "done".
 
 ### 7.1 Checks, each reported as its own line item
 
-1. **CodeCompass actually upgraded/reconciled**: `codecompass check`
-   clean; `query source-symbol` reflects current source; all four
-   existing agent briefs diffed-and-merged (not blind-copied); the two
-   new roles present and adapted; `PINNED-REVISIONS.md` names the exact
-   SHAs actually used throughout.
+1. **CodeCompass actually upgraded/reconciled, and the pin was actually
+   enforced**: `codecompass check` clean; `query source-symbol` reflects
+   current source; all four existing agent briefs diffed-and-merged (not
+   blind-copied); the two new roles present and adapted;
+   `PINNED-REVISIONS.md` names the exact SHAs actually used throughout;
+   **independently re-confirmed that the pin-enforcement mechanism from
+   §2.0 was genuinely exercised** (the dedicated worktree's own `HEAD`
+   still matches the pin, or `check_codecompass_pin.sh`'s logged results
+   show it ran and passed before every `codecompass` invocation this
+   initiative made) — not merely that `PINNED-REVISIONS.md` contains
+   correct-looking text.
 2. **Clean-room workflow executed correctly**: the template's stages
-   (assertions → snapshot → checker → independent reconstruction →
-   comparison → draft → reconciliation) actually ran, in order, for
-   every topic in §4.1's table and every document in §5.1's inventory —
-   a process-fidelity check, independent of how strong the isolation
-   mechanism itself turned out to be.
+   (isolated assertion research → domain-skeptic review → snapshot →
+   checker → independent reconstruction → comparison → draft →
+   reconciliation) actually ran, in order, for every topic in §4.1's
+   table and every document in §5.1's inventory — a process-fidelity
+   check, independent of how strong the isolation mechanism itself
+   turned out to be. Confirmed in part by `compliance-log.md` showing a
+   per-dispatch entry for every isolation-sensitive dispatch in Phases 3
+   and 4, with no gaps.
 3. **Actual isolation tier achieved**: the §3.3 preflight-probe
    transcript's honest tier label (§3.4) is reported as its own line —
    expected `best-effort` or `filesystem-only, network-exposed`, **never**
@@ -883,16 +1201,26 @@ folded into a single "done".
    it is (§8 Finding F5 — this corrects the original plan's §7.1 item 2,
    which conflated the tier with "enforced").
 4. **Dispatch transcripts show compliance with the declared exclusion
-   boundary**: separately from the probe (which tests what the mechanism
-   *could* reach), spot-check the real Phase 3/4 dispatch transcripts
-   (not their self-reported summaries) to confirm they did not, in fact,
-   read or search for anything §3.2 excludes. A `best-effort` tier with
-   confirmed compliant transcripts is an honest, reportable success on
-   this axis; it is still not "verified isolation".
+   boundary**: this is now an **audit of a process that already ran
+   per-dispatch** (§4.2a, §5.4), not the first place contamination could
+   be discovered. Confirm `compliance-log.md`'s completeness (one entry
+   per isolation-sensitive dispatch in Phases 3 and 4, no gaps between
+   what the phase retros say ran and what the log shows), independently
+   re-read a sample of the underlying raw transcripts directly (not
+   their self-reported summaries) to confirm the log's own verdicts were
+   accurate, and confirm every `contaminated` entry has a corresponding
+   discarded-and-rerun pair with no contaminated output surviving into
+   any later artifact. A `best-effort` tier with a complete, accurate
+   compliance log is an honest, reportable success on this axis; it is
+   still not "verified isolation".
 5. **Substantial cross-section, not a trivial sample**: every topic in
    §4.1's table has a snapshot + comparison; every document in §5.1's
-   inventory has a disposition and a reconciliation report; the §6.4
-   coverage count is reported as a number, not asserted qualitatively.
+   inventory has a disposition recorded; every document dispositioned
+   `clean-room redraft` or `reconciliation-only` additionally has a
+   reconciliation report (an `intentionally retained` document has only
+   its one-line rationale, by design, per §5.1a — not a missing report);
+   the §6.4 coverage count is reported as a number, not asserted
+   qualitatively.
 6. **Provenance exists**: spot-check (independent — not the drafting
    dispatch) a sample of sentences in each Phase 4/5 document, confirming
    each traces to a real snapshot citation or an explicitly labelled
@@ -931,13 +1259,15 @@ commit/push done, no unauthorised protected-file edit).
 
 ## 8. Resolved decisions (was "Open questions" — all five resolved this amendment)
 
-**Two separate lists below, deliberately not sharing one number
-sequence**, since the original plan's 5 open questions and the review's
-8 numbered findings are different lists that happen to overlap in range
-(1–5 and 1–8): **Part A** items are referenced elsewhere in this document
-as "§8 item `N`"; **Part B** findings are referenced as "§8 Finding
-`FN`" — matching the review's own numbering exactly, so each is directly
-traceable back to the review comment that raised it.
+**Three separate lists below, deliberately not sharing one number
+sequence**, since the original plan's 5 open questions, the first
+review's 8 numbered findings, and the second review's 8 numbered
+corrections are different lists that happen to overlap in range: **Part
+A** items are referenced elsewhere in this document as "§8 item `N`";
+**Part B** findings are referenced as "§8 Finding `FN`"; **Part C**
+corrections are referenced as "§8 Finding `CN`" — each matching its own
+source list's numbering exactly, so every cross-reference is directly
+traceable back to the specific review comment that raised it.
 
 ### Part A — the original plan's 5 open questions, now resolved
 
@@ -1046,6 +1376,81 @@ Numbered to match the review's own list exactly, for direct traceability.
   amendment was itself re-checked for the same class of error after
   drafting — see §12.
 
+### Part C — the second review's 8 corrections, applied before implementation
+
+Numbered to match that review's own list exactly.
+
+- **C1 — Structurally isolate assertion creation.** The first amendment's
+  §4.2 said "a first pass" writes assertions without specifying *who* —
+  leaving room for the main orchestrator (which has read this entire
+  plan, and may have seen legacy documentation) to author them directly.
+  **Resolved:** §4.2 now specifies a fresh, evidence-only
+  assertion-research `Agent` dispatch (never a `fork`) that receives only
+  the bounded topic, permitted evidence paths, and the output format —
+  never legacy docs, this plan's prose, pre-existing assertions/
+  snapshots, reconstruction output, or prior agent summaries. The main
+  orchestrator is explicitly barred from authoring assertions itself.
+  Producer-metadata headers (already required for independence-checking,
+  §4.3) now cover every artifact this generates.
+- **C2 — Enforce the pin, not merely record it.** The first amendment's
+  §2.0 recorded a SHA but checked nothing against it, while the
+  underlying install stays editable against a checkout that can move.
+  **Resolved:** §2.0 adds a preferred dedicated-worktree mechanism (the
+  installed executable points at a fixed checkout, not at
+  `/home/cormac/projects/codecompass`'s own moving `HEAD`), or, if that's
+  not taken, a mechanical guard run before every `codecompass`-dependent
+  command that stops rather than silently continues on a mismatch. The
+  same discipline applies to `codecompass-template`'s clone.
+- **C3 — Strengthen snapshot historical-integrity semantics.** The first
+  amendment's `check_snapshot.py` (§3.7) resolved cited evidence against
+  today's working tree, which a later, unrelated source change could
+  silently invalidate or falsely validate. **Resolved:** §3.7 adds two
+  checks that resolve everything against the frozen revision's own git
+  tree (`git cat-file`/`git show <revision>:<path>`), never today's
+  filesystem — confirming the revision itself exists as a real commit,
+  that a cited file existed at that revision, and that a cited line/range
+  resolves against that revision's own historical content.
+- **C4 — Make boundary compliance a per-dispatch gate.** The first
+  amendment deferred contamination discovery primarily to Phase 6.
+  **Resolved:** §4.2a (Phase 3) and §5.4 (Phase 4) require inspecting
+  each isolation-sensitive dispatch's real transcript immediately after
+  it returns, discarding and rerunning on contamination, and logging
+  every verdict to `dev-docs/clean-room/compliance-log.md`; Phase 6
+  (§7.1 items 2 and 4) now independently *audits that log's completeness
+  and accuracy*, rather than performing the first contamination check.
+- **C5 — Fix inventory/acceptance-criteria scope contradiction.** §6.6
+  and §7.1 item 5 said Phase 5 classifies claims and produces
+  reconciliation reports for "every document in §5.1's inventory" —
+  including the inventory's own `intentionally retained` row, directly
+  contradicting that row's disposition. **Resolved:** new §5.1a states
+  the distinction explicitly (ordinary workflow bookkeeping is not
+  clean-room reconstruction scope); §6.6 and §7.1 item 5 are both
+  reworded to apply only to documents dispositioned `clean-room redraft`
+  or `reconciliation-only`.
+- **C6 — Restrict Git history use before Phase 5.** §3.2's original
+  "`git log` for specific files" row didn't distinguish tree/diff content
+  from commit-message prose, and commit messages are human-authored
+  narrative that can leak prior framing the same way any other legacy doc
+  can. **Resolved:** §3.2's row now permits tree/content commands only
+  (`git show <rev>:<path>`, `git diff`), excludes commit-message text by
+  default, and requires a narrow, explicitly-recorded exception (named in
+  the assertion's own `Evidence` field) for any case where commit-message
+  prose is genuinely needed.
+- **C7 — Correct the template file-count wording.** The first
+  amendment's own correction (§8 Finding F8) fixed "seven skeletons, not
+  nine" but left the total wrong: seven skeletons + two guides + one
+  worked example is ten, not nine, and the workflow directory's own
+  `README.md` makes eleven. **Resolved:** §1.1 now states eleven files in
+  total, with the full breakdown, and the error in the first amendment's
+  own correction is noted rather than quietly replaced.
+- **C8 — Re-run plan consistency checks.** **Resolved:** §12 gained a
+  second, dated addendum (below) covering this round's own full
+  re-read, every phase/cross-reference check, an explicit confirmation
+  that every acceptance criterion names a concrete observable, a
+  dedicated invariant-leakage sweep of the newly-restructured §4/§5, and
+  confirmation that Phase 5 remains the first point existing narrative is
+  intentionally reintroduced.
+
 ---
 
 ## 9. Non-goals
@@ -1111,11 +1516,17 @@ Phase 1 (CodeCompass reconciliation + revision pinning)
    ↓ unblocks: current, pinned agent roster and generated artifacts
 Phase 2 (isolation mechanism adopted + preflight-probed; snapshot checker built)
    ↓ unblocks: a trustworthy exclusion boundary and a validator for Phase 3
-Phase 3 (per-topic: assertions → snapshot → checker → independent reconstruction → comparison)
+Phase 3 (per-topic: isolated assertion research [fresh dispatch, immediate
+         transcript check] → domain-skeptic review → snapshot → historical-
+         integrity checker → independent reconstruction [fresh dispatch,
+         immediate transcript check] → comparison; all contamination
+         discarded-and-rerun on the spot, logged to compliance-log.md)
    ↓ unblocks: evidence-backed, provenance-carrying, checker-validated material to draft from
    (zero comparison against any existing document anywhere in this phase)
 Phase 4 (draft README/getting-started/usage/journal-format/python-api/architecture
-         + a factual current-shipped-state artifact, from snapshots alone)
+         + a factual current-shipped-state artifact, from fresh isolated
+         dispatches against snapshots alone; same immediate transcript-
+         compliance check per dispatch)
    ↓ unblocks: something to reconcile against
    (this is still before any old documentation is read — that starts in Phase 5)
 Phase 5 (FIRST point old documentation is reintroduced: classify every
@@ -1143,8 +1554,11 @@ single bounded unit of work.
 # Phase 1
 git -C /home/cormac/projects/codecompass fetch origin
 git -C /home/cormac/projects/codecompass rev-parse HEAD   # record in PINNED-REVISIONS.md
+git -C /home/cormac/projects/codecompass worktree add <fixed-path> <pinned-sha>  # preferred enforcement
 # (clone codecompass-template to a chosen local path, then:)
 git fetch origin && git rev-parse HEAD                     # record in PINNED-REVISIONS.md
+# pin-enforcement guard (if the worktree approach isn't used), run before every codecompass command:
+bash dev-docs/clean-room/check_codecompass_pin.sh
 codecompass sync
 codecompass index
 codecompass check
@@ -1158,12 +1572,17 @@ python dev-docs/clean-room/check_snapshot.py <topic> --fixture   # against a tri
 curl -sI https://raw.githubusercontent.com/ctosullivan/ledgerkit/main/README.md
 grep -r "<distinctive-excluded-phrase>" .   # from inside the probe dispatch
 
-# Phase 3 (per topic, before any snapshot is treated as frozen)
+# Phase 3 (per topic, before any snapshot is treated as frozen — checks
+# historical integrity against the recorded revision, not today's tree)
+git cat-file -e <revision>^{commit}            # confirm the revision itself exists
+git cat-file -e <revision>:<cited-path>        # confirm the cited file existed at that revision
+git show <revision>:<cited-path>               # resolve a cited line/range against that revision's content
 python dev-docs/clean-room/check_snapshot.py <topic>
 
 # Phase 6 (final)
 python -m unittest discover -s tests -t . -v
 codecompass check
+cat dev-docs/clean-room/compliance-log.md      # audited for completeness, not regenerated
 # release-phase-auditor dispatch against §7.1's eight items
 ```
 
@@ -1227,3 +1646,79 @@ No further defects were found in this pass. This section is itself
 subject to the same rule as the rest of this document: a future
 amendment that finds a new defect here adds to it rather than quietly
 rewriting this record.
+
+### Second amendment consistency review (2026-10-02, same day)
+
+Performed after applying all 8 of §8 Part C's corrections, before
+proceeding to implementation:
+
+- **Full re-read.** Read the entire document top to bottom after
+  applying all 8 corrections (not just the sections touched), checking
+  each against the hard invariant banner and against every other phase.
+- **Phase-reference audit.** Re-ran the same class of check as the first
+  amendment's §12 (grep for `Phase N`, "nine", "before Phase 6"-style
+  errors) against the full post-amendment text; no new instance found —
+  the restructured §4.2/§4.2a/§5.4 consistently say "Phase 5" for when
+  old documentation is first touched, and "Phase 6" only for the final
+  audit.
+- **Cross-reference audit.** Checked every new `§8 Finding CN` reference
+  this amendment introduced against Part C's own list (8 references,
+  C1–C8, one per correction) — no collision with Part A's `§8 item N` or
+  Part B's `§8 Finding FN`, since Part C uses its own letter and sits in
+  its own subsection, the same discipline the first amendment's own
+  self-correction (§8 Finding F8, this section's first pass) established.
+- **Hard-invariant consistency check, against every Phase 1–6
+  instruction.** Re-read Phases 1, 2, 5, and 6 (unchanged by this
+  amendment's structural edits) against the invariant to confirm nothing
+  in them was accidentally loosened by edits made elsewhere; re-read the
+  rewritten Phases 3 and 4 (§4.2, §4.2a, §5.4) line by line to confirm
+  the new, more detailed dispatch-scoping instructions never introduce a
+  route for legacy content to reach a dispatch (the explicit "must not
+  receive" list in §4.2 step 1 was checked against the invariant's own
+  "at minimum" list and covers it in full, plus the two items the
+  invariant's own text doesn't name individually — pre-existing
+  assertions/snapshots and prior agent summaries — which the invariant's
+  general "no planning/knowledge narrative" language already covers but
+  §4.2 now also states explicitly).
+- **Acceptance-criteria demonstrability, re-checked against the new
+  content.** Every new or edited acceptance-criteria bullet (§2.5, §4.3,
+  §5.5, §6.6, §7.1 items 1/2/4/5) names a concrete artifact or log entry
+  (`PINNED-REVISIONS.md`, `check_codecompass_pin.sh`'s logged result,
+  `compliance-log.md`'s per-dispatch rows, the historical-integrity
+  checker's own pass/fail output) — none introduces a criterion that
+  could only be confirmed by trusting a dispatch's self-report.
+- **No existing documentation permitted into Phase 3 or Phase 4 through a
+  secondary route.** Specifically checked the new §4.2 step 1's
+  "permitted evidence paths" instruction and the new §3.2 git-history row
+  for a route that could let legacy narrative in indirectly — commit
+  messages were exactly this kind of secondary route (a `git log` output
+  can quote a commit subject line that itself paraphrases old
+  documentation), which is why §8 Finding C6 excludes them by default
+  rather than only restricting direct reads of `README.md` et al.
+- **Phase 5 remains the first point existing narrative is intentionally
+  reintroduced.** Confirmed by the same sweep as the first amendment's
+  own closing bullet, re-run against the new §4.2/§4.2a/§5.4 text: no
+  dispatch instruction added this amendment names an excluded document as
+  something to read, search, or compare against before Phase 5.
+
+No further defects were found in this second pass.
+
+---
+
+## 13. Implementation log
+
+This section is appended to, in place, as each phase actually runs — it
+is the running record the top-of-document Status line points to.
+Phase-level detail lives in each phase's own retro
+(`dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-<N>.md`); this log is a short
+index into those, kept here so a fresh session can see initiative-wide
+progress without opening six separate retros first.
+
+- **Phase 1 — CodeCompass reconciliation & enforced revision pinning:**
+  not started as of this amendment's commit.
+- **Phase 2 — Isolation workflow adoption + snapshot checker:** not
+  started.
+- **Phase 3 — Evidence-backed clean-room reconstruction:** not started.
+- **Phase 4 — Clean-room documentation drafting:** not started.
+- **Phase 5 — Legacy reconciliation:** not started.
+- **Phase 6 — Independent final validation:** not started.
