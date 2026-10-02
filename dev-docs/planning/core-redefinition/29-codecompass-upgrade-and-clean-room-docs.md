@@ -1715,7 +1715,24 @@ index into those, kept here so a fresh session can see initiative-wide
 progress without opening six separate retros first.
 
 - **Phase 1 — CodeCompass reconciliation & enforced revision pinning:**
-  not started as of this amendment's commit.
+  **Done, 2026-10-02.** Retro: `dev-docs/retros/
+  CODECOMPASS-UPGRADE-PHASE-1.md`. CodeCompass pinned at
+  `96a1e4d53acf4acc6659dc233b1ca2eafae3d41a`, `codecompass-template` at
+  `68bae8ec739aea413bbedac9f19078f6ab995aca`
+  (`dev-docs/clean-room/PINNED-REVISIONS.md`); pin mechanically enforced
+  via `dev-docs/clean-room/check_codecompass_pin.sh` (tested both pass
+  and fail paths), not a dedicated worktree — rationale recorded in the
+  pin file itself (the global editable install is shared with
+  CodeCompass's own active development). Re-synced; `codecompass check`
+  clean; `query source-symbol` confirmed 107 of 322 indexed symbols now
+  come from `ledgerkit/query/*`/`tags.py`. Four existing agent briefs
+  reconciled (hand-merged, not blind-copied); `implementation-
+  reconstructor.md`/`domain-skeptic.md` added, adapted to Plan 29's own
+  lighter artifact scheme (CodeCompass's heavier Claim/Evidence
+  apparatus not imported, per §9). `CLAUDE.md`'s folder-structure
+  diagram corrected; its CodeCompass section and
+  `04-codecompass-integration.md` updated. 935 tests still pass (no
+  `ledgerkit/`/`tests/` code touched).
 - **Phase 2 — Isolation workflow adoption + snapshot checker:** not
   started.
 - **Phase 3 — Evidence-backed clean-room reconstruction:** not started.

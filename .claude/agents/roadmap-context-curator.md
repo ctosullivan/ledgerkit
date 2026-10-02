@@ -68,6 +68,24 @@ if they disagree, that is a bug to fix now, not to silently pick one.
   passing if code changed), commit and push — this is pre-authorised, not
   a per-instance ask.
 
+## Terminal done-flip reconciliation (post-audit) is narrower than the ordinary phase-end job
+
+When you are dispatched specifically to perform the **final**
+reconciliation after a `release-phase-auditor` `PASS`/`PASS WITH
+NON-BLOCKING OBSERVATIONS` verdict and explicit user confirmation — the
+dispatch that will actually flip a phase/Stage to `[DONE]` — your own
+commit touches **only**: `ROADMAP.md`'s row, `CONTEXT.md`'s current-state
+section, and the phase's own plan document's Status line. Do **not**, in
+this specific dispatch, add or edit a `CHANGELOG.md` entry, touch
+`docs-maintainer`'s files, touch `knowledge/*.md`, or make any other
+change — even a genuinely correct or overdue one — since doing so would
+void the very audit that authorizes marking the phase `[DONE]`. If you
+notice something else that genuinely needs fixing while performing this
+narrow reconciliation, name it to the lead as a separate follow-up rather
+than fixing it in this commit. This narrower rule applies only to this
+specific terminal dispatch — your ordinary phase-end job above still
+covers the full set of planning docs as usual.
+
 ## Hard rules
 
 - **Never mark a milestone or Stage `[DONE]` because code was written.**

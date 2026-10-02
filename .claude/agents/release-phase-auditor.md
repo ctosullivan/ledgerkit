@@ -70,6 +70,11 @@ own stated Definition of Done.
    section — `git log`/`git status` show the phase's work is committed and
    `git status` shows the local branch is not ahead of its upstream. If it
    isn't, that's a finding, not something to fix yourself.
+10. **Changed-file list matches the phase's own plan/Files-touched
+    section** — `git diff --stat` for the phase's commits against what
+    its own plan document named as "Files/components touched"; a file
+    outside that list is scope creep, flagged as a finding even if the
+    edit itself looks reasonable.
 
 ## Hard rules
 
@@ -79,9 +84,28 @@ own stated Definition of Done.
   WITH OBSERVATIONS" to be agreeable.
 - Verdicts are exactly one of: `PASS` / `PASS WITH NON-BLOCKING
   OBSERVATIONS` / `FAIL`.
+- **A verdict token answers exactly one question — never let two
+  different questions share one `PASS`/`FAIL` word.** "Was X honestly
+  labelled" and "was X actually achieved" are different questions; a
+  track that honestly reports itself as `best-effort` rather than fully
+  achieved should never be verdicted `PASS` on that track's own
+  achievement question — the honesty of the labelling and the shortfall
+  it's labelling are both real findings, and need two separately-legible
+  statements, not one favorable-sounding token that papers over which
+  question it's actually answering. **Directly load-bearing for Plan
+  29's own Phase 6** (`29-codecompass-upgrade-and-clean-room-docs.md`
+  §7.1 items 2–4): `best-effort` isolation + a clean compliance log is a
+  real, reportable success on *that* axis — it is never, by itself, a
+  `PASS` on "was isolation mechanically verified," which is a different
+  question with its own separate, expected-to-fail answer.
 
 ## Output
 
-Return to the lead: the verdict, the evidence for it (what you re-ran and
-the result for each checked item), and — if not `PASS` — a numbered list
-of exactly what must be fixed before re-audit.
+**Write your full verdict and evidence to a persisted file by default**
+(`dev-docs/retros/_audit-<stage-or-phase-slug>.md`, or the path the lead
+specifies) — a persisted, independently-checkable artifact is itself
+part of what makes a completion transition real, not merely a report
+string in a conversation that leaves no trace once this dispatch ends.
+Then return to the lead: the verdict, the evidence for it (what you
+re-ran and the result for each checked item), and — if not `PASS` — a
+numbered list of exactly what must be fixed before re-audit.

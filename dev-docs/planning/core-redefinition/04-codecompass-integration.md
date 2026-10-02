@@ -16,6 +16,21 @@ both held up unchanged through real use — nothing here needed revision
 on contact with the actual tool. Full adoption record: `dev-docs/
 retros/STAGE-C-PHASE-5A.md`; the routine workflow itself: §4.7.
 
+**Reconciled and re-pinned, Plan 29 Phase 1 (2026-10-02)** — see
+`dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-
+room-docs.md` §2 for the full record: CodeCompass and
+`codecompass-template` are now pinned to exact SHAs for the duration of
+Plan 29's own clean-room documentation initiative
+(`dev-docs/clean-room/PINNED-REVISIONS.md`), with the pin mechanically
+enforced (`dev-docs/clean-room/check_codecompass_pin.sh`), not merely
+recorded. Ledgerkit's four CodeCompass-derived agent briefs
+(`docs-reconstructor`, `docs-maintainer`, `release-phase-auditor`,
+`roadmap-context-curator`) were diffed against the pinned upstream
+revision and reconciled; two new roles were added
+(`implementation-reconstructor`, `domain-skeptic`) for Plan 29's own
+clean-room workflow. §4.7's routine workflow below is otherwise
+unchanged by this reconciliation.
+
 ## 4.1 Ground truth about CodeCompass at planning time (2026-09-13, historical)
 
 CodeCompass (`https://github.com/ctosullivan/codecompass`, MIT, pre-release

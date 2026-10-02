@@ -9,6 +9,45 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [CodeCompass upgrade + clean-room docs — Phase 1] — CodeCompass reconciliation & enforced revision pinning — 2026-10-02
+
+Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-1.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-1.md)
+
+**Human:** directed implementing the amended Plan 29 straight through to
+closeout, starting with Phase 1.
+
+**Claude:** pinned `codecompass`
+(`96a1e4d53acf4acc6659dc233b1ca2eafae3d41a`) and a freshly-cloned
+`codecompass-template` (`68bae8ec739aea413bbedac9f19078f6ab995aca`) in
+`dev-docs/clean-room/PINNED-REVISIONS.md`, and made the pin mechanically
+enforced via a new guard script
+(`dev-docs/clean-room/check_codecompass_pin.sh`, tested against both a
+matching and a deliberately corrupted pin to confirm it genuinely fails
+closed) rather than a dedicated worktree — the global `pipx install -e`
+is shared with CodeCompass's own active development, so repointing it
+would change state outside this repository's own blast radius for no
+extra isolation the guard doesn't already provide. Re-ran `codecompass
+sync`/`index`/`check` against the pin (declining Phase B's AI-enrichment
+prompt — no `ANTHROPIC_API_KEY` is configured, and Ledgerkit has zero
+tracked vendors to enrich); confirmed via `query source-symbol` that 107
+of 322 indexed symbols now come from Stage C's `ledgerkit/query/*`/
+`tags.py`, proving the re-sync picked up real new code, not just that
+the command exited cleanly. Diffed and hand-merged all four existing
+CodeCompass-derived agent briefs against the pinned upstream revision
+(adopting, among other things, `release-phase-auditor`'s
+single-question-per-verdict rule — directly load-bearing for this
+initiative's own Phase 6 isolation reporting); added
+`implementation-reconstructor.md`/`domain-skeptic.md`, adapted to Plan
+29's own lighter assertion/snapshot scheme rather than CodeCompass's
+heavier internal Claim/Evidence apparatus. Corrected `CLAUDE.md`'s
+folder-structure diagram, which had drifted well beyond what Plan 29's
+original finding named (missing `.claude/`, `validation/`, most of
+`dev-docs/`'s real subdirectories, and several root files, on top of the
+already-known missing `ledgerkit/query/` subpackage). 935 tests still
+pass; no `ledgerkit/`/`tests/` code touched.
+
+---
+
 ### CodeCompass upgrade + clean-room documentation reconstruction — plan amended again, approved to implement — 2026-10-02
 
 Full detail: [dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md](dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md)
