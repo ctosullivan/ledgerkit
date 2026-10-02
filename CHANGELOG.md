@@ -9,6 +9,48 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### CodeCompass upgrade + clean-room documentation reconstruction — plan — 2026-10-02
+
+Full detail: [dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md](dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-room-docs.md)
+
+**Human:** directed planning a phase to (1) bring Ledgerkit's CodeCompass
+integration current and (2) use the upgraded tooling for a genuine
+clean-room reconstruction of the project's human-facing documentation,
+with old documentation held out of the reconstruction and reintroduced
+only afterward for comparison; explicitly not to implement yet.
+
+**Claude:** investigated live, rather than trusting prior notes — found
+CodeCompass's editable install already runs current code
+(`context-graph.db`'s `schema_version` already matches the live
+`_SCHEMA_VERSION` exactly; only a routine re-sync is needed, not a version
+migration) and found CodeCompass's own upstream project independently
+built almost exactly the requested methodology already (Phase 79's
+clean-room pipeline, `decisions/0066`'s isolation findings, and a
+portable, MIT-licensed `optional-clean-room-workflow/` template shipped to
+`codecompass-template` — read-only clone, inspected this session).
+Produced a six-phase plan (`29-codecompass-upgrade-and-clean-room-docs.md`)
+that adopts that template directly rather than re-deriving it: Phase 1
+reconciles Ledgerkit's four drifted local agent-brief copies against
+upstream and imports two new roles (`implementation-reconstructor`,
+`domain-skeptic`); Phase 2 adopts the template's isolation-preflight
+discipline, honestly expecting a `best-effort`/`filesystem-only,
+network-exposed` result (not `verified`) since Ledgerkit is itself a
+public GitHub repository, same structural finding CodeCompass's own ADR
+already confirmed for itself; Phase 3 builds evidence-cited, snapshot-
+frozen assertions per module topic and independently reconstructs/
+compares each; Phase 4 drafts replacement README/architecture/usage/
+roadmap documentation from the snapshots alone; Phase 5 reintroduces old
+documentation only now, classifies every claim (five-way scheme), and
+replaces the live documents; Phase 6 runs an independent
+`release-phase-auditor` Definition-of-Done audit against six explicit,
+separately-reported validation criteria. Five open questions flagged for
+explicit confirmation before Phase 1 starts (`§8`), including where this
+sits in `ROADMAP.md` (recommended: its own section, not a Stage letter)
+and the evidence/excluded boundary for `knowledge/*.md`. No `ledgerkit/`
+or `tests/` code touched; no implementation begun.
+
+---
+
 ### [Stage C — Query system] — 2026-09-27
 
 Full detail: [dev-docs/changelog/STAGE-C.md](dev-docs/changelog/STAGE-C.md)
