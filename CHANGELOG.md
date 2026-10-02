@@ -9,6 +9,46 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [CodeCompass upgrade + clean-room docs — Phase 2] — Isolation workflow adoption + snapshot checker — 2026-10-02
+
+Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-2.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-2.md)
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** copied the pinned `codecompass-template`'s
+`optional-clean-room-workflow/` directly into `dev-docs/clean-room/`
+(seven `TEMPLATE.md` skeletons, two guides, the worked example, its own
+README — kept verbatim except one stale cross-reference, corrected to
+point at Ledgerkit's own long-existing equivalents). Built
+`dev-docs/clean-room/check_snapshot.py`, a small stdlib-only checker
+implementing all six fail-closed conditions from Plan 29 §3.7 — missing/
+duplicate assertion ids, hash mismatch, missing/nonexistent repository
+revision, dangling assertion references, and (the amendment's own
+strengthening) cited evidence resolved against the *frozen git
+revision's own tree*, never today's working tree. Proved it genuinely
+fails closed, not just described it: a built-in `--self-test` runs a
+disposable git fixture through a passing case and six distinct failure
+modes, including a file added only in a *later* commit than the frozen
+revision, and a line range that only resolves against today's longer
+version of a file — all seven behaved exactly as expected. Ran the real
+isolation preflight probe (one `general-purpose` dispatch) and recorded
+the honest result in `dev-docs/clean-room/isolation-preflight.md`:
+**tier `best-effort`** — filesystem, command execution, and network were
+all directly demonstrated open (a real `Read` of `README.md` succeeded;
+a real `curl`/`WebFetch` reached the project's actual public GitHub
+mirror and returned real content); same host and working directory as
+the main session, confirmed by direct `pwd`/`hostname` comparison, not
+assumed. One discrepancy disclosed rather than smoothed over: the probe
+ran as `general-purpose` with no reachable `Grep` tool, since
+`implementation-reconstructor`/`domain-skeptic` weren't yet dispatchable
+`subagent_type` values at probe time (becoming so moments later) — the
+"search" route wasn't directly tested, though `Bash` (already proven
+open) makes this immaterial to the overall tier. 935 tests still pass;
+no `ledgerkit/`/`tests/` code touched.
+
+---
+
 ### [CodeCompass upgrade + clean-room docs — Phase 1] — CodeCompass reconciliation & enforced revision pinning — 2026-10-02
 
 Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-1.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-1.md)

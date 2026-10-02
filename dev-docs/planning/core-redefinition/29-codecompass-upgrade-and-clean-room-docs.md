@@ -1733,8 +1733,22 @@ progress without opening six separate retros first.
   diagram corrected; its CodeCompass section and
   `04-codecompass-integration.md` updated. 935 tests still pass (no
   `ledgerkit/`/`tests/` code touched).
-- **Phase 2 — Isolation workflow adoption + snapshot checker:** not
-  started.
+- **Phase 2 — Isolation workflow adoption + snapshot checker:** **Done,
+  2026-10-02.** Retro: `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-2.md`.
+  `dev-docs/clean-room/` now carries the full adopted template;
+  `check_snapshot.py` built with all six fail-closed conditions
+  (including both C3 historical-integrity checks) and proven via a
+  built-in `--self-test` fixture battery (7/7 cases behaved as
+  expected). Isolation preflight run and recorded
+  (`dev-docs/clean-room/isolation-preflight.md`): **honest tier —
+  `best-effort`** — filesystem, command execution, and network all
+  directly demonstrated open; same host/working directory as the main
+  session confirmed by direct comparison. One disclosed discrepancy:
+  the probe ran as `general-purpose` (the two new named roles weren't
+  yet dispatchable at probe time, becoming so moments later), with no
+  reachable `Grep` tool — the "search" route wasn't directly tested,
+  though `Bash` (already proven open) makes this immaterial to the
+  overall tier.
 - **Phase 3 — Evidence-backed clean-room reconstruction:** not started.
 - **Phase 4 — Clean-room documentation drafting:** not started.
 - **Phase 5 — Legacy reconciliation:** not started.
