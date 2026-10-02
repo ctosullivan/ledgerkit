@@ -1,0 +1,54 @@
+{
+  "assertions": {
+    "editor-surface-001": {
+      "content_hash": "daad73553484036786bb2aaef4948a01b4a7301e619e75b2c42945b5602de144",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-001.md"
+    },
+    "editor-surface-002": {
+      "content_hash": "c7e49f99e6ba648759b6a3874b051b1597bfd0bfc15a7068c126b7e58448f39b",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-002.md"
+    },
+    "editor-surface-003": {
+      "content_hash": "5a1d74ffc6876d45d8e4dac0caf5e2da0f4638185c289c245d2f1e4017c5624e",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-003.md"
+    },
+    "editor-surface-004": {
+      "content_hash": "1a74bddd11e4ac53f2e7b2b1d146949da3cfcb1cd2d848b8074df5cbd2c5a717",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-004.md"
+    },
+    "editor-surface-005": {
+      "content_hash": "1acf6e41302a54c2a47fc2bfaeb28720bb0f852b6c3df857a75aebf17506df39",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-005.md"
+    },
+    "editor-surface-006": {
+      "content_hash": "e8912b59be95e03e0b2d779729a1fbbb946e2106be3d86790f64c29cca776dc1",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-006.md"
+    },
+    "editor-surface-007": {
+      "content_hash": "07c5a2a6b31d4ae0a3dbef931d3da8febf524fbbbb9cd387b206a03d21342b59",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-007.md"
+    },
+    "editor-surface-008": {
+      "content_hash": "6d3616d27629d013681a089e21196b35125a619197ecb74444b8a067f76c23c2",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-008.md"
+    },
+    "editor-surface-009": {
+      "content_hash": "860943a30ae4b1d7fbef08f921d080c476d1160c080936e8448bca52cf4f4077",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-009.md"
+    },
+    "editor-surface-010": {
+      "content_hash": "9424c90a8be85ce0ec1f7dc5a7c621cb4be422012bccad5c09cb3ea7485cdee8",
+      "path": "dev-docs/clean-room/assertions/editor-surface/editor-surface-010.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "external_repositories": {
+    "/tmp/ledgerkit-editor-research-clone-2": {
+      "origin_url": "https://github.com/ctosullivan/ledgerkit-editor",
+      "repo_root": "/tmp/ledgerkit-editor-research-clone-2",
+      "revision": "b03c203316a9f99593173feaeea7ba7dad91e060"
+    }
+  },
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "editor-surface@v1"
+}

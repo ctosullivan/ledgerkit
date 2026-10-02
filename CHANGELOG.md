@@ -9,6 +9,56 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [CodeCompass upgrade + clean-room docs — Phase 3, assertion research/review/freeze] — 2026-10-03
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** executed the per-topic clean-room assertion pipeline (Plan 29
+§4.2) for all 10 bounded topics (journal-parsing, commodity-styling,
+query-engine, tags, reports-cli, checks, loader, editor-surface,
+compat-system, current-state) — 102 assertion files total. Each topic's
+assertion-research ran as a fresh, isolated dispatch given only its
+bounded evidence paths, never this plan's prose or any legacy
+documentation; each dispatch's transcript was inspected immediately
+against §4.2a's boundary-compliance gate. Three contamination events
+(compat-system attempts 1–2: narrative/out-of-scope-source reads) were
+discarded and rerun from a fresh context per the plan's own mechanical
+rule, not edited in place. Every topic then went through an independent
+`domain-skeptic` REVIEW pass, which found and fixed genuine defects by
+direct execution rather than rubber-stamping — including a backwards
+specificity rule in query-engine-014 that self-contradicted its own next
+clause, a false "necessarily nets to zero" claim in reports-cli-005, and
+an anchored-grep false negative in editor-surface-008 that missed 8 of 9
+real runtime import sites. Two real **production bugs** were surfaced as
+a byproduct (recorded, not fixed — out of scope for this phase):
+`parse_string_lenient`'s documented "never raises" guarantee is false for
+a malformed `commodity` directive (parser.py:1324-1334 lacks the
+try/except guard every other directive handler has), and a containing
+directory named with a glob metacharacter (e.g. `inc[1]`) causes the
+loader's glob-vs-literal classification to diverge, silently misrouting
+a plain include into an uncaught `IndexError`. All 10 topics were then
+mechanically frozen into `dev-docs/clean-room/snapshots/` and run through
+`check_snapshot.py` as a hard gate — which caught three real citation
+defects before any snapshot was accepted: two off-by-one whole-file line
+citations (ledgerkit/cli.py and ledgerkit/query/ast.py each cited one
+line past their real end) and a literal, unresolvable glob
+(`dev-docs/compat-register/*.yaml`) used as an Evidence-paths entry
+instead of enumerated files. Extended `check_snapshot.py` itself to
+resolve absolute-path citations (the editor-surface topic's evidence
+lives in an external `ledgerkit-editor` research clone, a different git
+repository entirely) against a registered external repository's own
+pinned revision via a new `external_repositories` sidecar field, rather
+than silently skipping them or wrongly resolving them against
+Ledgerkit's own tree — added two new self-test cases (pass and fail) to
+prove this resolves and fails closed correctly; pin recorded in
+`dev-docs/clean-room/PINNED-REVISIONS.md`. All 102 assertions across all
+10 topics now pass the checker. 935 tests still pass; no `ledgerkit/`
+source changed (the two production bugs found are flagged for a future
+tracked fix, not addressed here).
+
+---
+
 ### [CodeCompass upgrade + clean-room docs — Phase 2] — Isolation workflow adoption + snapshot checker — 2026-10-02
 
 Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-2.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-2.md)

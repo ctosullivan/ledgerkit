@@ -1,0 +1,67 @@
+{
+  "assertions": {
+    "reports-cli-001": {
+      "content_hash": "a2010186fa0a3c5cce4928d6f26acde5038b6413162ec937a5a32a4a4a67bc3a",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-001.md"
+    },
+    "reports-cli-002": {
+      "content_hash": "7470dc7bcf6c2a032138383059e50ce9bf87ca26dff12a1098f3279a845cd681",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-002.md"
+    },
+    "reports-cli-003": {
+      "content_hash": "dcc41cc798c2feb9ab5b4eeb1b69fc542121876c06e59b43574c934fe02c7f65",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-003.md"
+    },
+    "reports-cli-004": {
+      "content_hash": "e5e451928c3522a913b8c617aba3b7811c8040b93cdf845578f9b82381762bc1",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-004.md"
+    },
+    "reports-cli-005": {
+      "content_hash": "e15de33531e558b84bd77c55d59e04708870069df1a77dc4e10141d4f449c27c",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-005.md"
+    },
+    "reports-cli-006": {
+      "content_hash": "7290cc64886ca0d13d36331a06a02ae9ba40d4c90451d2ab6696b1cbe7037d9e",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-006.md"
+    },
+    "reports-cli-007": {
+      "content_hash": "76cc23e692068156ee03196651b9ee92a9ae55b8fbc7e11ef8061077d88b46d7",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-007.md"
+    },
+    "reports-cli-008": {
+      "content_hash": "97caad0cd9cf19002ab24a872dc9cfb709aa7d414b5e609752a4d87489e1548f",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-008.md"
+    },
+    "reports-cli-009": {
+      "content_hash": "babff9f9530cc548c1fe8da1fb3377a18c4ec09357aa539b8f8c094e73bfbbc0",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-009.md"
+    },
+    "reports-cli-010": {
+      "content_hash": "d02c724db08226239d10fdf10f5a00e6362ad2feff9588254e3acb429298d3f8",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-010.md"
+    },
+    "reports-cli-011": {
+      "content_hash": "7f1c05576bbf097e818218ed7b5d3b157e9925bcaba16fdde328b909bcbb0f46",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-011.md"
+    },
+    "reports-cli-012": {
+      "content_hash": "d52d02ca366c8731e807725c4f01484f537dd086cec5a8264cb0369fd543dbe9",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-012.md"
+    },
+    "reports-cli-013": {
+      "content_hash": "a6505956d39ce685dc57271f1507bd9e477ce33fc44c2527d3ed2ba993e38212",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-013.md"
+    },
+    "reports-cli-014": {
+      "content_hash": "79626b7b57433718b14876d54bdc38f57efc2fc055c2b460877a71db740158f9",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-014.md"
+    },
+    "reports-cli-015": {
+      "content_hash": "76307e3f6be32f684a8750236c93d3421289ca4d4be890e4ac94163d9cb0cb1d",
+      "path": "dev-docs/clean-room/assertions/reports-cli/reports-cli-015.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "reports-cli@v1"
+}

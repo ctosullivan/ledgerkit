@@ -1,0 +1,43 @@
+{
+  "assertions": {
+    "tags-001": {
+      "content_hash": "f057e3e28265304280cb8faa77d3899d7261fd398d0eb75a7a293931d73b3e54",
+      "path": "dev-docs/clean-room/assertions/tags/tags-001.md"
+    },
+    "tags-002": {
+      "content_hash": "fb38c8ad524f43c8e85d444c81f568baa362969834916faffe7d32eda415296a",
+      "path": "dev-docs/clean-room/assertions/tags/tags-002.md"
+    },
+    "tags-003": {
+      "content_hash": "3d99018620ff50cf6abcf634fbe7186bf098397e980844cf0fd39a32683f64f0",
+      "path": "dev-docs/clean-room/assertions/tags/tags-003.md"
+    },
+    "tags-004": {
+      "content_hash": "3650e0f3cb9e5c2ef8e80fc1c0b165825ef213e4f17f1fe584bc870cbc12a8e4",
+      "path": "dev-docs/clean-room/assertions/tags/tags-004.md"
+    },
+    "tags-005": {
+      "content_hash": "039aad80b853f29d661c9cccc067251f195185c36f62a979246adc7a2ee1a07e",
+      "path": "dev-docs/clean-room/assertions/tags/tags-005.md"
+    },
+    "tags-006": {
+      "content_hash": "b9efceede281eaa33a2f602244e980c849a3990250263d1a4b38b4fa1b7508c0",
+      "path": "dev-docs/clean-room/assertions/tags/tags-006.md"
+    },
+    "tags-007": {
+      "content_hash": "a79e2870e8421664ed6566b70c417fed06e53784637d108e35a5b796cdff6eca",
+      "path": "dev-docs/clean-room/assertions/tags/tags-007.md"
+    },
+    "tags-008": {
+      "content_hash": "6ec9ca101a9af194970b82b05da18f752cbb6d546b34a30d594dae5371c32fbb",
+      "path": "dev-docs/clean-room/assertions/tags/tags-008.md"
+    },
+    "tags-009": {
+      "content_hash": "f529319a9ecefc44bd0627d99658d4275c16b9a50c0911a765e885fed39094a6",
+      "path": "dev-docs/clean-room/assertions/tags/tags-009.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "tags@v1"
+}
