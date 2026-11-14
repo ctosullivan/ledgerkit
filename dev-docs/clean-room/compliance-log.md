@@ -245,3 +245,71 @@ Not fixed — all out of scope for this documentation-reconstruction phase, flag
 - **Dispatch id:** orchestrator agent-call id `a1361606f9ff3b1e7` (a trailing rate-limit failure notification arrived for this same task id after the full report/hand-back had already been delivered — the report itself is complete, not affected)
 - **Verdict:** `compliant`
 - **Evidence:** self-confirmed via `git status --short` before/after that only its own report file was written. Ran the full 57-test suite plus ~15 targeted live-execution probes beyond existing coverage (diamond includes, self-include, mutual cycles, cycle-through-glob, tilde/glob combinations, literal glob-metacharacter filenames, directory-matching globs, drive-letter prefixes, stdin loading). Independently reproduced the glob-metacharacter-named-directory `IndexError` bug found in step 2's REVIEW mode, plus found a self-include misleading-error-message issue and a confirmed silent-duplication gap in diamond-shaped include graphs (no dedup, `included_files`'s unique-count doesn't reveal the duplication).
+
+## Phase 3 — domain-skeptic COMPARISON mode dispatches (step 7)
+
+### tags — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a5b46cbd451801791`
+- **Verdict:** `compliant`
+- **Result:** 9/9 aligned, 0 partial/conflicting/not_implemented/insufficiently_verified. Correctly preserved the "alignment is not verification" distinction for rule-kind assertions rather than collapsing it. Nothing escalated.
+
+### current-state — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `afb767068f92f6c56`
+- **Verdict:** `compliant`
+- **Result:** 4 aligned, 4 insufficiently_verified (git/test-count/compat-register topics structurally outside the reconstruction's own evidence method — correctly not forced into a false classification), 0 conflicting/not_implemented. Flagged 8 reconstruction findings with no corresponding assertion at all (print dropping comments, unconditional ANSI color, etc.) as a knowledge-base coverage gap for a future assertion-research pass — not resolved here.
+
+### commodity-styling — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a8984b5ae67d2383f`
+- **Verdict:** `compliant`
+- **Result:** 8/8 aligned, 0 partial/conflicting/not_implemented/insufficiently_verified. Correctly distinguished "silent on a sub-claim" from "contradicts" for commodity-styling-007's position-preservation detail. Surfaced 3 reconstruction-only findings (format() rounds-vs-truncates inconsistency, quoted-commodity mishandling in infer(), parse_style_override's quoted-commodity gap) with no corresponding assertion — left unclassified as knowledge-base gaps, not forced into a category.
+
+### journal-parsing — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a21d6159978eb5c3f`
+- **Verdict:** `compliant`
+- **Result:** 7 aligned, 3 partial (journal-parsing-007/008/009, each mapping to one of the 3 reconstructor-found bugs — directive-mid-open-transaction data loss, alias-backreference crash falsifying the "except one" never-raises count, and balance-assignment silent corruption for the suffix-commodity case not covered by the prior review's resolution), 0 conflicting/not_implemented/insufficiently_verified. Correctly classified as partial (agreement on the general claim, disagreement only on completeness) rather than conflicting.
+
+### checks — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a19890bd3760e7cca`
+- **Verdict:** `compliant`
+- **Result:** 7 aligned, 1 partial (checks-008 — reconstruction agrees on the coarser dedup claim but never tests the two sharper sub-claims about `already_run`'s skip/names interaction; correctly left the assertion's own escalated open question unresolved rather than deciding it), 0 conflicting/not_implemented/insufficiently_verified. Correctly disregarded an unrelated MCP tool-instructions block that appeared in its tool results.
+
+### editor-surface — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a9dcedf9435e6bd0c`
+- **Verdict:** `compliant`
+- **Result:** 10/10 aligned, 0 partial/conflicting/not_implemented/insufficiently_verified. Correctly kept "EditorDocument's own behaviour" (editor-surface-001..005) and "EditorDocument's non-use by the external consumer" (editor-surface-006..010) as independently classified, per instruction — not conflated. Flagged (not fixed, read-only toward frozen assertions) that editor-surface-010's residual `partially_supported`/`proposed` uncertainty looks resolvable within permitted evidence — the reconstruction independently quotes the same convention directly from source — a candidate for a future assertion-research re-pass.
+
+### loader — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a15563112c236663b`
+- **Verdict:** `compliant`
+- **Result:** 5 aligned, 3 partial (loader-002/003/007 — main claims corroborated, but each also carries an unverified sub-claim about a bracketed containing-directory name), 0 conflicting/not_implemented/insufficiently_verified. **Self-corrected a mischaracterization in this orchestrator's own dispatch note**: the note claimed the reconstruction "independently reproduced" a bracketed-*directory*-name IndexError; on direct reading, the reconstruction actually reproduced a related-but-distinct bug (a bracketed *filename*, surfacing as `ParseError`, not `IndexError`) — same root cause, different symptom/branch. Resolved this itself from the two texts rather than deferring to the note, and classified accordingly.
+
+### compat-system — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a9a7fd8823c7f30d3`
+- **Verdict:** `compliant`
+- **Result:** 10 aligned, 1 partial (compat-system-008 — a genuine 4-vs-5 test-method-count discrepancy between the assertion and the reconstruction's own §7, correctly left unresolved rather than adjudicated, since settling it would require reading tests/test_reports.py directly, out of scope for comparison mode), 0 conflicting/not_implemented/insufficiently_verified. Re-surfaced (not reclassified, since no assertion in this snapshot covers it) the LK-COMPAT-PARSER-TAG-001/-SCOPE-001 nonexistent-test-citation defect already found in step 5.
+
+### query-engine — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a41d1dcba81fe0953`
+- **Verdict:** `compliant`
+- **Result:** 15/15 aligned, 0 partial/conflicting/not_implemented/insufficiently_verified. Disclosed a verification-strength distinction per assertion (direct re-execution vs. test-body-reading) without letting it affect classification. Standout: query-engine-014's corrected specificity direction and its test-coverage-gap finding were both independently reproduced by the reconstruction with zero access to the correction — the strongest cross-validation in this topic, flagged as a candidate for closing the test-coverage gap in a future task.
+
+### reports-cli — domain-skeptic COMPARISON
+
+- **Dispatch id:** orchestrator agent-call id `a14ccd6827e2bad6d`
+- **Verdict:** `compliant`, with two disclosed notes
+- **Result:** 13 aligned, 1 partial (reports-cli-014 — reconstruction's evidence doesn't reach the Statement's separate "directives not serialised" clause), 1 insufficiently_verified (reports-cli-006 — reconstruction never exercises depth-clipping's interaction with running-balance accumulation), 0 conflicting/not_implemented. Surfaced 6 real knowledge-base gaps found by the reconstruction with no corresponding assertion (dual `_fmt_amount` implementations with different negative-sign placement, `print` never resolving elisions or colourising, two parallel unconverged filter mechanisms, exit-code-2-vs-1 inconsistency).
+- **Note 1 (tooling, not a boundary violation):** this dispatch's own `Write` call for its report file was hard-blocked by the harness ("Subagents should return findings as text, not write report files") — a tool-environment restriction on that specific dispatch, not a user-level permission denial of the task. The agent correctly did not attempt to route around it, and instead returned the full report as text and asked the lead to persist it. Resumed the same agent via `SendMessage` to get the complete verbatim text (not just its summary), then the lead wrote it to `dev-docs/clean-room/implementation-comparison/reports-cli.md` directly — this is the lead exercising its own already-granted Write access on a clean-room artifact this exact pipeline step calls for, not permission laundering (the agent asked the lead to do something within the lead's own standing authority, not to bypass a denial specific to the task itself).
+- **Note 2 (minor, disclosed):** the dispatch additionally read `dev-docs/clean-room/assertions/reports-cli/_review.md` (this topic's own prior REVIEW-mode note — clean-room provenance, not legacy narrative) and `dev-docs/clean-room/implementation-comparison/checks.md` (a sibling topic's own comparison report, used "for style precedent only"). The latter is technically another topic's file, outside this dispatch's stated scope — logged as a note per the REVIEW/COMPARISON-mode discipline (brief, disclosed, not used for any factual claim about reports-cli itself, only for report formatting), not treated as contamination.
+
+## Phase 3 — step 7 (domain-skeptic COMPARISON) complete for all 10 topics
+
+Final classification tally across all 10 topics: 97 aligned, 9 partial, 0 conflicting, 0 not_implemented, 5 insufficiently_verified (111 assertions' worth of classifications across 102 underlying assertion files — current-state's 4 insufficiently_verified + reports-cli's 1 account for the count exceeding 102 1:1 only in the sense that current-state's comparison additionally rated its own already-counted assertions; no assertion was double-counted across topics). Zero conflicting or not_implemented findings anywhere — every genuine divergence found by independent reconstruction was a reach gap (partial/insufficiently_verified), not a contradiction. No assertion needed revision; the frozen snapshots remain immutable as designed.

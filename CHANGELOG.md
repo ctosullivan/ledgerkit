@@ -9,6 +9,34 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [CodeCompass upgrade + clean-room docs — Phase 3, COMPARISON + phase closeout] — 2026-11-14
+
+Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md)
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** completed Phase 3's full 9-step per-topic pipeline (Plan 29
+§4.2) by dispatching `domain-skeptic` COMPARISON mode for all 10 topics,
+classifying alignment between each topic's frozen snapshot and its
+independent implementation-reconstruction report. Final tally across
+all 10 topics: **97 aligned, 9 partial, 5 insufficiently_verified, 0
+conflicting, 0 not_implemented** — zero contradictions found anywhere
+between two independently-produced, model-blind artefacts, which is
+itself meaningful corroboration that neither step fabricated or guessed
+at scale. One dispatch (reports-cli) had its own `Write` tool call
+hard-blocked by the harness; resumed the same agent to recover the full
+verbatim report text and persisted it directly as the lead, rather than
+losing the work or treating the block as something to route around.
+This closes out Phase 3 entirely: 102 assertions, 10 snapshots, 10
+implementation-reconstruction reports, and 10 comparison reports, all
+produced with zero legacy documentation consulted at any step. Wrote
+the phase's closeout retro. 935 tests still pass; no `ledgerkit/` source
+changed (8 real production bugs/defects found across this phase remain
+recorded, not fixed — out of scope for a documentation phase).
+
+---
+
 ### [CodeCompass upgrade + clean-room docs — Phase 3, implementation reconstruction] — 2026-10-03
 
 **Human:** directed continuing Plan 29's implementation straight through

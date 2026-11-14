@@ -1749,7 +1749,24 @@ progress without opening six separate retros first.
   reachable `Grep` tool — the "search" route wasn't directly tested,
   though `Bash` (already proven open) makes this immaterial to the
   overall tier.
-- **Phase 3 — Evidence-backed clean-room reconstruction:** not started.
+- **Phase 3 — Evidence-backed clean-room reconstruction:** **Done,
+  2026-11-14.** Retro: `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md`.
+  Full §4.2 9-step pipeline run for all 10 bounded topics: 102
+  assertions (3 contamination/loss events discarded and rerun per
+  §4.2a), each independently reviewed (`domain-skeptic` REVIEW),
+  mechanically frozen, and passing `check_snapshot.py`'s hard gate
+  (which caught 3 real citation defects first, and needed a new
+  `external_repositories` resolver for editor-surface's external-clone
+  evidence — now 9/9 self-test cases). 10 model-blind
+  `implementation-reconstructor` reports produced and compliance-
+  checked. 10 `domain-skeptic` COMPARISON reports: **97 aligned, 9
+  partial, 5 insufficiently_verified, 0 conflicting, 0
+  not_implemented** across all topics. 8 real production bugs/defects
+  found as a byproduct (recorded in `dev-docs/clean-room/
+  compliance-log.md`'s tally, not fixed — out of scope for this
+  phase), plus a major scoping finding that `EditorDocument` has zero
+  real usage by its intended external consumer. 935 tests still pass;
+  no `ledgerkit/` source changed.
 - **Phase 4 — Clean-room documentation drafting:** not started.
 - **Phase 5 — Legacy reconciliation:** not started.
 - **Phase 6 — Independent final validation:** not started.
