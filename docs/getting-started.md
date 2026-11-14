@@ -1,13 +1,16 @@
-# Getting Started with ledgerkit
+<!-- producer: docs-maintainer (Legacy Reconciliation Mode) | reconciled-from: dev-docs/clean-room/drafts/getting-started.md.clean-room-draft + legacy docs/getting-started.md | classification: dev-docs/clean-room/legacy-reconciliation/getting-started.md.md | date: 2026-11-14 -->
 
-ledgerkit is a Python tool for plain-text double-entry accounting, compatible
-with the [hledger](https://hledger.org) journal format.
+# Getting started with ledgerkit
 
----
+ledgerkit's own command-line help describes it as "Plain-text accounting
+(hledger-compatible)" (current-state@v1#current-state-004) — it is a
+Python implementation of the hledger plain-text accounting format and
+tool.
 
 ## Requirements
 
-- Python 3.8 or later
+- Python 3.8 or later (`requires-python = ">=3.8"` in `pyproject.toml`)
+  (current-state@v1#current-state-001).
 
 Check your version:
 
@@ -15,60 +18,174 @@ Check your version:
 python --version
 ```
 
----
+- No third-party packages are required at runtime: `pyproject.toml`
+  declares `dependencies = []` (current-state@v1#current-state-001).
+- An optional `pandas` extra is declared in `pyproject.toml` under
+  `[project.optional-dependencies]` (`pandas = ["pandas>=1.3"]`) for
+  callers who want it; it is not needed for the steps below
+  (current-state@v1#current-state-001).
 
 ## Installation
+
+`pyproject.toml` registers a console-script entry point,
+`ledgerkit = "ledgerkit.cli:main"` — once installed, `ledgerkit` and
+`python -m ledgerkit` invoke the same CLI (`docs/usage.md`'s "CLI Usage"
+section documents the two forms as equivalent).
 
 ```bash
 pip install ledgerkit
 ```
 
-Or with pandas support:
+An optional `pandas` extra adds DataFrame export support
+(`Journal.to_dataframe()` and friends — see `docs/python-api.md`):
 
 ```bash
 pip install ledgerkit[pandas]
 ```
 
-Verify the installation:
+ledgerkit has had at least one public PyPI release, version `1.0.0`
+(`CHANGELOG.md`). As of this writing, though, this repository's own
+`pyproject.toml` records the checked-out version as `1.0.0.dev1`
+(current-state@v1#current-state-001) — a pre-release version string,
+which this guide's examples reflect by running ledgerkit directly from a
+checkout rather than assuming any particular installed/packaged version
+is current.
+
+Verify a module-based invocation works:
 
 ```bash
-ledgerkit --version
+python -m ledgerkit --version
 ```
 
----
+(the `--version` flag is listed in `python -m ledgerkit --help`'s own
+options block, current-state@v1#current-state-004.)
 
-## Your First Journal File
+## Running the CLI
 
-Create a file called `myledger.journal`:
+Every example below runs ledgerkit as a module from a checkout of the
+project:
 
 ```
-2024-01-01 Opening balance
-    assets:bank:checking    £1000.00
-    equity:opening-balances
-
-2024-01-10 Supermarket
-    expenses:food           £45.00
-    assets:bank:checking
+python -m ledgerkit --help
 ```
 
-Each transaction starts with a date and description. Indented lines are
-postings (account + amount). One posting per transaction may omit its amount —
-ledgerkit infers it from the others.
+This currently lists exactly six report commands, selected as a single
+required positional argument: `balance`, `register`, `accounts`,
+`print`, `stats`, `check` (current-state@v1#current-state-004,
+reports-cli@v1#reports-cli-001). These six commands all share one flat
+set of global options — there is no separate help page per command
+(current-state@v1#current-state-004, reports-cli@v1#reports-cli-001).
+Among those global options, the ones you'll need first are `-f`/`--file
+FILE` (repeatable) to name a journal file, `-q`/`--query TERMS` to
+filter a report, and `-c`/`--commodity-style STYLE` to override how an
+amount is displayed (reports-cli@v1#reports-cli-002).
 
----
+## Your first journal file
 
-## Run Your First Command
+hledger-format journals are plain text. A transaction is a dated header
+line, optionally carrying a cleared marker (`*`) or pending marker
+(`!`) and a description, followed by two or more indented posting
+lines. A transaction header such as:
+
+```
+2024-01-05 * Salary
+```
+
+parses with `cleared=True` and `description="Salary"`
+(journal-parsing@v1#journal-parsing-001). Each posting line is split
+into an account name and an amount on the first run of two or more
+spaces, so an account name containing a single internal space survives
+intact — for example, a posting line of `expenses:fun money  £5` is
+read as account `expenses:fun money` with amount `£5`
+(journal-parsing@v1#journal-parsing-003); amounts that put the
+commodity symbol before the number, such as `£5`, are one of the
+supported amount forms (journal-parsing@v1#journal-parsing-004). A
+posting line with no amount token after the split (just an indented
+account name) is accepted too, with its amount left unset at parse time
+(journal-parsing@v1#journal-parsing-003). Put plainly: one posting per
+transaction may omit its amount, and ledgerkit infers it from the
+others — but no more than one (`knowledge/DOMAIN_RULES.md`'s "At most
+one elided amount per transaction block").
+
+Putting that together, a minimal two-posting journal file,
+`first.journal`, looks like:
+
+```
+2024-01-05 * Salary
+    assets:bank
+    expenses:fun money  £5
+```
+
+Here `expenses:fun money` carries the explicit amount `£5`
+(journal-parsing@v1#journal-parsing-003,
+journal-parsing@v1#journal-parsing-004), and `assets:bank` is left with
+no amount of its own on the posting line
+(journal-parsing@v1#journal-parsing-003).
+
+## Your first command
+
+A good first command to run against a new journal is `stats`, which
+reports summary information about it. Running `stats` against a
+journal currently succeeds and produces non-empty, labelled report
+output (current-state@v1#current-state-008). By default the CLI prints
+a multi-line labelled report; passing `-1` instead prints a single
+tab-separated line, and `-v`/`--verbose` adds commodity names to the
+"Commodities" line (reports-cli@v1#reports-cli-011):
 
 ```bash
-ledgerkit print myledger.journal
+python -m ledgerkit stats first.journal
 ```
 
-This prints all transactions in a readable format. See [usage.md](usage.md)
-for all available commands.
+The journal file can be given either as a bare positional argument
+(shown above) or via `-f`/`--file`; for every command except `check`,
+the positional argument is a shorthand for `-f`
+(reports-cli@v1#reports-cli-003).
 
----
+It's also worth running the `check` command, which validates a journal
+against ledgerkit's built-in checks:
 
-## What's Next
+```bash
+python -m ledgerkit check -f first.journal
+```
+
+Unlike `stats`, a passing `check` run currently prints nothing at all
+to stdout — exit code `0` is the only signal of success
+(current-state@v1#current-state-008, reports-cli@v1#reports-cli-015).
+If a check fails, each error's message is printed to stderr and the
+process exits `1` (reports-cli@v1#reports-cli-015). `-I`/
+`--ignore-assertions` suppresses the balance-assertion check specifically,
+and `-s`/`--strict` additionally requires that accounts and commodities
+be declared (reports-cli@v1#reports-cli-015).
+
+### A `check`-specific gotcha
+
+`check` is the one command where a bare positional argument does
+**not** act as a shorthand for a journal file — it is read as the name
+of a specific check to run instead, never as a file path
+(current-state@v1#current-state-008, reports-cli@v1#reports-cli-003).
+So:
+
+```bash
+python -m ledgerkit check first.journal
+```
+
+currently fails (because no journal file was supplied via `-f` or
+`$LEDGER_FILE`, and `first.journal` was consumed as an unmatched check
+name), even though the identical positional-argument syntax works for
+`stats`, `balance`, `register`, `accounts`, and `print`
+(current-state@v1#current-state-008,
+reports-cli@v1#reports-cli-003). Always pass the file explicitly with
+`-f` when using `check`.
+
+## Where to go from here
+
+The same `-f`/`-q`/`-c` options shown above apply to all six report
+commands (`balance`, `register`, `accounts`, `print`, `stats`, `check`)
+(reports-cli@v1#reports-cli-002, reports-cli@v1#reports-cli-001) —
+`stats` and `check` are simply a good place to start on a new journal
+file.
+
+## What's next
 
 - [usage.md](usage.md) — all CLI commands with examples
 - [journal-format.md](journal-format.md) — full journal syntax reference

@@ -367,3 +367,68 @@ Re-ran `check_snapshot.py` against all 10 topics before dispatching Phase 4's dr
 ## Phase 4 — drafting dispatches complete (all 7)
 
 All 6 clean-room-redraft documents (README.md, dev-docs/architecture.md, docs/getting-started.md, docs/usage.md, docs/journal-format.md, docs/python-api.md) plus the current-shipped-state factual artifact are drafted, each compliant, each with every factual sentence traced to a specific assertion ID and confidence calibrated to its comparison classification. Two dispatches (architecture.md, python-api.md) disclosed the same citation-discipline nuance: several exact function-signature details are sourced from a topic's bundled reconstruction report rather than a dedicated assertion ID — flagged as a candidate for a future signature-focused assertion-research pass, not treated as a defect requiring rework now.
+
+## Phase 5 — legacy reconciliation dispatches
+
+### ROADMAP.md — docs-maintainer Legacy Reconciliation Mode
+
+- **Dispatch id:** orchestrator agent-call id `ab7c2dcc7ba8248d3` (interrupted once by a session rate limit mid-research, resumed via SendMessage — completed fully on resume)
+- **Verdict:** `compliant`
+- **Result:** Current-state-fact claims: 4 supported, 1 stale_or_contradicted (fixed — "currently only leading -$300 works" was stale since Milestone 4 shipped both sign forms; corrected via direct interpreter execution, past-tense rewrite), 1 rationale_requiring_verification (left explicitly open — whether Stage A's "first real CodeCompass usage" follow-up has occurred, correctly deferred to roadmap-context-curator's own territory rather than adjudicated unilaterally). All 16 forward-looking intent items/sections (Milestone 5's [SUPERSEDED] block, the 8-row Future/Backlog table, 6 still-[PLANNED] Stage D-I rows, the milestone-sizing process section) confirmed left verbatim and untouched, per the hard rule that nothing in the current tree can confirm or deny a future plan. Only one line of ROADMAP.md actually changed, confirmed via git diff.
+
+### docs/getting-started.md — docs-maintainer Legacy Reconciliation Mode
+
+- **Dispatch id:** orchestrator agent-call id `a0fc6f25201283dae` (interrupted by rate limit mid-research, resumed via SendMessage — completed fully)
+- **Verdict:** `compliant`, with one disclosed note
+- **Result:** 6 supported, 2 useful_example, 2 rationale_requiring_verification (PyPI installability — left as an explicit open question, grounded in two real citations rather than guessed at), 1 stale_or_contradicted (print-as-first-command superseded by stats, not a factual error), 0 obsolete. Independently re-opened and read all 10 of the draft's own cited assertions directly rather than trusting draft/legacy agreement. Preserved every draft citation in the merge; added a real gap (Installation section, What's next cross-links) the draft itself lacked.
+- **Note:** read `docs/usage.md` and `docs/python-api.md` (other Phase 5 targets, outside this dispatch's own stated 3-topic scope) for minor read-only corroboration of the pandas-extra convention — disclosed, not used for any central claim about getting-started.md itself. Self-reported observing other dispatches' concurrent file changes (ROADMAP.md, compliance-log.md, docs/python-api.md) without touching them.
+- **Note 2 (process risk, flagged for the lead):** multiple parallel Legacy Reconciliation dispatches are each independently adding their own CHANGELOG.md entry per their own agent brief's normal duty — real risk of a lost update if two dispatches' edits race. Lead to verify CHANGELOG.md's final consistency once all Phase 5 dispatches complete, reconstructing any lost entry from that dispatch's own hand-back report if needed.
+
+### docs/journal-format.md — docs-maintainer Legacy Reconciliation Mode
+
+- **Dispatch id:** orchestrator agent-call id `af787cc9e53578434` (interrupted by rate limit, resumed via SendMessage — completed fully)
+- **Verdict:** `compliant`
+- **Result:** 19 supported, 4 stale_or_contradicted (all fixed — secondary dates/balance assertions/cost-lot annotations/decimal-comma style were wrongly listed as "Unsupported in v1" despite being implemented and tested), 0 rationale_requiring_verification, 3 useful_example, 0 obsolete, 2 retained-but-not-independently-citable (flagged, not marked supported). Added an entirely new Directives section the old doc never had. Preserved all 7 confirmed unflattering findings with citations intact.
+- **Notable finding, flagged not fixed (outside write boundary): `knowledge/EDGE_CASES.md` EC-006 is itself stale** — it claims a glob-with-no-matches include "silently produces no entries," directly contradicted by current, test-confirmed behavior (`ParseError`, loader-007). Flagged for the lead/roadmap-context-curator to correct in `knowledge/` separately.
+
+### dev-docs/hledger-compatibility.md — docs-maintainer Legacy Reconciliation Mode
+
+- **Dispatch id:** orchestrator agent-call id `a8156e0a3629e906d` (interrupted by rate limit, resumed via SendMessage — completed fully)
+- **Verdict:** `compliant`
+- **Result:** ~38 supported claim-groups (existing structure preserved as instructed), 2 stale_or_contradicted (fixed — the false "balance assignment stores None" claim, and "circular includes raise ParseError" needing a self-include exception), 1 rationale_requiring_verification resolved as false (not merely accepted). Flagged 2 compat-register entries for a future compat-differential-tester re-check (the LK-COMPAT-PARSER-TAG-001/-SCOPE-001 nonexistent-test-citation defect, independently reconfirmed; LK-COMPAT-INCLUDE-001's still-proposed status needing the two loader defects covered).
+- **Notable finding, flagged not fixed (outside write boundary): `knowledge/DECISIONS.md`'s 2026-05-03 "balance assignments deferred, amount=None" entry is itself false** — doesn't match as-built code (which crashes or silently corrupts, not gracefully defers). Flagged for the knowledge-base owner to correct, since this dispatch cannot write to `knowledge/`.
+
+### docs/usage.md — docs-maintainer Legacy Reconciliation Mode
+
+- **Dispatch id:** orchestrator agent-call id `a8378e59155d183ad` (interrupted by rate limit, resumed via SendMessage — completed fully)
+- **Verdict:** `compliant`
+- **Result:** 10 supported (kept, now cited), 8 stale_or_contradicted (fixed — missing assertions-tier check, missing check-names table row, check's positional-argument exception, thin per-command sections, missing global flags, missing subcommand-help note, wrong Python return-type comment, missing Exit codes section entirely), 0 rationale_requiring_verification escalations, 2 useful_example, 0 obsolete. Self-caught and fixed 2 fragile markdown anchor links before they shipped broken. Confirmed CHANGELOG.md concurrent-edit coordination intact (no conflict with the hledger-compatibility.md dispatch's own entry). Correctly left the -q/tag/-c sections untouched as outside this dispatch's own permitted evidence (query-engine/tags/commodity-styling topics), rather than blind-redrafting them.
+
+### dev-docs/architecture.md — docs-maintainer Legacy Reconciliation Mode
+
+- **Dispatch id:** orchestrator agent-call id `ad88d8bc4a96b86da` (interrupted by rate limit, resumed via SendMessage — completed fully)
+- **Verdict:** `compliant`
+- **Result:** 14 supported, 4 stale_or_contradicted (fixed — false "parse_string is the sole public function" claim, incomplete checks.py/models.py/loader.py inventories), 6 obsolete (recorded, not restored — including deliberately dropping the old "Stage C Phase N" historical-narrative framing per the documentation-lifecycle separation of current-truth from decision-history), 2 rationale_requiring_verification resolved via direct source inspection (not left open), 0 open questions. **Citation preservation mechanically verified**: all 74 unique draft citations confirmed present in the merged document via a diff of the citation sets, not just asserted.
+
+### README.md — docs-maintainer Legacy Reconciliation Mode
+
+- **Dispatch id:** orchestrator agent-call id `abe8b8c76ae965370` (interrupted by rate limit, resumed via SendMessage — completed fully)
+- **Verdict:** `compliant`
+- **Result:** 25 supported, 2 stale_or_contradicted (fixed — incomplete directive list, wrong command order), 2 rationale_requiring_verification resolved (traced to dedicated planning docs, not knowledge/*.md, independent of README's/draft's own say-so), 3 useful_example re-grounded, 0 obsolete, plus 7 wholly new sections merged from the draft. Went beyond trusting draft/legacy agreement for every out-of-scope topic the legacy README also touches (editor-surface, commodity-styling, licence history) via direct independent re-verification this session (live test run, live bug reproductions, `git show v1.0.0:LICENSE`). 4 explicit open questions preserved, not silently decided.
+- **Cross-dispatch finding to verify in consolidation**: flagged that `dev-docs/hledger-compatibility.md` line 11's "status: proposed" framing looked stale against live counts (26/9/14/0) — that document's own separate reconciliation dispatch (`a8156e0a3629e906d`) has since completed; needs a lead-level check that it actually caught and fixed this same line, since it wasn't explicitly named in that dispatch's own report.
+
+### docs/python-api.md + dev-docs/api-spec.md — docs-maintainer Legacy Reconciliation Mode
+
+- **Dispatch id:** orchestrator agent-call id `ac41090a38b42d1d0` (interrupted by rate limit, resumed via SendMessage — completed fully)
+- **Verdict:** `compliant`
+- **Result (python-api.md)**: 41 supported, 1 rationale_requiring_verification resolved true, 0 stale_or_contradicted/obsolete, 8 useful_example kept. Added 4 new sections and several missing symbols/known-limitations the old doc never mentioned at all, each grounded in a specific assertion.
+- **Result (api-spec.md, never touched live — confirmed)**: full proposed revision written to a separate file for lead/user confirmation. Found and resolved 2 real divergences in api-spec.md's favor of disclosure (run_checks' two skip/names/strict asymmetries; load_journal's non-exhaustive Raises section), declined to change a third candidate after knowledge/DECISIONS.md's own later entry resolved it. **§6.4 coverage check, real number: 67 of 72 listed public symbols have a corresponding Phase 3 assertion; 5 gaps named** (ReportSection, ReportSpec, load_journal_stdin, run_strict_checks, Journal.to_dataframe/BalanceResult/RegisterResult/AccountsResult.to_dataframe()).
+
+## Phase 5 — all 8 legacy-reconciliation dispatches complete (all 9 documents)
+
+All 9 documents in Plan 29 §5.1's inventory have been reconciled: 8 live-replaced (README.md, dev-docs/architecture.md, docs/getting-started.md, docs/usage.md, docs/journal-format.md, docs/python-api.md, dev-docs/hledger-compatibility.md, ROADMAP.md) and 1 held pending explicit user confirmation per the Unauthorised Change Rule (dev-docs/api-spec.md — proposed revision only, never touched live). Zero contamination events. Several genuine cross-cutting findings surfaced: a stale knowledge/EDGE_CASES.md entry (EC-006), a false knowledge/DECISIONS.md entry (balance-assignments), 2 compat-register entries needing a targeted re-check, and a real §6.4 coverage gap (5 of 72 api-spec.md symbols lack a Phase 3 assertion). All flagged for the lead/appropriate owner, none fixed outside each dispatch's own write boundary.
+
+## Phase 5 — lead consolidation pass
+
+- **Confirmed `dev-docs/api-spec.md` was genuinely never touched live**: `git diff --stat dev-docs/api-spec.md` is empty.
+- **Fixed the cross-dispatch finding the README dispatch flagged**: `dev-docs/hledger-compatibility.md` line 11 still said "each entry there is `status: proposed`" as a blanket present-tense claim — stale against the actual, repeatedly-confirmed live distribution (26 proposed / 9 self-verified / 14 verified / 0 final, compat-system-004). That document's own reconciliation dispatch had fixed two other stale claims but missed this framing sentence in its own opening paragraph. Fixed directly by the lead, cited to compat-system-004.

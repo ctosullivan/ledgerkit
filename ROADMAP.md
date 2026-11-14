@@ -186,7 +186,7 @@ journal-syntax feature and serve as a living regression suite for parser breadth
 **Scope:**
 
 *Amount parser fixes (`parser.py` — `_AMOUNT` regex and `_parse_amount`)*
-- Sign after prefix symbol: `$-300`, `£-10` (currently only leading `-$300` works)
+- Sign after prefix symbol: `$-300`, `£-10` (previously only leading `-$300` worked; both forms parse correctly as of this milestone)
 - Cost annotations: `@ UNIT_PRICE` / `@@ TOTAL_PRICE` — strip before parsing; store
   raw annotation text on `Posting` for future valuation use
 - Lot annotations: `{UNIT}` / `{{TOTAL}}` / `[DATE]` / `(LABEL)` — strip; not stored v1

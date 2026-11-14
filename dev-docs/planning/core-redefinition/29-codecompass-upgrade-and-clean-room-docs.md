@@ -1780,5 +1780,25 @@ progress without opening six separate retros first.
   own anticipated recovery path. Drafts live under
   `dev-docs/clean-room/drafts/`, not overwriting any real document.
   935 tests still pass; no `ledgerkit/` source changed.
-- **Phase 5 — Legacy reconciliation:** not started.
+- **Phase 5 — Legacy reconciliation:** **Done, 2026-11-14.** Retro:
+  `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-5.md`. All 9 documents in
+  §5.1's inventory reconciled via 8 `docs-maintainer` Legacy
+  Reconciliation Mode dispatches (all 8 cut off simultaneously by a
+  shared session rate limit mid-research, resumed via `SendMessage`,
+  completed fully): 8 replaced live (`README.md`,
+  `dev-docs/architecture.md`, `docs/getting-started.md`, `docs/usage.md`,
+  `docs/journal-format.md`, `docs/python-api.md`,
+  `dev-docs/hledger-compatibility.md`, `ROADMAP.md`), 1
+  (`dev-docs/api-spec.md`) held pending the user's explicit confirmation
+  per the Unauthorised Change Rule, then applied (3 additive bug
+  disclosures) after approval. §6.4 coverage check ran with a real
+  number: 67 of 72 `api-spec.md` symbols have a corresponding Phase 3
+  assertion, 5 gaps named. A lead-level consolidation pass caught and
+  fixed 2 things the parallel dispatches missed (a stale framing
+  sentence in `hledger-compatibility.md`, a formatting slip in the
+  `api-spec.md` proposed revision). Surfaced and correctly routed
+  (not fixed outside role boundary) a stale `knowledge/EDGE_CASES.md`
+  entry, a false `knowledge/DECISIONS.md` entry, and 2 compat-register
+  entries needing a targeted re-check. 935 tests still pass; no
+  `ledgerkit/` source changed.
 - **Phase 6 — Independent final validation:** not started.
