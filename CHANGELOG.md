@@ -9,6 +9,38 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [CodeCompass upgrade + clean-room docs — Phase 4, clean-room documentation drafting] — 2026-11-14
+
+Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-4.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-4.md)
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** drafted the six clean-room-redraft documents (`README.md`,
+`dev-docs/architecture.md`, `docs/getting-started.md`, `docs/usage.md`,
+`docs/journal-format.md`, `docs/python-api.md`) plus the current-
+shipped-state factual artifact, via 7 fresh isolated dispatches, each
+scoped to only the topics its document naturally needs (3-10 of the 10
+Phase 3 topics), never the real document it replaces, this plan's own
+prose, or any legacy documentation. Every factual sentence traces to a
+Phase 3 snapshot citation; confidence language calibrated to each
+cited assertion's comparison classification throughout. Confirmed,
+unflattering current-behaviour facts Phase 3 found (the broken never-
+raise guarantee, silent data-loss and corruption cases, `check`'s
+silent success, `print` dropping comments) were included where a
+document's own scope called for them, per explicit instruction, rather
+than quietly omitted. Caught and fixed a precondition failure before
+dispatching: the editor-surface snapshot's external-repository clone
+under `/tmp` had been cleaned up during the six-week gap since Phase 3
+closed — re-cloned from the recorded origin URL at the exact pinned SHA,
+exactly the recovery path `PINNED-REVISIONS.md` had anticipated. Wrote
+the phase's retro. Drafts live under `dev-docs/clean-room/drafts/`, not
+overwriting any real document — this commit is Plan 29's hard boundary
+between drafting and Phase 5's legacy reconciliation. 935 tests still
+pass; no `ledgerkit/` source changed.
+
+---
+
 ### [CodeCompass upgrade + clean-room docs — Phase 3, COMPARISON + phase closeout] — 2026-11-14
 
 Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md)

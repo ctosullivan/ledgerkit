@@ -1767,6 +1767,18 @@ progress without opening six separate retros first.
   phase), plus a major scoping finding that `EditorDocument` has zero
   real usage by its intended external consumer. 935 tests still pass;
   no `ledgerkit/` source changed.
-- **Phase 4 — Clean-room documentation drafting:** not started.
+- **Phase 4 — Clean-room documentation drafting:** **Done,
+  2026-11-14.** Retro: `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-4.md`.
+  Seven fresh, isolated drafting dispatches (6 clean-room-redraft
+  documents + the current-shipped-state artifact), each scoped to only
+  its own document's relevant Phase 3 topics, never the real document
+  it replaces or this plan's own prose. Every sentence traces to a
+  snapshot citation; zero genuine forward-looking language on
+  spot-check. Precondition recovery: editor-surface's external clone
+  (under `/tmp`) had been cleaned up since Phase 3 closed — re-cloned
+  at its exact pinned SHA before dispatching, per `PINNED-REVISIONS.md`'s
+  own anticipated recovery path. Drafts live under
+  `dev-docs/clean-room/drafts/`, not overwriting any real document.
+  935 tests still pass; no `ledgerkit/` source changed.
 - **Phase 5 — Legacy reconciliation:** not started.
 - **Phase 6 — Independent final validation:** not started.

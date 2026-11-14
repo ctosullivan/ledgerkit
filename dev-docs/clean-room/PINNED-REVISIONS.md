@@ -92,3 +92,14 @@ place.
   origin URL + pinned SHA above are sufficient to re-clone and re-verify
   if that happens; the sidecar's `external_repositories` entry records
   both, not just the local path.
+
+### Recovery event, 2026-11-14
+
+The `/tmp/ledgerkit-editor-research-clone-2` clone was gone by the time
+Phase 4 began (six weeks after the original freeze) — exactly the risk
+flagged above. Re-cloned from the origin URL and checked out the exact
+pinned SHA (`b03c203316a9f99593173feaeea7ba7dad91e060`); `check_snapshot.py
+editor-surface` re-confirmed PASS immediately after. No assertion content
+was affected — the citations' line numbers/content are unchanged since
+they're pinned to this exact historical commit, not to whatever HEAD the
+clone happens to be on.

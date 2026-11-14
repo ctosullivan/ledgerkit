@@ -1,0 +1,740 @@
+<!-- producer: phase-4-drafting | document: docs/journal-format.md | dispatch: plan29-phase4-journalformat-20261114T083630Z | date: 2026-11-14 -->
+
+# The Ledgerkit Journal Format
+
+This document describes the plain-text journal format that Ledgerkit
+actually parses today, as established by five clean-room evidence
+topics: `journal-parsing`, `commodity-styling`, `tags`, `loader`, and
+`compat-system`. Every factual claim below is traced to a frozen
+assertion from one of those topics' snapshots (cited inline as
+`<topic>@v1#<assertion-id>`). Where a cited assertion's own
+comparison-classification was `partial` rather than `aligned` — meaning
+the independent as-built reconstruction surfaced something the
+assertion's text does not fully state, or vice versa — that is called
+out explicitly rather than smoothed over, per this topic's own
+drafting discipline.
+
+A general caveat that applies throughout: a claim that Ledgerkit's
+behaviour for some syntax is "compatible" with hledger reflects what
+this project's own compatibility register currently asserts about
+itself, most of it checked only by reading the code/docs or by a
+same-session executable check, not always by an independently
+dispatched comparison against the real hledger binary. Where the
+underlying register entry's own verification tier matters, it is
+noted.
+
+## 1. Files
+
+Ledgerkit loads plain-text journal files. A root file and any file it
+pulls in via `include` must have one of two recognised extensions,
+`.journal` or `.ledger` (checked case-insensitively); every other
+extension — including hledger's own `.j` alias — is rejected with a
+`ParseError` (loader@v1#loader-007). Multi-file journals are built by
+textual inclusion, described in full in §8.
+
+## 2. Transactions
+
+### 2.1 Header syntax
+
+A transaction begins with a non-indented header line matched by a
+single regex that accepts the primary date, an optional secondary date
+introduced by `=`, an optional status flag (`*` for cleared, `!` for
+pending, absent for uncleared), an optional parenthesised code, a
+lazily-matched description, and an optional `;`-introduced inline
+comment (journal-parsing@v1#journal-parsing-001). The date portion
+accepts `YYYY-MM-DD`, `YYYY/MM/DD`, `YYYY.MM.DD`, and year-omitted forms
+such as `M/DD` or `MM-DD`, with optional leading zeros and separators
+that need not match between the two components
+(journal-parsing@v1#journal-parsing-001). For example,
+`2024-01-05 * Salary` parses to a cleared transaction with description
+"Salary", and `2024-02-20=2024-02-22 * desc` sets a primary date of
+2024-02-20 and a secondary date of 2024-02-22
+(journal-parsing@v1#journal-parsing-001). A trailing `=` with nothing
+date-shaped after it is simply not matched by the secondary-date group,
+so the primary date is used alone (journal-parsing@v1#journal-parsing-001).
+
+### 2.2 Dates outside a header
+
+Where a bare date needs parsing (for example inside a directive), it is
+handled by a separate simple-date rule: an optional 4-digit year
+followed by a 1-2 digit month and day separated by `-`, `/`, or `.`;
+when the year is omitted, the journal's current default year is
+substituted (itself changeable by a `Y` directive — see §7); an
+impossible calendar date, such as month 13, is a hard `ParseError`
+(journal-parsing@v1#journal-parsing-002).
+
+### 2.3 Status, code, description, comments
+
+The status flag and parenthesised code are both optional and are
+captured directly by the header regex described in §2.1
+(journal-parsing@v1#journal-parsing-001). Comment handling — both the
+transaction's own inline comment and any indented follow-on comment
+lines — is covered in full in §5, since the same taxonomy governs
+comments on postings too.
+
+## 3. Postings
+
+### 3.1 Account/amount split
+
+A posting line is split into an account part and an amount part on the
+first run of **two or more** whitespace characters, not one
+(journal-parsing@v1#journal-parsing-003). This is a deliberate choice:
+it lets an account name that itself contains a single internal space
+(e.g. `expenses:fun money`) survive intact, because only a run of 2+
+spaces is treated as the account/amount delimiter
+(journal-parsing@v1#journal-parsing-003). A posting line with only a
+single space between what looks like an account and an amount is not
+split there at all — the whole line, amount-looking text included,
+becomes the account name (journal-parsing@v1#journal-parsing-003). If
+nothing follows the split, the posting's amount is elided (`amount is
+None`), to be resolved later (§3.2) (journal-parsing@v1#journal-parsing-003).
+
+### 3.2 Elided amounts
+
+At most one posting per transaction may have an elided amount; a second
+elided posting in the same transaction block is rejected with a
+`ParseError` at parse time (journal-parsing@v1#journal-parsing-005).
+A separate function, `resolve_elision`, computes what an elided
+posting's amount should be: if exactly one posting in the transaction
+has no amount, it computes the net sum per commodity across all the
+*other*, explicit postings, and replaces the elided posting with one
+synthetic posting per commodity — each holding the negation of that
+commodity's net, each flagged as inferred, each sorted by commodity
+symbol, and each spliced in at the elided posting's original position
+(journal-parsing@v1#journal-parsing-005; commodity-styling@v1#commodity-styling-007).
+If there is no elided posting at all, the posting list is returned
+unchanged; a two-or-more-elided case (only reachable by constructing a
+`Transaction` directly, since normal parsing already rejects it) is
+also returned unchanged by this function rather than erroring
+(journal-parsing@v1#journal-parsing-005). For example, a transaction
+with postings in £, $, and one elided posting resolves to two inferred
+postings, in alphabetical commodity order ("$" before "£" by Unicode
+code point, with "EUR" sorting before both) (commodity-styling@v1#commodity-styling-007).
+
+**Resolution is not automatic.** `resolve_elision` is a separate,
+opt-in post-processing step — a transaction's elided posting keeps its
+`amount` as `None` until a caller explicitly invokes it; nothing in the
+parser calls it on the parser's own behalf (journal-parsing@v1#journal-parsing-005,
+classified `aligned` against an independent as-built reconstruction that
+confirmed this live).
+
+### 3.3 Balance assertions, cost, and lot annotations
+
+A posting's amount token may additionally carry a balance assertion
+(one of `=`, `==`, `=*`, `==*`, detected by a dedicated marker that
+requires whitespace on both sides) and/or a cost annotation (`@
+PRICE` for a unit cost or `@@ TOTAL` for a total cost, with `@@` checked
+before `@`) and/or a lot annotation (`{AMOUNT}`, `{{AMOUNT}}`, `[DATE]`,
+or `(LABEL)`) — and these are mutually composable on one posting
+(journal-parsing@v1#journal-parsing-009). They are stripped and parsed
+in a fixed order: the cost annotation first, then lot annotations, then
+space-digit-group normalisation, then the main amount regex
+(journal-parsing@v1#journal-parsing-009). For example, a quoted
+commodity combined with a balance assertion (`3 "Frogs" = 30 "Frogs"`)
+parses correctly to a posting amount of 3 Frogs with an assertion of 30
+Frogs (journal-parsing@v1#journal-parsing-009).
+
+**Confirmed limitation — balance-assignment elision syntax is not
+implemented, and fails in two different ways.** hledger's own
+"balance assignment" syntax writes an elided posting amount together
+with a balance assertion as `account  = AMOUNT` (no separate amount
+before the `=`). Ledgerkit's assertion-marker detector requires
+whitespace *before* the marker by design, so a bare leading `=` is
+never recognised as an assertion at all; the whole string, `=` included,
+is instead handed to ordinary amount parsing
+(journal-parsing@v1#journal-parsing-009). For a prefix-commodity amount
+(e.g. `a  = $100`) this produces a clean, if unhelpfully-worded,
+`ParseError: invalid amount: '= $100'`
+(journal-parsing@v1#journal-parsing-009). This same assertion's
+underlying evidence was found, under independent reconstruction, to be
+incomplete on one point the assertion's own text generalises too far:
+for a **suffix-commodity amount under comma-decimal mode** (e.g.
+`a  = 100,00 EUR`), the attempt does not fail at all — it silently
+produces a posting with `commodity` literally set to the single
+character `=` and no balance assertion, because the prefix-symbol
+amount regex has nothing excluding `=` from the set of characters it
+will accept as a currency symbol. This specific failure mode is not
+itself written into the frozen assertion text (which only generalises
+"it simply fails amount parsing" from the prefix-commodity case), so
+this topic's comparison review classified it `partial` rather than
+`aligned` on exactly this point (journal-parsing@v1#journal-parsing-009).
+In short: balance-assignment elision is unsupported, and depending on
+commodity placement and decimal mode, attempting it either raises a
+clear parse error or silently produces a wrong, uncaught result — both
+are current, confirmed facts about the parser's behaviour, not merely a
+documented deferral.
+
+### 3.4 Posting-level date tag overrides
+
+A posting's `date_override` and `date2_override` fields are set only
+from the *first* occurrence of a `date:` or `date2:` comment tag found
+in that **same posting's own** comment tags — never from the
+transaction's own tags, and a transaction-level `date`/`date2` tag has
+no override effect at all (journal-parsing@v1#journal-parsing-010;
+tags@v1#tags-008). An unparseable date value in such a tag is a hard
+error: raised immediately in strict parsing, or collected with the
+override left unset in lenient parsing
+(journal-parsing@v1#journal-parsing-010). The *effective* date used
+when reading a posting back out follows a precedence chain: the
+posting's own date override wins over its transaction's date for the
+primary date; for the secondary date, the chain checks, in order, the
+posting's own `date2` override, then the transaction's own secondary
+date, then — distinctively — the posting's own *primary* date override
+reused as a secondary-date fallback, then finally the transaction's
+primary date (tags@v1#tags-008). This date-override mechanism is a
+genuine, first-non-None-wins precedence chain, which stands in contrast
+to how tag *values* themselves are combined (§6.2) — the two mechanisms
+are unrelated (tags@v1#tags-008).
+
+## 4. Amounts and commodities
+
+### 4.1 Supported amount forms
+
+Amount parsing accepts a commodity symbol as a prefix (`£30.00`) or a
+suffix (`30.00 EUR`); a leading minus sign; and a "mid" minus sign that
+appears after a prefix symbol (`$-300`)
+(journal-parsing@v1#journal-parsing-004). By default, commas are
+thousands separators and a period is the decimal mark; this reverses
+(period-thousands, comma-decimal) once a `decimal-mark ,` directive is
+active (§7) (journal-parsing@v1#journal-parsing-004). Space-separated
+digit groups (`1 000 000 JPY`) and E-notation are also normalised
+before the main amount pattern is applied
+(journal-parsing@v1#journal-parsing-004). An amount with no commodity
+symbol at all is a `ParseError` ("amount has no commodity symbol")
+unless a default commodity has been set via a `D` directive
+(journal-parsing@v1#journal-parsing-004).
+
+### 4.2 How a commodity's display style is inferred
+
+Separately from parsing an individual amount, Ledgerkit infers a
+*display style* per commodity symbol — which side the symbol sits on,
+whether a space separates it from the number, which character is the
+decimal mark, which is the group separator, and how many decimal
+digits to show. This inference looks at one sample raw-amount string
+for the commodity and works as follows:
+
+- **Symbol position.** The sample string (with any leading minus
+  stripped first) is checked for whether it starts with the commodity
+  symbol (prefix) or ends with it (suffix); if it happens to match
+  both ends (a degenerate case, e.g. a symbol of `A` against `A5A`),
+  the prefix check is tried first and wins
+  (commodity-styling@v1#commodity-styling-001). If the symbol matches
+  **neither** the start nor the end of the sample, this is not a benign
+  no-op: the entire stripped string, including whatever unrelated text
+  is actually present, is fed to decimal/group-separator inference as
+  if it were the numeric portion, which can silently produce a
+  nonsensical precision value — this has been directly confirmed by
+  execution (e.g. inferring a style for commodity `EUR` from the
+  sample `"100.00 USD"` yields a precision of 6, because the unrelated
+  trailing `" USD"` text gets counted into the digit count), and no
+  test in the project's own suite currently exercises this branch
+  (commodity-styling@v1#commodity-styling-001).
+- **Decimal mark vs. group separator, single-separator case.** If the
+  numeric part contains only one kind of separator character (only
+  dots, or only commas), and it occurs exactly once, is not at
+  position 0, and is followed by exactly 3 digits, it is read as a
+  digit-group separator (so the number is a whole integer with
+  thousands grouping, precision 0); in every other single-separator
+  case that same character is read as the decimal mark, with precision
+  equal to the digit count after its last occurrence
+  (commodity-styling@v1#commodity-styling-002). This heuristic is
+  necessarily ambiguous for a genuinely-intended 3-decimal-place amount
+  written with a single separator (e.g. `$1.234` meant as "one and 234
+  thousandths" is indistinguishable from "1,234 grouped"), which the
+  rule's own evidence acknowledges as an inherent limitation, not a
+  bug to be fixed (commodity-styling@v1#commodity-styling-002).
+- **Decimal mark vs. group separator, both-present case.** If the
+  numeric part contains both a dot and a comma anywhere, whichever one
+  occurs **rightmost** (closest to the end of the string) is always
+  taken as the decimal mark and the other as the group separator —
+  regardless of how many times either character repeats — and this
+  check takes priority over the single-separator heuristic above
+  (commodity-styling@v1#commodity-styling-003).
+
+### 4.3 Formatting amounts for display
+
+When formatting a `Decimal` value back into text for a given
+commodity's style, the negative sign is placed differently depending on
+symbol position, and this is an unconditional, hledger-convention
+asymmetry rather than a simplification: for a prefix-style commodity,
+the sign goes *immediately* after the symbol and before the number with
+no gap at all — even if the style otherwise puts a space between symbol
+and number for positive amounts, that gap is dropped entirely for a
+negative one (e.g. `£-5,000.00`); for a suffix-style commodity, the
+sign instead goes before the number, and the suffix symbol keeps its
+normal spacing (e.g. `-1,234.56 EUR`) (commodity-styling@v1#commodity-styling-004).
+
+### 4.4 Which sample wins when more than one is available
+
+A journal can supply more than one sample amount for the same commodity
+symbol — from an explicit `commodity` directive, from a posting amount,
+and from a price (`P`) directive. Ledgerkit resolves one style per
+commodity using a three-tier priority: an explicit `commodity`
+directive's own sample amount always wins if one exists for that
+symbol; otherwise, the first posting amount seen for that commodity (in
+transaction/posting order) is used; otherwise, the first `P`-directive
+amount for that commodity is used
+(commodity-styling@v1#commodity-styling-005). This claim rests on
+reading the implementation and its own docstring directly — no test in
+the evidence available to this topic exercises the directive-overrides-
+posting priority case end to end, so it is recorded here with that
+caveat rather than as independently test-confirmed
+(commodity-styling@v1#commodity-styling-005).
+
+### 4.5 Overriding a commodity's style from the CLI
+
+A commodity's display style can also be supplied directly (the CLI's
+`-c`/`--commodity-style` flag), by giving a sample string such as
+`"1,000.00 USD"` or `"$1,000.00"`; the symbol is extracted by first
+trying to match a trailing alphabetic code, and only if that fails
+trying a leading symbol, with the whole operation raising an error if
+the string is empty, contains no digit at all, or contains digits but
+matches neither pattern (e.g. a bare `"123.45"` with no commodity
+symbol anywhere) (commodity-styling@v1#commodity-styling-006). Such an
+override is scoped strictly to the one commodity symbol it names — it
+has no effect on how any other commodity in the same report is
+formatted (commodity-styling@v1#commodity-styling-006).
+
+### 4.6 Known limitation in multi-commodity report formatting
+
+One report-building code path — formatting the rows of a single report
+section (as opposed to a whole journal) into a display table — has an
+explicitly self-acknowledged, single-commodity limitation: it picks one
+commodity (an arbitrary/first key out of the resolved per-commodity
+style map) and applies that one style to *every* row, regardless of
+which commodity each individual row's value actually came from; this
+is called out directly in the code's own comments as a deferred
+limitation, not merely an oversight nobody noticed
+(commodity-styling@v1#commodity-styling-008). It stands in contrast to
+whole-journal formatting elsewhere in the same codebase, which does
+look up the correct per-commodity style for each row
+(commodity-styling@v1#commodity-styling-008).
+
+### 4.7 No multi-commodity ("mixed amount") postings
+
+Ledgerkit's data model gives a posting a single, optional amount with a
+single commodity — there is no concept analogous to hledger's "mixed
+amount" on one posting (tags@v1#tags-009). Some of the tag-propagation
+machinery (§6) is nonetheless written in a plural, list-based shape
+specifically so that it would not need to change if this constraint
+were ever lifted, even though, under the current data model, that
+multi-commodity case cannot currently occur (tags@v1#tags-009).
+
+## 5. Comments
+
+Comment handling distinguishes four cases (journal-parsing@v1#journal-parsing-006):
+
+1. A non-indented (column-0) line starting with `;` or `#` is always a
+   silently-skipped top-level comment — it is never attached to any
+   transaction or posting, regardless of what came immediately before
+   it.
+2. An indented line starting with `;` that appears inside an still-open
+   transaction block is a follow-on comment: its text is appended
+   (joined by a newline) to the *last-seen posting's* inline comment,
+   or to the transaction's own inline comment if no posting has been
+   seen yet in that block.
+3. An indented line starting with `#` inside an open block extends the
+   transaction's recorded source span, but its text is never attached
+   to any comment field at all.
+4. A same-line comment following `;` on a transaction header or
+   posting line is captured directly as that line's own inline
+   comment, by the same parsing step that reads the rest of the line.
+
+Only `;`-led comments are ever scanned for tags (§6) — a `#`-led
+comment, at any indentation, never contributes a tag
+(journal-parsing@v1#journal-parsing-006). One deliberate edge case: a
+standalone column-0 `;` line with no blank line separating it from a
+preceding transaction is *not* treated as a follow-on comment on that
+transaction's last posting — it is a top-level comment regardless of
+adjacency (journal-parsing@v1#journal-parsing-006).
+
+## 6. Tags
+
+### 6.1 Tag syntax within a comment
+
+A tag is written as `name:value` inside a comment; a comment line may
+hold several, separated by commas (tags@v1#tags-005, tags@v1#tags-006).
+Two rules govern this that are easy to get wrong by analogy to simpler
+splitting:
+
+- **A space immediately before the colon voids the entire candidate.**
+  `"foo : bar"` yields *zero* tags — not a tag named `foo`, and not one
+  named the empty string. Scanning resumes right after that voided
+  colon, so a genuine tag appearing later on the same line is still
+  found: `"foo : bar, real:tag"` yields exactly one tag, `real:tag`
+  (tags@v1#tags-005).
+- **A value runs to the next comma or end of line; a colon inside a
+  value does not end it,** so `"url: http://example.com, other: x"`
+  parses as two tags, `url` → `http://example.com` and `other` → `x`
+  (tags@v1#tags-006). There is no escaping mechanism for a literal
+  comma inside a value — a value can simply never contain one; this is
+  treated as a real, permanent limitation of the grammar, not an
+  omission to be fixed (tags@v1#tags-006).
+
+Tag names have no character-class restriction beyond "not a colon, not
+containing a line break, and not ending in whitespace before the
+colon" — digits, punctuation, and non-ASCII characters are all accepted
+as part of a tag name, which is more permissive than the hledger
+manual's own prose describing tags as "a single word or hyphenated
+word" (tags@v1#tags-007). The same tag name may legitimately appear
+more than once on one line (or, by extension, across the sources
+combined in §6.2) with different values; the result is always an
+ordered list of `(name, value)` pairs, never collapsed into a
+dictionary keyed by name (tags@v1#tags-007).
+
+### 6.2 What contributes to a posting's effective tags
+
+A posting's full, "effective" tag set is the union of exactly four
+sources: the posting's own inline-comment tags; its transaction's own
+inline-comment tags; any tags declared on the posting's account or any
+ancestor of that account (via an `account` directive — see §7); and any
+tags declared on the commodity used in the posting's amount (via a
+`commodity` directive) (tags@v1#tags-001). Crucially, this union
+performs **no shadowing, precedence, or deduplication of any kind** — a
+tag named `rate` declared with four different values across all four
+sources will appear four times in the result, not once; and this holds
+even for two sources declaring the exact same `(name, value)` pair,
+which is also preserved twice rather than collapsed (tags@v1#tags-002).
+This is a deliberate design choice, documented as a reaction to the
+observation that hledger's own manual prose ("posting tags override
+account tags override commodity tags") does not match hledger's own
+actual list-union-based mechanism either — but ledgerkit's own
+implementation is "no dedup, ever," by direct inspection of its
+concatenation logic, independent of what hledger's own internals are
+believed to do (tags@v1#tags-002).
+
+A second, narrower union exists specifically to back one query-matching
+path (hledger's `accounts` command): it includes only the transaction's
+own tags and the posting-account's inherited tags, explicitly excluding
+the posting's own literal tags and any commodity-propagated tags that
+the four-source union above would include (tags@v1#tags-003). Which
+caller actually invokes this narrower union could not be independently
+confirmed from this topic's own evidence and rests on the code's own
+documentation of its purpose (tags@v1#tags-003).
+
+### 6.3 Account tag inheritance
+
+A declared account tag (from an `account` directive, §7) is inherited
+by the declaring account itself and by every one of its descendants —
+every prefix of the account's `:`-separated path, from the root segment
+down to the account itself, is checked, and matching tags are
+concatenated from least-specific to most-specific
+(tags@v1#tags-004). A sibling branch does **not** inherit a tag
+declared on a different sibling at a deeper level — only a true
+ancestor (a strict prefix of the account's own path) contributes
+(tags@v1#tags-004). For example, `assets:bank:savings` inherits tags
+declared on both `assets` and `assets:bank`, but `assets:savings` (a
+sibling of `assets:bank`, not a descendant of it) inherits only what
+was declared on `assets` itself (tags@v1#tags-004).
+
+## 7. Directives
+
+Ledgerkit recognises the following non-indented directives
+(journal-parsing@v1#journal-parsing-007):
+
+- `account` — declares an account, optionally with its own tags.
+- `commodity` — declares a commodity, with a sample amount used for
+  style inference (§4.2) and optionally its own tags.
+- `payee` — declares a payee name.
+- `tag` — declares a tag name.
+- `decimal-mark` — switches which of `,`/`.` is treated as the decimal
+  mark for amounts parsed from that point forward (§4.1).
+- `P` — records a market/commodity price on a given date.
+- `alias` / `end aliases` — declares an account-name rewrite rule
+  (exact, prefix, or regex-with-backreferences), applied in
+  last-declared-first order until `end aliases` closes the scope.
+- `Y` — sets the default year used when a date omits one (§2.2).
+- `D` — sets a default commodity and style for amounts written with no
+  commodity symbol at all (§4.1).
+- `apply account` / `end apply account` — prefixes a directive-declared
+  account scope onto subsequent postings.
+- `comment` / `end comment` — brackets a block comment.
+
+Two further headers are recognised but their bodies are deliberately
+not implemented: a line beginning `~` (hledger's periodic transaction
+rule) and a line beginning `=` at column 0 (hledger's auto-posting
+rule) are both recognised, their following indented lines are skipped
+rather than parsed as ordinary postings, and a `ParseWarning` (a
+non-fatal subclass of parse error, collected rather than raised in
+lenient mode) is emitted for each — this is a disclosed, deliberate
+scope deferral rather than a bug (journal-parsing@v1#journal-parsing-007).
+
+### 7.1 Strict vs. lenient parsing, and a confirmed exception
+
+Ledgerkit exposes two parsing entry points with different error
+policies: one raises on the first malformed line; the other is
+documented and designed to never raise, instead collecting every error
+into a returned list, discarding only the one malformed transaction,
+and resuming at the next blank line or transaction header — intended
+for callers such as an editor that re-parses on every keystroke
+(journal-parsing@v1#journal-parsing-008). Every directive handler that
+can raise an error is, by design, gated so that the "never raise"
+caller instead gets the error collected — **except one, confirmed
+exception**: a malformed `commodity` directive (an empty body, an
+unterminated quoted symbol, or an otherwise-unparseable body) is not
+guarded at all, and raises straight out of the "never raises" entry
+point too, contradicting its own documented contract
+(journal-parsing@v1#journal-parsing-008). This is a real, reproducible
+parser bug, not a documentation nuance — it was confirmed by direct
+execution during this topic's own review process, and no test in the
+project's suite exercises this specific input shape
+(journal-parsing@v1#journal-parsing-008).
+
+A second, structurally different exception surfaced only during this
+topic's independent as-built reconstruction, which this topic's own
+comparison review folds into the same "except one" assertion as a
+correction to its count rather than a contradiction of its thesis
+(journal-parsing@v1#journal-parsing-008, classified `partial`): an
+`alias` directive whose pattern compiles but whose replacement text
+contains a backreference with no matching group (e.g. `alias /(foo)/ =
+\2`) passes validation when the directive is declared, and only fails
+later, when the alias is actually applied to an account name — and it
+fails as an uncaught `re.PatternError` (not even a `ParseError`),
+escaping both the strict and the "never raises" entry points alike.
+
+### 7.2 Confirmed limitation — a directive inside an open transaction can silently drop postings
+
+This topic's independent as-built reconstruction additionally found,
+and this topic's comparison review records as a documented gap in
+assertion journal-parsing-007's own directive inventory rather than a
+contradiction of it (journal-parsing@v1#journal-parsing-007, classified
+`partial`): if an `account`, `commodity`, `payee`, or `tag` directive
+line appears between two posting lines of a transaction block that is
+still open, the still-open transaction is never flushed or closed —
+unlike what happens for a new transaction header, a periodic/
+auto-posting rule header, or a `comment` block, each of which does
+correctly close out any open transaction first. Instead, every
+subsequent indented line of that same block (including what were meant
+to be further posting lines) is silently treated as if it were a
+sub-directive continuation line and dropped entirely — with no
+`ParseError`, no `ParseWarning`, nothing. This is a genuine,
+observable, silent-data-loss gap: a transaction can lose some of its
+own postings with no indication anything went wrong, purely because an
+unrelated directive happened to be written between two of its posting
+lines.
+
+## 8. Multi-file includes
+
+### 8.1 The `include` directive
+
+A line anchored at column 0, consisting of the literal word `include`
+followed by one or more whitespace characters and then a target path
+captured verbatim, triggers multi-file loading (loader@v1#loader-001).
+An indented `include` line is never recognised as a directive at all —
+the column-0 anchor means it is simply left as ordinary (and likely
+invalid) content (loader@v1#loader-001). If the captured target, once
+whitespace-trimmed, is empty, a `ParseError` ("include: missing file
+path") is raised (loader@v1#loader-001).
+
+### 8.2 How an include target is resolved
+
+The target path is resolved by a fixed order of checks: a path
+beginning with `~` is expanded against the user's home directory;
+otherwise an absolute path is used as-is; otherwise the path is
+resolved relative to the directory of the file that *contains* the
+`include` line — which, for a chain of nested includes, is the
+immediate parent file's own directory, not the root file's directory
+and not the process's current working directory
+(loader@v1#loader-002). If the resulting path contains a glob
+metacharacter (`*`, `?`, or `[`), it is expanded as a glob pattern
+(including `**` for recursive matching), and the matches are sorted for
+a deterministic order; otherwise it is treated as a single literal
+path (loader@v1#loader-002).
+
+**Confirmed limitation — glob metacharacters cannot be escaped, and
+this can misfire two different ways.** Because the glob-vs-literal test
+is a simple character check with no escaping syntax, a filename that
+genuinely contains `[`, `*`, or `?` as a literal character can be
+silently and wrongly reclassified. One confirmed case: when a plain,
+non-glob include target is resolved inside a *containing directory*
+whose own name happens to contain a bracket character, the resolution
+logic classifies the resulting joined path as a glob, `glob.glob` finds
+zero matches even though the target file genuinely exists, and — because
+the separate decision of "was the raw target a glob" (used to choose
+between the two documented error types, see §8.4) was computed from the
+raw target text alone and says "no" — the code takes a branch that ends
+up indexing into an empty list, raising an uncaught `IndexError` instead
+of either of the two error types the include-resolution contract
+otherwise promises (loader@v1#loader-002, loader@v1#loader-003,
+loader@v1#loader-007). This exact scenario was confirmed by direct
+execution during this topic's own review, and the project's test suite
+has no test for it; whether this is an accepted limitation or a bug to
+fix was left as an open design question rather than guessed at
+(loader@v1#loader-002, loader@v1#loader-003, loader@v1#loader-007). A
+related but distinct case — a literal *filename* (rather than a
+containing-directory name) containing a bracket — was separately found,
+independently, during this topic's as-built reconstruction: it is
+classified as a glob because the bracket is present in the raw target
+text itself, so the attempt fails instead with a `ParseError: no files
+matched` rather than an `IndexError`; because this is a different
+reproduction than the containing-directory case, this topic's
+comparison review records the three affected assertions as `partial`
+rather than treating the two findings as confirming exactly the same
+scenario (loader@v1#loader-002, loader@v1#loader-003, loader@v1#loader-007).
+
+### 8.3 Self-exclusion and circular-include detection
+
+Whenever an include target resolves to one or more files, the file
+that contains the `include` directive is always filtered out of that
+resolved list first, before anything else happens — this applies
+whether the match came from a glob or from a single literal path
+(loader@v1#loader-003). **Confirmed limitation:** this produces a
+misleading error for a literal self-include. If a file contains
+`include <its-own-filename>`, the self-filter empties the resolved
+target list, and because the raw target was not a glob pattern, the
+code reports `FileNotFoundError: include: file not found: <path>` for
+a path that unquestionably exists on disk — the true cause (the file
+excluding itself) is not what the error says. This was confirmed by
+direct execution; no test in the project's suite covers it, and whether
+a clearer, dedicated error message is warranted was left as an open
+question rather than resolved here (loader@v1#loader-003).
+
+Separately, circular includes are detected via an ancestor-chain set of
+"currently in progress" absolute paths, threaded through the recursive
+expansion: a path is added immediately before recursing into it and
+removed immediately after that recursive call returns, so the set
+tracks only the current chain of ancestors, not every file ever
+processed (loader@v1#loader-004). A genuine mutual cycle (file A
+includes file B, which includes file A) is correctly caught and raises
+a `ParseError` naming it as circular (loader@v1#loader-004). **Confirmed
+limitation — "diamond" include graphs are not caught, and produce
+silent duplication.** If a root file includes two sibling files that
+each, independently, include the same third file, this is not a cycle
+under the ancestor-chain design — the shared file is no longer "in
+progress" by the time the second sibling branch reaches it — so it
+loads successfully, but the shared file's content (transactions,
+declared items, everything) is duplicated in the result, with no
+warning of any kind. This was confirmed by direct execution: a
+three-file diamond produced five transactions in total (one shared
+transaction appearing twice) with no error raised. Whether a
+non-circular repeated inclusion like this should be allowed to succeed
+silently, or should itself be flagged, was left as an open design
+question rather than resolved here (loader@v1#loader-004).
+
+### 8.4 Missing-file errors
+
+If a target string was itself detected as containing a glob
+metacharacter and resolution yields no matches, the result is a
+`ParseError` ("no files matched"); if the target was not a glob and
+resolution yields nothing, the result is instead a `FileNotFoundError`
+naming the resolved absolute path and the referencing file/line — not a
+`ParseError` (loader@v1#loader-007). This two-outcome description is
+not exhaustive, however: as described in §8.2, a specific containing-
+directory-name edge case produces a third, undocumented outcome (an
+uncaught `IndexError`) instead of either of these two — which is why
+this particular assertion's own evidentiary status was downgraded by
+this topic's own review from a settled rule to a still-`proposed`
+description pending a decision on whether that third outcome is
+accepted or should be fixed (loader@v1#loader-007). Independently of
+missing-file handling, an unsupported file extension, or a target
+written with a recognised non-journal format prefix (such as `csv:` or
+`timedot:`), is always rejected with a `ParseError` before the
+not-found logic can even apply (loader@v1#loader-007).
+
+### 8.5 How included content is merged, and error attribution
+
+Multi-file loading works by **textual substitution, not an
+object-level merge**: each `include` line is recursively replaced by
+the full, already-expanded text of the file(s) it names, producing one
+single combined text string that is parsed exactly once
+(loader@v1#loader-005). A direct, intended consequence is that
+directive scope active before an `include` line — the documented
+example being an active `alias` — propagates naturally into the
+included content, because the included text is spliced in at the exact
+point of the directive within one continuous parse
+(loader@v1#loader-005). A three-level nested include demonstrates this
+is genuine positional splicing, not an append-at-the-end or any other
+reordering: the innermost file's content appears first in the result,
+ahead of its including file's own content, which appears ahead of the
+root's own content (loader@v1#loader-005).
+
+Because everything is parsed as one flattened blob, a parse error's
+raw line number is relative to that flattened text, not to any original
+file. To correct for this, the loader maintains a mapping with exactly
+one entry per *retained* line of the expanded output (an `include` line
+itself contributes no entry, since it is replaced rather than kept),
+and when a `ParseError` is caught after parsing, it is re-raised with
+the corrected originating file and local line number substituted in —
+this remap applies only when the caught error's line number falls
+within the range the map covers; outside that range, the original,
+untranslated error propagates unchanged (loader@v1#loader-008).
+
+### 8.6 Merging already-parsed journals
+
+A separate, distinct mechanism exists for merging journals that have
+already been independently parsed: it concatenates, in input order,
+the transactions, prices, and all four kinds of declared items
+(accounts, commodities, payees, tags) across every input, takes its
+`source_file` from the *first* input only, and sums every input's own
+included-file count into the result; a single-journal input is a fast
+path that returns that exact object (identity, not a copy), and an
+empty input list raises `ValueError` (loader@v1#loader-006). Because
+this mechanism operates on already-parsed objects rather than on text,
+it is architecturally distinct from `include`-based splicing: any
+directive scoping captured while parsing one of the merged journals
+does not and cannot propagate into another journal being merged this
+way (loader@v1#loader-005).
+
+## 9. Where Ledgerkit's handling is deliberately scoped differently from hledger's documented format
+
+The following are confirmed, deliberate scope boundaries, not bugs:
+
+- **Periodic transaction rules (`~`) and auto-posting rules (`=` at
+  column 0) are recognised but not implemented.** Their header lines
+  are detected, their bodies are skipped rather than parsed as
+  ordinary postings, and a non-fatal warning is emitted for each — this
+  is a disclosed deferral stated directly in the parser's own code
+  (journal-parsing@v1#journal-parsing-007).
+- **Balance-assignment elision syntax (`account  = AMOUNT` with no
+  separate amount before the assertion) is not implemented** — see §3.3
+  for the two different, confirmed ways an attempt to use it currently
+  fails (journal-parsing@v1#journal-parsing-009).
+- **There is no multi-commodity ("mixed amount") posting.** A posting
+  holds at most one commodity in its amount; see §4.7
+  (tags@v1#tags-009).
+
+Separately, this project maintains a compatibility register that
+tracks, per hledger feature, whether Ledgerkit's handling is considered
+compatible, an intentional divergence, or explicitly unsupported. A few
+register entries bear directly on journal-format syntax covered above,
+with the following confidence levels as currently recorded:
+
+- An entry claiming the `account` directive (§7) behaves equivalently
+  to hledger's cites a real, existing test, but as of this survey that
+  entry's own evidence was still only a documentation citation (not yet
+  an executable comparison) — i.e. its claim has not yet been checked
+  against a running hledger (compat-system@v1#compat-system-006).
+- An entry claiming that commodity-directive comment tags (§6, §7)
+  propagate to query matching identically to hledger has been checked
+  by an independently-dispatched verifier against real command output,
+  not merely read from the code (compat-system@v1#compat-system-007).
+- An entry claiming posting-level `date`/`date2` tag override
+  precedence (§3.4) matches hledger's own behaviour exactly has been
+  checked by the same engineer/session that implemented the feature,
+  with real command output, but not yet by a separately-dispatched
+  verifier (compat-system@v1#compat-system-011).
+
+This project's register also separately lists several hledger features
+by name as explicitly unsupported in the live register's current
+contents (as of this survey, 6 of 49 register entries carry this
+classification) — this document does not repeat their individual
+rationale beyond what is independently confirmed above (the periodic/
+auto-posting deferral and the lack of multi-commodity postings), since
+reading each entry's own stated reasoning in full was outside this
+drafting pass's permitted evidence (compat-system@v1#compat-system-003).
+
+## 10. A note on evidentiary confidence in this document
+
+Several claims above are flagged inline as resting on reconstruction-
+only findings that a cited assertion's own text does not fully state,
+or as resting on evidence this topic's own review marked
+`partially_supported` rather than fully test-confirmed. These are not
+incidental hedges: per this clean-room workflow's own stated discipline,
+agreement between a frozen assertion and an independent as-built
+reconstruction ("aligned") means only that the *current* implementation
+matches what was asserted — it does not, by itself, establish that the
+asserted rule is the *correct* one, and a `partial` classification means
+one of the two artefacts said something specific the other did not
+corroborate. Nothing in this document should be read as a guarantee
+that behaves identically to hledger's own documented format beyond what
+is stated explicitly, with its stated confidence, above.

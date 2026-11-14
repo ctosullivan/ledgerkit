@@ -313,3 +313,57 @@ Not fixed — all out of scope for this documentation-reconstruction phase, flag
 ## Phase 3 — step 7 (domain-skeptic COMPARISON) complete for all 10 topics
 
 Final classification tally across all 10 topics: 97 aligned, 9 partial, 0 conflicting, 0 not_implemented, 5 insufficiently_verified (111 assertions' worth of classifications across 102 underlying assertion files — current-state's 4 insufficiently_verified + reports-cli's 1 account for the count exceeding 102 1:1 only in the sense that current-state's comparison additionally rated its own already-counted assertions; no assertion was double-counted across topics). Zero conflicting or not_implemented findings anywhere — every genuine divergence found by independent reconstruction was a reach gap (partial/insufficiently_verified), not a contradiction. No assertion needed revision; the frozen snapshots remain immutable as designed.
+
+## Phase 4 precondition check (plan §5.3: re-confirm checker before any Phase 4 dispatch)
+
+Re-ran `check_snapshot.py` against all 10 topics before dispatching Phase 4's drafting work. 9/10 passed immediately; **editor-surface failed** because its external-repository clone at `/tmp/ledgerkit-editor-research-clone-2` no longer existed on disk (six weeks had passed since the original freeze; `/tmp` is ephemeral). This was the exact risk recorded in `PINNED-REVISIONS.md` at freeze time. **Recovery**: re-cloned from the recorded origin URL (`https://github.com/ctosullivan/ledgerkit-editor`) and checked out the exact pinned SHA (`b03c203316a9f99593173feaeea7ba7dad91e060`) — confirmed via `git rev-parse HEAD` — then re-ran the checker, which passed. No assertion content needed any change; the citations' line/content pins are against that historical commit regardless of what the clone's current branch HEAD is. All 10 topics now pass. Logged here per the discipline that this file is the one running audit trail for the whole initiative.
+
+## Phase 4 — drafting dispatches
+
+### current-shipped-state (internal artifact) — drafting dispatch
+
+- **Dispatch id:** orchestrator agent-call id `aee9c81d2b502bc0b`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within current-state's and compat-system's own 4 artifact types each; confirmed no ROADMAP/api-spec/hledger-compatibility/other-topic files read. Every fact cited to a specific assertion id with confidence matched to its comparison classification; correctly excluded reconstruction-only findings with no assertion id to cite (noted explicitly as a scope gap rather than silently working around the citation rule); made a good judgment call citing the stronger-evidenced compat-system-003 over current-state-006's own weaker, insufficiently_verified citation for the same underlying fact, while still disclosing current-state's own gap; honestly flagged compat-system-008's unresolved 10-vs-11 test-count discrepancy rather than picking a number.
+
+### docs/getting-started.md — drafting dispatch
+
+- **Dispatch id:** orchestrator agent-call id `a9552d91ef808a454`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within current-state/journal-parsing/reports-cli's 4 artifact types each. Used only `aligned` assertions (no hedging needed, correctly none pulled in from partial/insufficiently_verified since irrelevant to install/quickstart scope). Exercised good citation discipline: explicitly declined to state the console-script entry point, `--version` output, or the `resolve_elision` CLI-wiring claim, since those facts exist only in reconstruction reports, not in any frozen assertion — used `python -m ledgerkit` and more conservative phrasing throughout rather than overclaiming beyond what's citable.
+
+### docs/usage.md — drafting dispatch
+
+- **Dispatch id:** orchestrator agent-call id `a824569d328f2858a`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within reports-cli/checks/current-state's 4 artifact types each. Correctly omitted reports-cli-004/-013 (Python-API-only, never CLI-reachable) and current-state's non-CLI-relevant assertions. Hedged 4 distinct findings per their exact comparison classification (reports-cli-006 insufficiently_verified, reports-cli-014's directive-exclusion partial, checks-008's partial/partially_supported double caveat, reports-cli-010's confirmed-but-intent-open print-comment-dropping). Correctly excluded 5 real reconstruction-only findings with no citable assertion (dual `_fmt_amount` implementations, elision/colour gaps in print, exit-code inconsistency, `-c` silent no-op, register's abbreviation trigger) rather than citing a non-assertion source.
+
+### README.md — drafting dispatch
+
+- **Dispatch id:** orchestrator agent-call id `ac3babe49b74ea167`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within current-state/reports-cli/journal-parsing/compat-system's 4 artifact types each. Calibrated confidence to each cited assertion's comparison classification throughout; correctly dropped 2 insufficiently_verified current-state assertions entirely (rather than hedge) since compat-system's own stronger-evidenced aligned citations already covered the same facts. Declined 6 categories of real-but-uncitable reconstruction-only findings (pyproject.toml classifier inconsistency, unconditional ANSI color, print's further writer.py divergences, the directive-mid-transaction/alias-backreference bugs, no license/install claims, granular per-entry compat-register assertions) — correctly hedged the surrounding assertions instead of stating the uncited findings as fact.
+
+### dev-docs/architecture.md — drafting dispatch
+
+- **Dispatch id:** orchestrator agent-call id `a3e5ce73d6fc364e1`
+- **Verdict:** `compliant`, with one disclosed citation-discipline note
+- **Evidence:** read all 10 topics' full evidence packets; confirmed no excluded path opened. Reconciled models.py's dual nature by citing both journal-parsing's and commodity-styling's reconstructions together, per instruction. Correctly hedged reports-cli-006 and flagged partial-classification findings (checks-008, journal-parsing-007/008/009, loader-002/003/004/007) inline rather than presenting only their aligned "main rule" portion with full confidence. Noted `_pandas_compat.py` has no dedicated topic/assertions and gave it no standalone section accordingly.
+- **Note:** self-disclosed that several precise "module X imports only Y" dependency claims are established only in each topic's implementation-reconstruction report (bundled permitted evidence), not a dedicated frozen assertion — cited the nearest/most-relevant assertion per paragraph rather than inventing a false 1:1 assertion citation. Technically within the brief's "cited inline or per-paragraph" allowance, but flagged here for Phase 5's reconciliation to double-check these specific dependency claims against a stricter per-claim citation standard if desired.
+
+### docs/python-api.md — drafting dispatch
+
+- **Dispatch id:** orchestrator agent-call id `a19ea5e7a47a04eee`
+- **Verdict:** `compliant`, with one disclosed citation-discipline note (same pattern as architecture.md)
+- **Evidence:** read all 10 topics' full evidence packets (79 assertion files + 20 reconstruction/comparison docs); confirmed no excluded path opened, including dev-docs/api-spec.md (the protected file this draft explicitly must not read). Hedged 6 distinct findings per their exact comparison classification. Correctly declined to assert `ledgerkit/__init__.py`'s top-level re-export surface as settled fact, since no topic's permitted evidence confirmed it by reading that file directly (editor-surface's own reconstruction had already flagged this as unverified) — documented each module directly instead of claiming a top-level shape.
+- **Note:** same citation-discipline nuance as architecture.md — several exact function signatures are sourced from each topic's bundled reconstruction report rather than a dedicated frozen assertion ID; disclosed explicitly, flagged as a candidate for a future signature-focused assertion-research pass if the lead wants every signature individually assertion-backed.
+
+### docs/journal-format.md — drafting dispatch
+
+- **Dispatch id:** orchestrator agent-call id `a8e54a95382d15461`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within journal-parsing/commodity-styling/tags/loader/compat-system's 4 artifact types each. Included confirmed-but-unflattering current-behaviour limitations as instructed (the 2 parse_string_lenient exceptions, directive-mid-transaction silent data loss, balance-assignment two-mode failure, loader glob-escaping gaps) rather than omitting them. Correctly declined to assert anything about the 5 unsupported entries' own stated rationale, since only their existence/kind (compat-system-003's inventory) was available as evidence, not their full YAML body content.
+
+## Phase 4 — drafting dispatches complete (all 7)
+
+All 6 clean-room-redraft documents (README.md, dev-docs/architecture.md, docs/getting-started.md, docs/usage.md, docs/journal-format.md, docs/python-api.md) plus the current-shipped-state factual artifact are drafted, each compliant, each with every factual sentence traced to a specific assertion ID and confidence calibrated to its comparison classification. Two dispatches (architecture.md, python-api.md) disclosed the same citation-discipline nuance: several exact function-signature details are sourced from a topic's bundled reconstruction report rather than a dedicated assertion ID — flagged as a candidate for a future signature-focused assertion-research pass, not treated as a defect requiring rework now.
