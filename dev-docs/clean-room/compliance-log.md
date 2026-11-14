@@ -432,3 +432,18 @@ All 9 documents in Plan 29 §5.1's inventory have been reconciled: 8 live-replac
 
 - **Confirmed `dev-docs/api-spec.md` was genuinely never touched live**: `git diff --stat dev-docs/api-spec.md` is empty.
 - **Fixed the cross-dispatch finding the README dispatch flagged**: `dev-docs/hledger-compatibility.md` line 11 still said "each entry there is `status: proposed`" as a blanket present-tense claim — stale against the actual, repeatedly-confirmed live distribution (26 proposed / 9 self-verified / 14 verified / 0 final, compat-system-004). That document's own reconciliation dispatch had fixed two other stale claims but missed this framing sentence in its own opening paragraph. Fixed directly by the lead, cited to compat-system-004.
+
+## Phase 6 — independent audit
+
+- **Dispatch id:** orchestrator agent-call id `a1497b886308fe458`
+- **Verdict:** `PASS WITH NON-BLOCKING OBSERVATIONS` — full evidence in `dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md`
+- **All 8 §7.1 items reported separately, never collapsed**: (1) CodeCompass pin PASS-with-disclosed-drift (live checkout has moved from pinned `96a1e4d5...` to `dbcfe50a...`; confirmed zero codecompass-dependent commands ran after Phase 1, so nothing already done was contaminated); (2) workflow fidelity PASS; (3) isolation tier reported verbatim as `best-effort`, never upgraded; (4) exclusion-boundary compliance PASS (independently confirmed all 3 Phase 3 contamination events have no surviving contaminated output, via producer-header inspection); (5) substantial cross-section PASS (10/10 topics, 9/9 documents, 67/72 coverage number); (6) provenance PASS (5 independently-picked sentences, all traced and re-verified); (7) internal consistency PASS; (8) tests green, re-run independently (935 passed).
+- Re-ran `check_snapshot.py` against all 10 topics independently: all PASS (editor-surface's external clone confirmed still present and still pinned).
+- Confirmed `git status` clean, 5 commits ahead of `origin/main`, push failure correctly treated as environment-only, not a completion criterion.
+- Two genuine, non-blocking findings not raised in any retro: `ROADMAP.md` had no "Tooling & Process Initiatives" section at all (added by the lead immediately after); the learning-triage pass hadn't run yet (dispatched immediately after).
+
+## Phase 6 — learning-triage pass
+
+- **Dispatch id:** orchestrator agent-call id `ab1cd5770b207fc17`
+- **Verdict:** `compliant`
+- **Result:** all 12 named findings triaged, nothing left untriaged. 6 new `knowledge/EDGE_CASES.md` entries (EC-018 through EC-023) for the 6 real production bugs; EC-006 corrected in place (dated addendum, original preserved per append-only discipline); `knowledge/DECISIONS.md` got a new dated addendum correcting the false 2026-05-03 balance-assignments entry (original preserved); 2 new `ROADMAP.md` backlog rows (a Plan 29 bug-fix backlog for the ledgerkit/ source defects, a compat-register-corrections row routed to compat-differential-tester, since compat-register is outside this role's write boundary). **Bonus finding, not one of the 12 named**: proactively found and fixed the identical EC-006 staleness duplicated in `knowledge/DOMAIN_RULES.md`'s own include-directive entry, flagged explicitly rather than silently fixed without mention.

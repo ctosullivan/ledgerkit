@@ -9,6 +9,41 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [CodeCompass upgrade + clean-room docs — Phase 6, independent final validation + initiative closeout] — 2026-11-14
+
+Full detail: [dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md](dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md), [dev-docs/retros/CODECOMPASS-UPGRADE-CLEANROOM-DOCS-CLOSEOUT.md](dev-docs/retros/CODECOMPASS-UPGRADE-CLEANROOM-DOCS-CLOSEOUT.md)
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** dispatched an independent `release-phase-auditor` to run
+Plan 29's own Phase 6 audit (§7.1's 8 criteria, each reported separately
+— never collapsing isolation-tier/workflow-fidelity/boundary-compliance
+into one line). Verdict: **PASS WITH NON-BLOCKING OBSERVATIONS**, every
+claim independently re-verified (tests re-run: 935 passed; all 10
+snapshots re-checked via `check_snapshot.py`: all pass; 5
+independently-picked provenance sentences re-traced; all 3 Phase 3
+contamination events re-confirmed to have left no surviving output).
+Two genuine findings not in any prior retro: `ROADMAP.md` had no
+"Tooling & Process Initiatives" section (added, in-progress state, per
+plan §8 item 1); CodeCompass's live checkout had drifted past its Phase
+1 pin (confirmed harmless — zero `codecompass` commands ran under this
+initiative after Phase 1 — flagged for re-pinning before any future
+use). Ran the deferred learning-triage pass
+(`roadmap-context-curator`): all 12 accumulated findings from Phases 3
+and 5 triaged into durable records — 6 new `knowledge/EDGE_CASES.md`
+entries (EC-018–EC-023) for the real production bugs Phase 3 found, 1
+corrected in place (EC-006, dated addendum, original preserved), 1
+`knowledge/DECISIONS.md` addendum correcting a false entry, 1
+`knowledge/DOMAIN_RULES.md` correction (an unprompted 13th finding
+caught proactively), and 2 new `ROADMAP.md` backlog rows — nothing left
+untriaged. Wrote the initiative's closeout retro, synthesising all six
+phases. This closes out Plan 29's entire six-phase initiative; per the
+standing "never infer completion" rule, `ROADMAP.md`'s new row is not
+flipped to `[DONE]` here — that requires the user's own explicit
+confirmation, separately. 935 tests still pass; no `ledgerkit/` source
+changed.
+
 ### [CodeCompass upgrade + clean-room docs — Phase 5, dev-docs/api-spec.md change confirmed and applied] — 2026-11-14
 
 **Human:** confirmed applying all 3 of the `docs-maintainer` dispatch's

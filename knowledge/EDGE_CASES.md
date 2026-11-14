@@ -84,6 +84,163 @@ specific way the plan's own scope explicitly deferred).
 
 ---
 
+## EC-018 — `parse_string_lenient`'s "never raises" guarantee is false for a malformed `commodity` directive
+
+**Trigger:** A malformed `commodity` directive (e.g. an unparseable sample
+amount) passed to `parse_string_lenient`.
+**Expected behaviour (per `parse_string_lenient`'s own documented
+contract, Milestone 3):** never raises — always returns `(Journal,
+list[ParseError])`, collecting errors instead of propagating them.
+**Actual behaviour:** `_extract_commodity_symbol` (`ledgerkit/parser.py`,
+around line 1327) has no `try`/`except` guard, unlike every other
+directive handler in the lenient path — a malformed `commodity` directive
+raises directly through `parse_string_lenient`, violating its documented
+guarantee.
+**Status:** Known limitation — not fixed. Found during Plan 29 Phase 3
+(REVIEW mode, journal-parsing topic), `dev-docs/clean-room/
+compliance-log.md`. Out of scope for the documentation-reconstruction
+initiative that found it; a future fix should wrap
+`_extract_commodity_symbol`'s call site the same way every other
+directive handler already is, plus a regression test asserting
+`parse_string_lenient` never raises for this input. Tracked in
+`ROADMAP.md`'s "Plan 29 bug-fix backlog" row.
+
+---
+
+## EC-019 — `include` with a glob-metacharacter-named containing directory causes an uncaught `IndexError`
+
+**Trigger:** A journal file sits inside a directory whose own name
+contains a glob metacharacter (e.g. `inc[1]/foo.journal`), and that file
+is reached via a **non-glob** `include` path from a parent file.
+**Expected behaviour:** Either load normally (the include path itself is
+not a glob) or raise a documented exception (`FileNotFoundError` /
+`ParseError`) consistent with `loader.py`'s own documented `Raises:`
+contract.
+**Actual behaviour:** `_expand_includes`'s glob-vs-literal classification
+(`is_glob = any(c in raw_target for c in ("*", "?", "["))`, evaluated
+against the raw include string) diverges from `_resolve_include_path`'s
+own glob detection (evaluated against the fully-resolved absolute path
+string, which now also contains the containing directory's name) —
+`_resolve_include_path` treats the path as a glob (because the
+directory name itself contains `[`), silently misrouting a plain,
+non-glob include into glob-expansion logic, which can produce zero
+results and raise an uncaught `IndexError` instead of either documented
+exception.
+**Status:** Known limitation — not fixed. Found during Plan 29 Phase 3
+(REVIEW mode, loader topic; independently reproduced by the Phase 5
+loader-topic reconciliation pass too), `dev-docs/clean-room/
+compliance-log.md`. A future fix needs the two classification checks
+(raw include string vs. resolved path string) made consistent — most
+likely by classifying once, on the raw string, before any path
+resolution happens. Tracked in `ROADMAP.md`'s "Plan 29 bug-fix backlog"
+row.
+
+---
+
+## EC-020 — `alias` directive with an out-of-range backreference raises an uncaught `re.PatternError`
+
+**Trigger:** A regex `alias` directive whose replacement references a
+capture group that doesn't exist in its own pattern, e.g.
+`alias /(foo)/ = \2` (pattern has one group, replacement references
+group 2).
+**Expected behaviour:** Either a clean `ParseError` identifying the bad
+alias, or (at minimum) the same never-raises guarantee
+`parse_string_lenient` makes for every other malformed-directive case.
+**Actual behaviour:** The alias passes whatever validation exists at
+declaration time, then raises an uncaught `re.PatternError` — not even a
+`ParseError` — the first time the alias is actually applied to an
+account name. This happens from **both** `parse_string` and
+`parse_string_lenient`, so it is a stronger violation than EC-018 (which
+is scoped to the lenient path only).
+**Status:** Known limitation — not fixed. Found during Plan 29 Phase 3
+(implementation-reconstruction, journal-parsing topic), `dev-docs/
+clean-room/compliance-log.md`. A future fix should validate the
+replacement's backreferences against the pattern's actual group count at
+alias-declaration time (raising a clean `ParseError` there) rather than
+leaving the failure to surface lazily, uncaught, at first application.
+Tracked in `ROADMAP.md`'s "Plan 29 bug-fix backlog" row.
+
+---
+
+## EC-021 — A directive encountered mid-open-transaction-block silently discards the rest of that transaction's postings
+
+**Trigger:** An `account`, `commodity`, `payee`, or `tag` directive line
+appears between two posting lines of the same still-open transaction
+block (no blank line/new header separating them), e.g.:
+```
+2024-01-01 Foo
+    a  £10
+account assets:bank
+    b  -£10
+```
+**Expected behaviour:** Either the directive is rejected with a
+`ParseError` (directives are not valid mid-block), or it is accepted and
+the transaction block continues normally afterwards (posting `b` is
+still attached to the same transaction).
+**Actual behaviour:** The directive silently closes/discards the
+in-progress parsing of the current transaction's remaining posting
+lines with no error at all — posting `b` above is lost, and the
+transaction is left unbalanced with no diagnostic pointing at the cause.
+**Status:** Known limitation — not fixed. Found during Plan 29 Phase 3
+(implementation-reconstruction, journal-parsing topic), `dev-docs/
+clean-room/compliance-log.md`. A future fix should raise a `ParseError`
+when a directive line is encountered while a transaction block is still
+open, rather than silently dropping subsequent posting lines. Tracked in
+`ROADMAP.md`'s "Plan 29 bug-fix backlog" row.
+
+---
+
+## EC-022 — Balance-assignment elision (`account = AMOUNT`, no separate posting amount) silently corrupts suffix-commodity/comma-decimal input
+
+**Trigger:** A posting using hledger's balance-assignment elision syntax
+(assertion stands in for the posting amount, no amount written
+separately) where the asserted amount uses a **suffix** commodity symbol
+and/or comma-decimal format, e.g. `assets:bank  = 100,00 EUR`.
+**Expected behaviour:** Either parse the assignment correctly (consistent
+with `knowledge/DECISIONS.md`'s 2026-05-03 "Balance assignments deferred"
+entry, which describes this syntax as accepted but not validated), or
+raise a clean `ParseError` — the prefix-commodity form (e.g.
+`= $100.00`) already does the latter correctly.
+**Actual behaviour:** The literal `=` character is absorbed as part of
+the commodity symbol by the suffix-commodity amount regex, producing
+`Amount(commodity='=')` (or similar) with the balance assertion silently
+dropped entirely — no error, no assertion stored, wrong commodity symbol
+on the resulting `Amount`. This is a real data-corruption case, not
+merely an unvalidated-but-stored assignment.
+**Status:** Known limitation — not fixed. Found during Plan 29 Phase 3
+(implementation-reconstruction, journal-parsing topic), `dev-docs/
+clean-room/compliance-log.md`. Directly contradicts
+`knowledge/DECISIONS.md`'s 2026-05-03 entry's claim that balance
+assignments are "stored as-is" with `posting.amount = None` — see that
+entry's 2026-11-14 addendum. A future fix needs the amount grammar to
+recognise a bare `=`/`==`/`=*`/`==*` assertion token before attempting
+suffix-commodity extraction, for every decimal-mark mode. Tracked in
+`ROADMAP.md`'s "Plan 29 bug-fix backlog" row.
+
+---
+
+## EC-023 — `CommodityStyle.format()` rounds at precision > 0 but truncates (toward zero) at precision == 0
+
+**Trigger:** Formatting the same underlying `Decimal` quantity through
+`CommodityStyle.format()` once with a style whose precision is 0, and
+once with precision > 0, where the discarded fractional part would round
+up under standard rounding (e.g. `Decimal("1.6")`).
+**Expected behaviour:** Internally consistent rounding behaviour
+regardless of precision — either always round, or always truncate.
+**Actual behaviour:** Precision > 0 code paths round; the precision == 0
+code path truncates toward zero instead, so e.g. `Decimal("1.6")`
+formatted at precision 0 renders `"1"`, not `"2"`, while the same value at
+precision 1 would round normally. This is a genuine internal
+inconsistency, not a deliberate design choice recorded anywhere.
+**Status:** Known limitation — not fixed. Found during Plan 29 Phase 3
+(implementation-reconstruction, commodity-styling topic), `dev-docs/
+clean-room/compliance-log.md`. A future fix should make the precision == 0
+path round the same way the precision > 0 paths already do (or record an
+explicit, deliberate reason for the asymmetry if one is found). Tracked
+in `ROADMAP.md`'s "Plan 29 bug-fix backlog" row.
+
+---
+
 ## EC-001 — `end comment` outside a block comment
 
 **Trigger:** `end comment` appears in a file with no preceding `comment` directive.
@@ -130,6 +287,24 @@ specific way the plan's own scope explicitly deferred).
 ---
 
 ## EC-006 — `include` glob matches no files
+
+**CORRECTED 2026-11-14 (roadmap-context-curator learning-triage, Plan 29
+closeout):** this entry's original claim below ("silently produces no
+entries, no error") is **false** for current behaviour and has been
+since before Plan 29 — `ledgerkit/loader.py`'s `_expand_includes` raises
+`ParseError("include: no files matched {raw_target!r}", lineno)` when a
+glob pattern matches zero files, exactly mirroring the non-glob
+`FileNotFoundError` case rather than being silent. Confirmed live against
+`tests/test_loader/test_loader.py::test_glob_no_matches_raises`, which
+explicitly asserts the `ParseError` and its `"no files matched"` message
+text. `knowledge/DOMAIN_RULES.md`'s "`include` directive: glob vs
+explicit path error handling" entry carried the identical stale claim and
+has its own correction added alongside this one. Found independently
+during Plan 29 Phase 5 (`dev-docs/planning/core-redefinition/
+29-codecompass-upgrade-and-clean-room-docs.md`), triaged here rather than
+by that phase itself (outside its own write boundary).
+
+**Original entry (kept for history, not applicable to current behaviour):**
 
 **Trigger:** `include *.journal` in a directory with no `.journal` files.
 **Expected behaviour:** Silently produces no entries (no error).

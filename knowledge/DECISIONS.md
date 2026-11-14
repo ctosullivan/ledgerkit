@@ -4,6 +4,39 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 ---
 
+## 2026-11-14 — Addendum: the 2026-05-03 "Balance assignments deferred" entry below misdescribes current behaviour; corrected here, not edited in place
+
+**Finding:** the 2026-05-03 entry ("Balance assignments deferred (not
+validated in Milestone 2)") states the parser "stores `posting.amount =
+None` and `posting.balance_assertion` as normal" for balance-assignment
+elision syntax. This does not match as-built code. Actual behaviour,
+confirmed during Plan 29 Phase 3's implementation-reconstruction
+(journal-parsing topic) and Phase 5's `knowledge/DECISIONS.md`
+reconciliation pass, `dev-docs/clean-room/compliance-log.md`: for a
+**prefix**-commodity assertion (e.g. `= $100.00`), the parser raises a
+clean `ParseError` — it does not gracefully defer and store `None`. For
+a **suffix**-commodity or comma-decimal assertion (e.g.
+`= 100,00 EUR`), it silently **corrupts** the data instead — the literal
+`=` is absorbed into the commodity symbol, producing a wrong `Amount`
+value with the assertion dropped, no error raised at all. Neither
+outcome is "stored as-is with `amount=None`." See
+`knowledge/EDGE_CASES.md` EC-022 for the corruption case in detail.
+
+**Why this is an addendum, not an edit:** `knowledge/*.md` entries are
+append-only per `CLAUDE.md`/`11-documentation-lifecycle.md` §11.2 — the
+original entry's content is preserved below, unchanged, as a historical
+record of what was believed true in 2026-05-03 (apparently describing an
+intent or an earlier parser state that no longer holds, not re-verified
+since).
+
+**Follow-up:** fixing the underlying parser bug (EC-022) and then, once
+fixed, writing an accurate replacement decision describing the actual
+resulting behaviour is tracked in `ROADMAP.md`'s "Plan 29 bug-fix
+backlog" row — not attempted here, since this entry is a documentation
+correction only, not a code change.
+
+---
+
 ## 2026-09-16 — Stage C Phase 2's query/report integration is internal-only this phase; no new public API surface
 
 **Decision:** `reports.py`'s `accounts`/`balance`/`register`/`stats`
