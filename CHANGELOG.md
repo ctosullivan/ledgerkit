@@ -9,6 +9,47 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [CodeCompass upgrade + clean-room docs — Phase 3, implementation reconstruction] — 2026-10-03
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** dispatched a fresh, model-blind `implementation-reconstructor`
+for all 10 bounded topics (Plan 29 §4.2 step 5) — each given only its
+own primary evidence paths (source, tests, live CLI/Python execution),
+never the assertions, snapshots, or any legacy documentation produced so
+far. Every dispatch's transcript was inspected immediately for boundary
+compliance; all 10 came back compliant (one self-disclosed a brief,
+unused peek, logged as a note per the standard established in Phase 3's
+review step). Two dispatches (`journal-parsing`, `commodity-styling`)
+were interrupted mid-task by the account's weekly rate limit on a
+trailing, inessential verification step — in both cases the report
+itself had already been fully written to disk beforehand, recovered by
+reading the file directly rather than redispatching from scratch.
+Independent reconstruction surfaced **three more real production bugs**
+beyond the two already found in Phase 3's review step, all recorded, none
+fixed (out of scope for this phase): an `alias` directive with an
+out-of-range backreference raises an uncaught `re.PatternError` from
+both parse functions; a non-indented `account`/`commodity`/`payee`/`tag`
+directive encountered mid-open-transaction-block silently discards every
+subsequent posting line with no error; and hledger's balance-assignment
+elision syntax silently corrupts data for suffix-commodity/comma-decimal
+input (absorbs the literal `=` as a currency symbol, drops the
+assertion, raises nothing). Also found a confirmed dead/confused code
+fragment in `ReportSectionResult.to_dataframe()` and a rounds-vs-
+truncates inconsistency in `CommodityStyle.format()` depending on
+whether `precision` is zero. The `editor-surface` reconstruction's most
+decision-relevant finding: an unanchored, twice-verified whole-clone
+search found **zero real usage** of `EditorDocument` by the external
+`ledgerkit-editor` consumer it was built for — the editor's actual
+pipeline is an independently-built implementation on lower-level
+functions instead. 935 tests still pass; no `ledgerkit/` source changed
+(all findings flagged for a future tracked-fix task, not addressed
+here). Full cumulative bug tally recorded in
+`dev-docs/clean-room/compliance-log.md`.
+
+---
+
 ### [CodeCompass upgrade + clean-room docs — Phase 3, assertion research/review/freeze] — 2026-10-03
 
 **Human:** directed continuing Plan 29's implementation straight through

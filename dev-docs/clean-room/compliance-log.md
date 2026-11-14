@@ -168,3 +168,80 @@ the verdict rests on.
 ## Phase 3 — lead resolution of the one real escalation
 
 **editor-surface-006** (domain-skeptic REVIEW escalation, dispatch `a770fd9bb2d3ecbef`): queried whether the original assertion-research dispatch's citation of the ledgerkit-editor clone's `pyproject.toml:16` exceeded its own "source and test .py files only" scope. **Resolved by the lead**: this was an imprecision in the *dispatch prompt's* own wording, not a compliance violation by the dispatch — `pyproject.toml` is a build/config file, which the governing task's own Objective 3 explicitly lists as legitimate primary evidence ("package/build/configuration files"), for an external repo exactly as much as for Ledgerkit's own. Reading the *external* project's own dependency-pin file to establish the coupling version is squarely in scope; the restriction to "source and test .py files only" was meant to exclude that repo's *narrative* documentation (README, docs/), not its config. editor-surface-006.md restored to `supported`/`verified` with this reasoning recorded in the file.
+
+## Phase 3 — implementation-reconstructor dispatches (step 5)
+
+### tags — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `af00f055be516e1e4`
+- **Verdict:** `compliant`
+- **Evidence:** self-confirmed via `git status --porcelain` that only its own report file was written; stayed within ledgerkit/tags.py, ledgerkit/models.py, tests/test_tags.py, and live execution. Ran the full 38-test suite directly. Found 7 genuine limitations (no comma-escaping, no dedup in effective-tags, two docstring claims about cross-module callers/upstream behaviour left unconfirmed since parser.py/reports.py were out of scope, non-ASCII tag names accepted, no value-shape validation on declared tags).
+
+### checks — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `a3e2a48463ab3d6bf`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within ledgerkit/checks.py, tests/test_checks/test_checks.py, and 6 live CLI runs. Found 10 genuine findings including a literal no-op check (`check_parseable`), a caret-misalignment risk in strict-check output, an undocumented `prev_date` control-flow choice in `check_ordereddates`, and a `run_strict_checks`'s `skip` parameter that's silently ignored for STRICT_CHECK_NAMES. Correctly declined to read cli.py to resolve a genuine cross-module precedence question (unknown-check-name vs. basic-check-failure ordering) — flagged as "unexplained boundary behaviour" instead of exceeding its own permitted evidence paths.
+
+### current-state — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `a558e68a2669c42ae`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within pyproject.toml + live CLI execution only (no ledgerkit/*.py source read, as instructed for this observed-behaviour topic). Correctly disregarded an unrelated MCP tool-instruction block that appeared in its context, noting it had no bearing on the task. Found 10 genuine findings including check's silent success, print dropping header-inline-comments, a package-metadata inconsistency (dev1 pre-release version vs. "Production/Stable" classifier), and honestly flagged 2 items as unexercised/unestablished by available evidence rather than guessed at (the `-I` flag, multi-violation strict-check reporting).
+
+### compat-system — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `abc9d2cb06ada582c`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within the 49 register YAMLs, schema.md, and the named test files; `examples/` filenames seen only incidentally in a directory listing, never opened. **Found a real defect in the production compat-register itself (not fixed, flagged for a targeted re-check): LK-COMPAT-PARSER-TAG-001.yaml and LK-COMPAT-PARSER-TAG-SCOPE-001.yaml cite `tests/test_tags.py::TestParseTags`/`::test_multiline_comment`, which do not exist** (confirmed by direct grep, zero hits). Also confirmed the resolution-lifecycle mechanism end-to-end and the proposed/self-verified-or-verified ↔ zero/≥1-evidence-items correspondence holds with zero exceptions across all 49 entries.
+
+### query-engine — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `aaff34aa78278080c`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within ledgerkit/query/*.py (6 modules) + the 4 named test files + live execution; ran full 200-test suite. Independently reproduced the depth-specificity worked example and tokenizer OR/AND-bucketing behaviour by direct execution (not trusting docstrings), matching the REVIEW-mode findings from step 2 exactly. Found 10 limitations, explicitly disclosing 3 as "stated only in-module, not independently verified" since the claimed callers (reports.py, models.py) were outside this dispatch's permitted evidence.
+
+### reports-cli — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `a50b399a8e81d44e4`
+- **Verdict:** `compliant`
+- **Evidence:** stayed within cli.py/reports.py/writer.py + the 3 named test files + live execution; models.py/checks.py explicitly NOT read, with every data-model claim flagged as inferred-from-usage-only rather than confirmed. Independently reproduced the print-drops-inline-comments finding (matching REVIEW mode's step 2 fix) plus found 10 more real findings: differing negative-sign placement between print's and writer's own separate `_fmt_amount`, print never resolving elisions or applying depth:/colour, non-uniform depth semantics across commands, and two parallel unconverged filter mechanisms in reports.py.
+
+### editor-surface — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `aae363b2ae307ed0b`
+- **Verdict:** `compliant`
+- **Evidence:** verified the external clone's HEAD matches the pinned revision exactly before use; stayed within ledgerkit/editor_model.py + tests/test_editor_model.py + the clone's permitted source/test/pyproject.toml files; confirmed no clone README/docs/CHANGELOG/AI-README was read. **Major finding, not a compliance issue but highly decision-relevant for the comparison step: an unanchored, twice-verified whole-clone search found ZERO real usage of `EditorDocument` by ledgerkit-editor** — it appears only in a docstring list and a TODO comment for a not-yet-implemented command; the editor's real pipeline is an independently-built implementation on top of lower-level ledgerkit functions. Enumerated every real import site (matching step 2's REVIEW-mode correction). Also found a version-pin vs. test-docstring mismatch (1.0.0.dev1 vs "v0.2.0 features") in the external project, not ours to resolve.
+
+### journal-parsing — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `a095e0585848c6195` (interrupted mid-task by the weekly rate limit on a trailing verification step; the report itself was already fully written to disk before the interruption — recovered by reading the file directly rather than redispatching)
+- **Verdict:** `compliant` — report's own header confirms scope (parser.py, models.py, the 2 named test files, live execution only); no assertion/snapshot/legacy doc read.
+- **Evidence:** ran the full 233-test suite directly. **Found 3 more real production bugs beyond the one REVIEW mode already caught, all confirmed live, none fixed (out of scope for this phase):**
+  1. An `alias` directive whose replacement has an out-of-range backreference (e.g. `alias /(foo)/ = \2`) passes validation but raises an uncaught `re.PatternError` — not even a `ParseError` — from BOTH `parse_string` and `parse_string_lenient`.
+  2. A non-indented `account`/`commodity`/`payee`/`tag` directive encountered while a transaction block is still open causes **silent data loss**: every subsequent posting line of that still-open block is consumed as a subdirective line and vanishes — no error, no warning. Empirically confirmed for `account`; reasoned (by identical code pattern, not independently reproduced) to likely affect `commodity`/`payee`/`tag` too.
+  3. hledger's balance-assignment elision syntax (`account = AMOUNT`, no separate posting amount) **silently corrupts data for suffix-commodity/comma-decimal input**: the literal `=` character is absorbed as a currency symbol, producing `Amount(commodity='=')` with the assertion silently dropped — no error at all (the prefix-commodity case at least raises a clean `ParseError`).
+
+### commodity-styling — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `a9c70efd196e76fd0` (interrupted mid-task by the weekly rate limit on a trailing verification step; the report itself was already fully written to disk before the interruption — recovered by reading the file directly rather than redispatching)
+- **Verdict:** `compliant` — report's own header confirms scope (commodity_style.py, models.py, the 2 named test files, live execution only); no assertion/snapshot/legacy doc read.
+- **Evidence:** ran the full 29-test suite directly. Found 10 limitations, extending (not contradicting) step 2's REVIEW-mode findings: a confirmed rounds-vs-truncates inconsistency between `format()`'s precision>0 and precision==0 code paths, a quoted/multi-word-commodity mishandling in `infer()` dependent on parser.py behaviour outside its own scope (correctly disclosed as unconfirmed rather than asserted), `parse_style_override()` unable to express quoted-commodity overrides at all, and a **confirmed dead/confused code fragment in `ReportSectionResult.to_dataframe()`** (an account-name value assigned then immediately overwritten, with the mistake visibly acknowledged in an adjacent code comment).
+
+## Phase 3 note: real production bugs found as a byproduct, cumulative tally
+
+Not fixed — all out of scope for this documentation-reconstruction phase, flagged here for a future tracked-fix task:
+1. `parse_string_lenient`'s "never raises" guarantee false for a malformed `commodity` directive (REVIEW mode, journal-parsing).
+2. Loader: glob-metacharacter-named containing directory causes uncaught `IndexError` (REVIEW mode, loader).
+3. `alias` directive with out-of-range backreference raises uncaught `re.PatternError` from both parse functions (implementation-reconstructor, journal-parsing).
+4. Directive (`account`/`commodity`/`payee`/`tag`) encountered mid-open-transaction-block silently discards subsequent posting lines, no error (implementation-reconstructor, journal-parsing).
+5. Balance-assignment elision syntax silently corrupts data for suffix-commodity/comma-decimal input (implementation-reconstructor, journal-parsing).
+6. `commodity_style.format()` rounds at precision>0 but truncates at precision==0 (implementation-reconstructor, commodity-styling).
+7. Dead/confused code in `ReportSectionResult.to_dataframe()` (implementation-reconstructor, commodity-styling) — not a behavioural bug (the override is immediate and unconditional), but worth a cleanup pass.
+8. Two compat-register entries (LK-COMPAT-PARSER-TAG-001, LK-COMPAT-PARSER-TAG-SCOPE-001) cite a nonexistent test class/method (implementation-reconstructor, compat-system) — a register-data defect, not a code defect.
+
+### loader — implementation-reconstructor
+
+- **Dispatch id:** orchestrator agent-call id `a1361606f9ff3b1e7` (a trailing rate-limit failure notification arrived for this same task id after the full report/hand-back had already been delivered — the report itself is complete, not affected)
+- **Verdict:** `compliant`
+- **Evidence:** self-confirmed via `git status --short` before/after that only its own report file was written. Ran the full 57-test suite plus ~15 targeted live-execution probes beyond existing coverage (diamond includes, self-include, mutual cycles, cycle-through-glob, tilde/glob combinations, literal glob-metacharacter filenames, directory-matching globs, drive-letter prefixes, stdin loading). Independently reproduced the glob-metacharacter-named-directory `IndexError` bug found in step 2's REVIEW mode, plus found a self-include misleading-error-message issue and a confirmed silent-duplication gap in diamond-shaped include graphs (no dedup, `included_files`'s unique-count doesn't reveal the duplication).
