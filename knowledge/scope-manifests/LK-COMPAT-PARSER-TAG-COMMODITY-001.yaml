@@ -12,7 +12,7 @@ scope: >
   sameline:yes` with a follow-on `; followon:yes` line: `hledger ...
   balance tag:sameline=yes` and `tag:followon=yes` each selected the
   same postings as ledgerkit's own query for the same tags, confirming
-  capture on both the real binary and ledgerkit agree.
+  the real binary and ledgerkit agree on capture.
 
   The register entry's own header states that query-time propagation
   is this claim's *sibling* entry's subject
