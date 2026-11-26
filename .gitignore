@@ -78,6 +78,9 @@ test-results/
 Thumbs.db
 .claude/*
 !.claude/agents/
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/axiom-work/
 *.tmp.*
 
 # ----------------------------------------------------------------------------
@@ -102,14 +105,13 @@ site/
 logs/
 
 # ----------------------------------------------------------------------------
-# CodeCompass-generated state (Stage C Phase 5A, G-CC-1: gitignore, not
-# committed — matches CodeCompass's own convention for its own repo,
-# decisions/0004). context-graph.db already matches *.db above; .claude/
-# skills|commands already covered by .claude/* above. vendor.toml/vendor/
-# are regenerable via `codecompass sync`, never hand-authored.
+# Axiom development tooling (dev-docs/tools/axiom_knowledge/): the pinned
+# library itself is tracked, but its dedicated venv is local, reproducible
+# state, never committed. .axiom-local/ holds Axiom's own local event log
+# and similar per-checkout state, also never committed.
 # ----------------------------------------------------------------------------
-vendor.toml
-vendor/
+dev-docs/tools/axiom_knowledge/.venv/
+.axiom-local/
 
 # ----------------------------------------------------------------------------
 # hledger / accounting files that may contain private financial data

@@ -1,81 +1,88 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Implementing the twice-amended Plan 29
-(`dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-
-room-docs.md`) straight through to closeout. **Phases 1 and 2 are
-done.** About to begin Phase 3 (evidence-backed clean-room
-reconstruction, plan §4) — the real per-topic pipeline.
+CodeCompass retirement + minimal Axiom adoption, per
+`ctosullivan/axiom-dev`'s handoff
+(`planning/phase-02-ledgerkit-codecompass-migration-handoff.md` in that
+repository, PR #8, commit `3adda2a`). Implemented as a Ledgerkit PR
+(branch `phase-2/codecompass-retirement-axiom-adoption`) in an isolated
+worktree — **not yet merged**, awaiting this repository's own owner's
+explicit review and approval.
 
 ## Where We Are
-Phase 2 complete: clean-room template adopted into `dev-docs/clean-room/`;
-`check_snapshot.py` built and self-tested (7/7 fixture cases correct,
-including both historical-integrity checks); isolation preflight run,
-honest tier recorded as `best-effort` (filesystem/command/network all
-directly demonstrated open; same host confirmed). Retro: `dev-docs/
-retros/CODECOMPASS-UPGRADE-PHASE-2.md`. Plan 29 §13 updated. Next: Phase
-3, topic by topic (plan §4.1's table, 10 rows) — for each: dispatch a
-fresh, evidence-only assertion-research agent (bounded topic + permitted
-evidence paths + output format only — never this plan's prose, never
-legacy docs) → immediately inspect its transcript for compliance → if
-contaminated, discard and rerun; log to `dev-docs/clean-room/
-compliance-log.md` (not created yet — first Phase 3 action creates it)
-→ `domain-skeptic` REVIEW mode → freeze snapshot + sidecar → run
-`check_snapshot.py` → fresh `implementation-reconstructor` dispatch →
-immediate transcript check → `domain-skeptic` COMPARISON mode.
+PR opened against `ctosullivan/ledgerkit` `main`. Removed (tracked
+files): `.claude/agents/context-curator.md`, `validation/codecompass/`
+(whole directory), `dev-docs/clean-room/check_codecompass_pin.sh`,
+`dev-docs/clean-room/PINNED-REVISIONS.md`, the `## CodeCompass` section
+of `CLAUDE.md` (replaced with `## Axiom`), and the folder-structure
+diagram's CodeCompass-specific lines. **Not removed by this PR** (and
+cannot be, via any PR diff): `vendor.toml`, `context-graph.db`,
+`.claude/skills/codecompass/SKILL.md`, `.claude/commands/discovery.md`
+— all four were already git-untracked/gitignored local-only files, never
+part of Git history; removing them is a one-line local `rm` the
+repository owner can do directly, with no review needed and no effect
+on any fresh clone (which never had them either). Added: the
+`axiom-work` skill, the pinned `axiom_knowledge` library + launcher +
+dedicated venv at `dev-docs/tools/axiom_knowledge/`, `knowledge/README.md`,
+`knowledge/wiki/README.md`, one scope manifest for
+`LK-COMPAT-PARSER-TAG-COMMODITY-001`, and `.gitignore`/`CLAUDE.md`
+reconciliation. One new `knowledge/DECISIONS.md` entry records the
+retirement decision and what moved.
+
+**Note on local `main`**: this branch is based on Ledgerkit's local
+`main`, which is 6 commits ahead of `origin/main` (unrelated, pre-existing
+Plan 29 "CodeCompass upgrade + clean-room documentation" work) — those
+commits are untouched by this migration and will show in the PR diff
+as a pre-existing condition, not something this PR introduces.
 
 ## Decisions In Flight
-- The isolation preflight probe ran as `general-purpose` rather than the
-  two new named types, since they weren't yet dispatchable
-  `subagent_type` values at the moment the probe was dispatched (they
-  became available moments later, confirmed by a system notification
-  mid-Phase-2). Judgment call: not re-running the probe under the new
-  types, since the three routes that matter (filesystem/command/
-  network) are already conclusively open via tools (`Read`, `Bash`)
-  every real dispatch has regardless of named type — recorded in the
-  Phase 2 retro, not silently glossed over.
-- **`implementation-reconstructor` and `domain-skeptic` ARE now real,
-  dispatchable `subagent_type` values** (confirmed via a system
-  notification during Phase 2) — Phase 3 dispatches should use them by
-  name directly, not `general-purpose` with an embedded brief as
-  originally planned as a fallback.
+- Historical CodeCompass planning/retro docs
+  (`dev-docs/planning/core-redefinition/04-,18-,22-,29-codecompass-*.md`,
+  `dev-docs/retros/CODECOMPASS-*`, `STAGE-C-PHASE-2*`,
+  `STAGE-C-PHASE-5A*`) are **retained in the active tree**, not removed
+  — the handoff's §A.3 treats their removal as recommended, not
+  mandatory, and leaves the choice to this repository's owner (§E item
+  3). Retaining them avoided a wider cascade of dangling-citation fixes
+  across several `.claude/agents/*.md` files for a removal that was
+  never part of the pre-authorised scope (§A.1/§B only).
+- `ROADMAP.md`'s "CodeCompass upgrade + clean-room documentation
+  reconstruction" row is **not** marked `[DONE]` — only its now-moot
+  CodeCompass-re-pin follow-up clause was removed. The `[DONE]`
+  confirmation itself is explicitly left to the owner (§E item 1).
+- The general-purpose clean-room methodology (`dev-docs/clean-room/`'s
+  scripts/templates not already removed above) is untouched — §E item
+  2 leaves its long-term disposition to the owner.
 
 ## Files Currently Relevant
-- `dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-
-  room-docs.md` — §4 (whole Phase 3), §4.1 (the 10-topic table), §4.2
-  (the exact per-topic pipeline), §4.2a (the compliance-check
-  procedure).
-- `dev-docs/clean-room/assertions/TEMPLATE.md` — the assertion format,
-  including the `Evidence-paths:` machine-checkable convention Phase 2
-  added.
-- `dev-docs/clean-room/check_snapshot.py` — run against every frozen
-  snapshot before treating it as frozen (`python dev-docs/clean-room/
-  check_snapshot.py <topic>`).
-- `dev-docs/clean-room/isolation-preflight.md` — the honest `best-effort`
-  baseline Phase 6 will audit against.
+- `knowledge/DECISIONS.md` — new 2026-11-26 entry, the authoritative
+  record of what moved and why.
+- `CLAUDE.md` — `## Axiom` section and folder-structure diagram, both
+  updated.
+- `dev-docs/tools/axiom_knowledge/` — the pinned library, launcher,
+  `PINNED-REVISION.md`, `NOTICE`/`LICENSE`.
+- `.claude/skills/axiom-work/SKILL.md` — the installed skill.
+- `knowledge/scope-manifests/LK-COMPAT-PARSER-TAG-COMMODITY-001.yaml`,
+  `knowledge/wiki/README.md`.
 
 ## Blockers / Open Questions
-None. Proceeding directly per explicit instruction.
+Three items explicitly left for the human owner (handoff §E), not
+resolved by this migration:
+1. Confirm (or not) the `ROADMAP.md` CodeCompass-upgrade row `[DONE]`.
+2. Decide whether to retain or archive the clean-room methodology
+   apparatus independent of this migration.
+3. Decide whether to remove the historical CodeCompass planning/retro
+   docs from the active tree (this PR retained them).
 
 ## What NOT To Revisit
-- Don't re-run the isolation preflight under the new agent types —
-  judgment call made and recorded in the Phase 2 retro; the conclusion
-  (`best-effort`) is already fully supported.
-- Don't let the main orchestrating session author Phase 3 assertions
-  directly — every topic's assertion-research dispatch must be a fresh
-  `Agent` call (never a `fork`), receiving only the bounded topic,
-  permitted evidence paths, and output format.
-- Don't skip the immediate post-dispatch transcript check for any Phase
-  3/4 dispatch, and don't defer it to Phase 6 — log every verdict to
-  `dev-docs/clean-room/compliance-log.md` as it happens.
-- Don't validate a snapshot against today's working tree —
-  `check_snapshot.py` already resolves cited evidence against the
-  frozen git revision's own tree; trust it, don't hand-wave a check.
-- Don't begin Stage D as part of this task.
+- Do not re-litigate the architectural decision to retire CodeCompass —
+  made by the owner, not reopened by this migration.
+- Do not add `axiom-knowledge` to `pyproject.toml`'s `[project.scripts]`
+  — explicitly out of scope.
+- Do not modify `dev-docs/compat-register/` or edit any existing
+  `knowledge/*.md` entry — only additions are authorised.
 
-## Recent Git State (before this response's commit)
-0c89ceb feat(codecompass-upgrade-phase-1): CodeCompass reconciliation + enforced revision pinning
-4277036 docs: second amendment to CodeCompass/clean-room plan, approved to implement
-e1b0144 docs: amend CodeCompass upgrade + clean-room docs plan per review
-7032b3e docs: plan CodeCompass upgrade + clean-room docs reconstruction
-6c90b4c docs: mark Stage C [DONE], archive its changelog history
+## Recent Git State
+See `git log --oneline -10` on branch
+`phase-2/codecompass-retirement-axiom-adoption` for this migration's
+own commits, layered on local `main`'s existing 6-commit lead over
+`origin/main` (unrelated Plan 29 work, untouched here).

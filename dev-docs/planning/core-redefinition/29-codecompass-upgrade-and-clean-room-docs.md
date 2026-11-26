@@ -1749,7 +1749,56 @@ progress without opening six separate retros first.
   reachable `Grep` tool — the "search" route wasn't directly tested,
   though `Bash` (already proven open) makes this immaterial to the
   overall tier.
-- **Phase 3 — Evidence-backed clean-room reconstruction:** not started.
-- **Phase 4 — Clean-room documentation drafting:** not started.
-- **Phase 5 — Legacy reconciliation:** not started.
+- **Phase 3 — Evidence-backed clean-room reconstruction:** **Done,
+  2026-11-14.** Retro: `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md`.
+  Full §4.2 9-step pipeline run for all 10 bounded topics: 102
+  assertions (3 contamination/loss events discarded and rerun per
+  §4.2a), each independently reviewed (`domain-skeptic` REVIEW),
+  mechanically frozen, and passing `check_snapshot.py`'s hard gate
+  (which caught 3 real citation defects first, and needed a new
+  `external_repositories` resolver for editor-surface's external-clone
+  evidence — now 9/9 self-test cases). 10 model-blind
+  `implementation-reconstructor` reports produced and compliance-
+  checked. 10 `domain-skeptic` COMPARISON reports: **97 aligned, 9
+  partial, 5 insufficiently_verified, 0 conflicting, 0
+  not_implemented** across all topics. 8 real production bugs/defects
+  found as a byproduct (recorded in `dev-docs/clean-room/
+  compliance-log.md`'s tally, not fixed — out of scope for this
+  phase), plus a major scoping finding that `EditorDocument` has zero
+  real usage by its intended external consumer. 935 tests still pass;
+  no `ledgerkit/` source changed.
+- **Phase 4 — Clean-room documentation drafting:** **Done,
+  2026-11-14.** Retro: `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-4.md`.
+  Seven fresh, isolated drafting dispatches (6 clean-room-redraft
+  documents + the current-shipped-state artifact), each scoped to only
+  its own document's relevant Phase 3 topics, never the real document
+  it replaces or this plan's own prose. Every sentence traces to a
+  snapshot citation; zero genuine forward-looking language on
+  spot-check. Precondition recovery: editor-surface's external clone
+  (under `/tmp`) had been cleaned up since Phase 3 closed — re-cloned
+  at its exact pinned SHA before dispatching, per `PINNED-REVISIONS.md`'s
+  own anticipated recovery path. Drafts live under
+  `dev-docs/clean-room/drafts/`, not overwriting any real document.
+  935 tests still pass; no `ledgerkit/` source changed.
+- **Phase 5 — Legacy reconciliation:** **Done, 2026-11-14.** Retro:
+  `dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-5.md`. All 9 documents in
+  §5.1's inventory reconciled via 8 `docs-maintainer` Legacy
+  Reconciliation Mode dispatches (all 8 cut off simultaneously by a
+  shared session rate limit mid-research, resumed via `SendMessage`,
+  completed fully): 8 replaced live (`README.md`,
+  `dev-docs/architecture.md`, `docs/getting-started.md`, `docs/usage.md`,
+  `docs/journal-format.md`, `docs/python-api.md`,
+  `dev-docs/hledger-compatibility.md`, `ROADMAP.md`), 1
+  (`dev-docs/api-spec.md`) held pending the user's explicit confirmation
+  per the Unauthorised Change Rule, then applied (3 additive bug
+  disclosures) after approval. §6.4 coverage check ran with a real
+  number: 67 of 72 `api-spec.md` symbols have a corresponding Phase 3
+  assertion, 5 gaps named. A lead-level consolidation pass caught and
+  fixed 2 things the parallel dispatches missed (a stale framing
+  sentence in `hledger-compatibility.md`, a formatting slip in the
+  `api-spec.md` proposed revision). Surfaced and correctly routed
+  (not fixed outside role boundary) a stale `knowledge/EDGE_CASES.md`
+  entry, a false `knowledge/DECISIONS.md` entry, and 2 compat-register
+  entries needing a targeted re-check. 935 tests still pass; no
+  `ledgerkit/` source changed.
 - **Phase 6 — Independent final validation:** not started.

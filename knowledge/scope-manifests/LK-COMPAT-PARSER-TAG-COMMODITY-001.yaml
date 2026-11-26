@@ -1,0 +1,40 @@
+claim_id: LK-COMPAT-PARSER-TAG-COMMODITY-001
+source_pin: "1.52.4"
+
+scope: >
+  Verified for hledger 1.52.4 (commit 33fa849e7ae841968bd21c427094c4fb4a4ec38d),
+  on the `$` commodity symbol only: a `commodity` directive's same-line
+  comment tag and an indented follow-on comment-line tag are both
+  captured into `Journal.declared_commodity_tags`. This was confirmed
+  via a real differential run against the pinned hledger binary
+  (compat-differential-tester, 2026-09-25, independent of the
+  implementing session), using the fixture `commodity $ ;
+  sameline:yes` with a follow-on `; followon:yes` line: `hledger ...
+  balance tag:sameline=yes` and `tag:followon=yes` each selected the
+  same postings as ledgerkit's own query for the same tags, confirming
+  the real binary and ledgerkit agree on capture.
+
+  The register entry's own header states that query-time propagation
+  is this claim's *sibling* entry's subject
+  (`LK-COMPAT-QUERY-TAG-COMMODITY-001`), not this one's — this scope
+  does not resolve that ambiguity in either direction and does not
+  claim general tag:NAME propagation as its own subject. The
+  `tag:sameline=yes`/`tag:followon=yes` matching above is cited only as
+  the observable *proxy* the differential run used to confirm capture
+  (since hledger exposes no direct structural dump of its own internal
+  `jdeclaredcommoditytags` map), not as an independent propagation
+  claim.
+
+  NOT covered by this scope: commodity symbols other than `$`; the
+  comma-separated multi-tag same-line syntax (`; rate:2, csrc:1`) and
+  multiple `commodity` directives for the same symbol accumulating
+  tags — both confirmed only by a named regression test
+  (`tests/test_directives/test_directives.py::TestCommodityDirectiveTags`)
+  and a Ledgerkit-only internal-state check, neither a differential run
+  against the real binary; malformed or edge-case tag syntax beyond
+  the two fixtures named above; and any query-time propagation claim
+  beyond the narrow observable-proxy use described here, which belongs
+  to `LK-COMPAT-QUERY-TAG-COMMODITY-001`, not this manifest.
+
+reviewed_by: "general-purpose subagent, independent dispatch, this implementation session (2026-11-26) — reviewed this scope text against the register entry's full text and returned two corrections (scope/evidence overclaims), both applied before this manifest was finalised"
+reviewed_date: "2026-11-26"

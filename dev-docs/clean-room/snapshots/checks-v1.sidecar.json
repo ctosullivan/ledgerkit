@@ -1,0 +1,39 @@
+{
+  "assertions": {
+    "checks-001": {
+      "content_hash": "a770af70a534d9202c3994e00b69b2855084b504b525bb384c4709e58ec2a928",
+      "path": "dev-docs/clean-room/assertions/checks/checks-001.md"
+    },
+    "checks-002": {
+      "content_hash": "1bbdb29aa6b4383448461de584b1c1d12998acdce6b23c8c170ec3ec3ff8d916",
+      "path": "dev-docs/clean-room/assertions/checks/checks-002.md"
+    },
+    "checks-003": {
+      "content_hash": "ada38ce9f6eb6ef0efc7d2b7202449920bec237b8a50c03e5892e1284838b8da",
+      "path": "dev-docs/clean-room/assertions/checks/checks-003.md"
+    },
+    "checks-004": {
+      "content_hash": "41ed1e3b4af0e5f89b2386bb90db73122453f5e1296865e3a5b637150b0cee71",
+      "path": "dev-docs/clean-room/assertions/checks/checks-004.md"
+    },
+    "checks-005": {
+      "content_hash": "6a1e69ae082e40750b10e9202f35b255278135138a3d591c3be56e8ff9e4c02c",
+      "path": "dev-docs/clean-room/assertions/checks/checks-005.md"
+    },
+    "checks-006": {
+      "content_hash": "7c42aa6266fceb02ca4e0b75a3890f56fc240677cc4d97cc8feac6c9ba24a706",
+      "path": "dev-docs/clean-room/assertions/checks/checks-006.md"
+    },
+    "checks-007": {
+      "content_hash": "db84113ef9d49363eaedb25c643e600863466c8b052f6495e1edc5fe37ea0de3",
+      "path": "dev-docs/clean-room/assertions/checks/checks-007.md"
+    },
+    "checks-008": {
+      "content_hash": "a094ae2ef0569c2c9eb31dce5eedf594b851a7f532bf976433047488b2f03ec3",
+      "path": "dev-docs/clean-room/assertions/checks/checks-008.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "checks@v1"
+}

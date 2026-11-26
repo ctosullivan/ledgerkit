@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Launcher for Axiom's axiom_knowledge CLI, pinned per PINNED-REVISION.md.
+#
+# This is Ledgerkit's own development tooling, entirely separate from
+# Ledgerkit's installed package and its runtime dependencies (pyproject.toml
+# is untouched by this). It is not added to [project.scripts].
+#
+# Resolves relative to this script's own location (not the caller's $PWD or
+# PATH), so it works from the repository root, a nested subdirectory, or a
+# repository path containing spaces -- as long as the invoker quotes the
+# resolved path, e.g.:
+#   "$(git rev-parse --show-toplevel)/dev-docs/tools/axiom_knowledge/axiom-knowledge" get <id>
+#
+# Bootstraps its own dedicated virtualenv (Python 3.13 + pinned PyYAML) on
+# first run, reproducibly and without assuming any pre-existing dependency.
+# The venv is gitignored and never committed.
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="$HERE/.venv"
+
+# Re-bootstrap whenever the venv is missing *or* incomplete, not merely
+# when the interpreter binary is absent. An interpreter can exist with
+# the dependency install still having failed (e.g. a transient network
+# failure after `python -m venv` already succeeded) -- checking only
+# for the interpreter's presence would then skip reinstalling forever,
+# leaving every subsequent invocation fail on `import yaml` with no way
+# to recover short of deleting .venv by hand. Checking that `yaml` is
+# actually importable catches that case and is cheap and idempotent to
+# retry; `python -m venv` on an existing directory and a repeated
+# `pip install` of an already-satisfied requirement are both no-ops.
+if [ ! -x "$VENV/bin/python3" ] || ! "$VENV/bin/python3" -c "import yaml" >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python3.13 || command -v python3)"
+  if [ -z "$PYTHON_BIN" ]; then
+    echo "axiom-knowledge: no python3 interpreter found on PATH" >&2
+    exit 1
+  fi
+  "$PYTHON_BIN" -m venv "$VENV"
+  "$VENV/bin/pip" install --quiet "pyyaml>=6.0,<7.0"
+fi
+
+export PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}"
+# -P ("safe path"): do not prepend the current working directory (or an
+# empty string) to sys.path. Without it, invoking from a directory that
+# happens to contain a same-named module as a stdlib module (e.g.
+# Ledgerkit's own ledgerkit/query/ast.py shadowing the stdlib `ast`
+# module when run from inside ledgerkit/query/) breaks the interpreter's
+# own startup imports -- a real failure found testing this launcher from
+# that exact nested subdirectory, not a hypothetical. Requires Python
+# 3.11+; this launcher targets 3.13 specifically (PINNED-REVISION.md).
+exec "$VENV/bin/python3" -P -m axiom_knowledge "$@"

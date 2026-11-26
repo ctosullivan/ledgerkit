@@ -36,15 +36,13 @@ documentation accurate as the system changes.
    touched (once `compat-differential-tester` has finalised them —
    reconcile against **verified** behaviour, not the plan's stated
    intent).
-2. **Before editing, check whether the target is generated.**
-   `.claude/skills/codecompass/SKILL.md` and `CLAUDE.md`'s own
-   `<!-- codecompass:start -->...<!-- codecompass:end -->` marker block
-   are written by `codecompass index`/`sync` — git-tracked but
-   generated; a direct hand-edit is overwritten on the next sync. Only
-   hand-authored content (everything outside that marker block in
-   `CLAUDE.md`, plus `dev-docs/api-spec.md`, `dev-docs/architecture.md`,
-   `dev-docs/hledger-compatibility.md`, `docs/**`, `README.md`,
-   `CHANGELOG.md`) is yours to edit directly.
+2. **Before editing, check whether the target is generated.** CodeCompass
+   has been retired (`knowledge/DECISIONS.md`, 2026-11-26) and its
+   generated `CLAUDE.md` marker block removed along with it — this
+   generated-content caveat is now historical, not a live constraint.
+   Hand-authored content (`CLAUDE.md`, `dev-docs/api-spec.md`,
+   `dev-docs/architecture.md`, `dev-docs/hledger-compatibility.md`,
+   `docs/**`, `README.md`, `CHANGELOG.md`) is yours to edit directly.
 3. For each affected hand-authored doc, make it describe Ledgerkit as it
    now actually behaves:
    - **Fix the wrong sentence — don't annotate it.** If a claim is now
@@ -102,7 +100,15 @@ Return to the lead: the files changed with a one-line reason each (or "no
 current-truth doc affected"), and confirmation the `CHANGELOG.md` entry
 was added.
 
-## Legacy reconciliation mode (reconciled from CodeCompass's own Phase 79 brief, for Plan 29's Phase 5)
+## Legacy reconciliation mode — historical (Plan 29 Phase 5, complete; reconciled from CodeCompass's own Phase 79 brief)
+
+**This mode describes a completed, one-time task, not a live
+procedure.** Plan 29's Phase 5 is done; CodeCompass itself has since
+been retired entirely (`knowledge/DECISIONS.md`, 2026-11-26). Retained
+below as a record of the method used, in case a future, unrelated
+legacy-reconciliation task needs the same scheme — not as an
+instruction to re-run or expect dispatch again as part of any current
+initiative.
 
 A second, distinct task, dispatched specifically alongside Plan 29's own
 Phase 5 (`29-codecompass-upgrade-and-clean-room-docs.md` §6): **you are

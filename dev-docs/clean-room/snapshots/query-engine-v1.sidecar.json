@@ -1,0 +1,67 @@
+{
+  "assertions": {
+    "query-engine-001": {
+      "content_hash": "9811fae71d8cc3ff781aeb648e40e3ca4f08c5c40da8eb12a4ced99827ad52b2",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-001.md"
+    },
+    "query-engine-002": {
+      "content_hash": "48e760b2a8f7dbef49054b5cde785f07c0473a9fd2ccf95e7da276cb209ec8af",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-002.md"
+    },
+    "query-engine-003": {
+      "content_hash": "d911794bff2df7d9e1e4e45b5888fa89541becc104b055744a15619af1df0a3b",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-003.md"
+    },
+    "query-engine-004": {
+      "content_hash": "6a0e956a31dc0f2dbd8dcf3c5bd6c750a4c8d24fa3f8cfda61d3ee5b01837b29",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-004.md"
+    },
+    "query-engine-005": {
+      "content_hash": "4a81d076c038260b361b0b3536045d5416878017c95e8812666b39de17a07835",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-005.md"
+    },
+    "query-engine-006": {
+      "content_hash": "99f19ddd87bd0f3e07c87d6acdadd2c31ad05a14fc424daba4b5c3a752997fc6",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-006.md"
+    },
+    "query-engine-007": {
+      "content_hash": "b787d6459c4eba85be69db956445f1058750b4c63abba893a3b13c6f067716e6",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-007.md"
+    },
+    "query-engine-008": {
+      "content_hash": "01c5e9bc25c9fc50ec4fad8a1a580f6039f4917342acd75bb6a4fbe8cb3fea9a",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-008.md"
+    },
+    "query-engine-009": {
+      "content_hash": "5d9c7e988dc4d011285e3007c52e1f0332418b0c226851bde579290399477b6f",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-009.md"
+    },
+    "query-engine-010": {
+      "content_hash": "a204a27b783cca219084a0417fcb0c8975056745f94a0a893c872230a848ed62",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-010.md"
+    },
+    "query-engine-011": {
+      "content_hash": "d7fa777b5705b302766d14b4f5c25333d0ddde55e0c1f70d8cb1434856fdf909",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-011.md"
+    },
+    "query-engine-012": {
+      "content_hash": "4a118a48d474807bcb17faf7d3473a08d4abc0f77c5ba5f2fd1f614d4ca7ec83",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-012.md"
+    },
+    "query-engine-013": {
+      "content_hash": "d4676ed0e756016021700f710d11e3c420cdfac69aa1a3d7292831d65c36411e",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-013.md"
+    },
+    "query-engine-014": {
+      "content_hash": "5636e7298f6b7be68c979cd0f16f119786b3f5e74e424b22bafa8f5d2ac9693b",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-014.md"
+    },
+    "query-engine-015": {
+      "content_hash": "9f61efcd6680a10e279e4e16b358a2a945fa9847c08d77d9b3e0b7850696fc19",
+      "path": "dev-docs/clean-room/assertions/query-engine/query-engine-015.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "query-engine@v1"
+}

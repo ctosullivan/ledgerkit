@@ -1,0 +1,39 @@
+{
+  "assertions": {
+    "commodity-styling-001": {
+      "content_hash": "8d48f97b13234c428c1b0897dd2e64a6188253cba2973e55c7817b1db1e54cea",
+      "path": "dev-docs/clean-room/assertions/commodity-styling/commodity-styling-001.md"
+    },
+    "commodity-styling-002": {
+      "content_hash": "b838225162354773dc185c5f71170658ac25b1f02f7a1c8451153dd92f496e4a",
+      "path": "dev-docs/clean-room/assertions/commodity-styling/commodity-styling-002.md"
+    },
+    "commodity-styling-003": {
+      "content_hash": "5aaa887b8bc9e6d9bad0e8de406e462ddeb3a3eafdd18fed0a79052fdd04b96b",
+      "path": "dev-docs/clean-room/assertions/commodity-styling/commodity-styling-003.md"
+    },
+    "commodity-styling-004": {
+      "content_hash": "c251b486ac53fd08253d6fc3df12c042a6744a3362fb2085049cdf8add24e14d",
+      "path": "dev-docs/clean-room/assertions/commodity-styling/commodity-styling-004.md"
+    },
+    "commodity-styling-005": {
+      "content_hash": "b8a896c9f9fbd81db53781c903f662ed9265c7744f9e2d3f756d86aa572bd9c3",
+      "path": "dev-docs/clean-room/assertions/commodity-styling/commodity-styling-005.md"
+    },
+    "commodity-styling-006": {
+      "content_hash": "895242aba47f22de7d470eb02dac4f84255c6bbf02b8629fe3b92d28270888aa",
+      "path": "dev-docs/clean-room/assertions/commodity-styling/commodity-styling-006.md"
+    },
+    "commodity-styling-007": {
+      "content_hash": "07f79f79f331adcd24b2a32a72b00fb9cdd5e00a15551e044d7764c8d3b54007",
+      "path": "dev-docs/clean-room/assertions/commodity-styling/commodity-styling-007.md"
+    },
+    "commodity-styling-008": {
+      "content_hash": "9cf03286c72b31dbe12d461866638e842f9eddfd59fb4aa1b85e6690f2e4352b",
+      "path": "dev-docs/clean-room/assertions/commodity-styling/commodity-styling-008.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "commodity-styling@v1"
+}

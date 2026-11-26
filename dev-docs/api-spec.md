@@ -580,6 +580,23 @@ def load_journal(path: str | os.PathLike) -> Journal:
         ParseError: if an extension is unsupported, a format prefix is
             used (e.g. timedot:), a circular include is detected, a glob
             matches no files, or the file contents are malformed.
+
+    Known gaps (confirmed, not yet fixed — Plan 29 Phase 3 clean-room
+    evidence pass, 2026-11-14):
+        - The FileNotFoundError/ParseError split above is not fully
+          exhaustive. If a non-glob include target's *containing
+          directory* name itself contains a glob metacharacter
+          (*, ?, [), the target can be silently reclassified internally
+          as a glob pattern, match zero files, and raise an uncaught
+          IndexError instead of either documented exception — a
+          confirmed, reproducible gap. See loader@v1#loader-002,
+          loader@v1#loader-003, loader@v1#loader-007 (dev-docs/
+          clean-room/assertions/loader/).
+        - A file that includes itself by its own literal filename is
+          filtered out by the self-reference guard and then reported as
+          FileNotFoundError even though the file demonstrably exists on
+          disk — a misleading, but currently real, error message. See
+          loader@v1#loader-003.
     """
 ```
 
@@ -694,7 +711,13 @@ def run_strict_checks(
     *,
     skip: frozenset[str] | None = None,
 ) -> list[CheckError]:
-    """Run basic checks plus accounts + commodities checks."""
+    """Run basic checks plus accounts + commodities checks.
+
+    Note: `skip` is only ever applied to the basic-tier call inside this
+    function — the accounts/commodities (strict-tier) checks appended
+    afterward are never filtered by `skip` at all, even if a strict-tier
+    name is present in it.
+    """
 ```
 
 ---
@@ -719,6 +742,26 @@ def run_checks(
 
     Raises:
         ValueError: if an unknown check name is provided.
+
+    Known skip/names/strict interaction asymmetries (confirmed, not yet
+    resolved as intentional-vs-oversight — Plan 29 Phase 3 clean-room
+    evidence pass, 2026-11-14; see checks@v1#checks-008, dev-docs/
+    clean-room/assertions/checks/checks-008.md): the "already run by a
+    prior tier" test this function uses to deduplicate `names` against
+    the basic/strict tiers is a *static* union of tier name sets, not a
+    record of what actually executed.
+        1. A basic-tier (or, under strict=True, strict-tier) name that is
+           both present in `skip` AND explicitly re-requested via `names`
+           executes ZERO times, not once — `skip` suppresses the tier's
+           own run, and the static membership check then also blocks the
+           `names`-loop from giving it a second chance.
+        2. `skip` is never consulted by this function's own strict-tier
+           branch, so a name present in both `skip` and
+           STRICT_CHECK_NAMES still runs whenever strict=True — the
+           opposite failure mode from (1).
+    Both behaviours are confirmed, reproducible facts about the current
+    implementation; whether either is intentional design or an oversight
+    is not resolved as of this writing.
     """
 ```
 

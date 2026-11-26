@@ -1,0 +1,47 @@
+{
+  "assertions": {
+    "journal-parsing-001": {
+      "content_hash": "8ff1c9a2136078e3c096e30b98312898826d1c0212b796f5a65cc0ea7cff88b4",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-001.md"
+    },
+    "journal-parsing-002": {
+      "content_hash": "7f1a7c33136af1616d5b98a8206a36c595b956a4cf914543dc575d0102ec4c5f",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-002.md"
+    },
+    "journal-parsing-003": {
+      "content_hash": "67c943057a81d3788c7fa733b1985b0c5bbddad2529a669fa8cf45cab80ff1a7",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-003.md"
+    },
+    "journal-parsing-004": {
+      "content_hash": "9d735b3b4d1fbe002be79c811e23a0ec1c66ce5ad8457981689c80a81dabfc4a",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-004.md"
+    },
+    "journal-parsing-005": {
+      "content_hash": "b1cfd6709b90b905df0c80fbad38c961bb128a3844f622b42855fbf22e407363",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-005.md"
+    },
+    "journal-parsing-006": {
+      "content_hash": "7a22b98e7665e23e5aec55f3b2210eb3e8dd9e584b02fe01a00fd075cb17e4f2",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-006.md"
+    },
+    "journal-parsing-007": {
+      "content_hash": "f0e2c7c768b7b2eded7a77ef88c92b63de2198d3d4a84dfa2bad4c38b4c23b0c",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-007.md"
+    },
+    "journal-parsing-008": {
+      "content_hash": "9ea72d70f011bcf338c5142e9a96d319c758f21285b60fb7d20da5116bec6de6",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-008.md"
+    },
+    "journal-parsing-009": {
+      "content_hash": "e516abacc37832ebf2df56131e04bcce4a122e44c5ff9ed04c56434ffd6f5a53",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-009.md"
+    },
+    "journal-parsing-010": {
+      "content_hash": "6d29b64f59876b42b23073bee77d3b8dc65975c190d0ab6aed0f78db82f41d27",
+      "path": "dev-docs/clean-room/assertions/journal-parsing/journal-parsing-010.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "journal-parsing@v1"
+}

@@ -186,7 +186,7 @@ journal-syntax feature and serve as a living regression suite for parser breadth
 **Scope:**
 
 *Amount parser fixes (`parser.py` — `_AMOUNT` regex and `_parse_amount`)*
-- Sign after prefix symbol: `$-300`, `£-10` (currently only leading `-$300` works)
+- Sign after prefix symbol: `$-300`, `£-10` (previously only leading `-$300` worked; both forms parse correctly as of this milestone)
 - Cost annotations: `@ UNIT_PRICE` / `@@ TOTAL_PRICE` — strip before parsing; store
   raw annotation text on `Posting` for future valuation use
 - Lot annotations: `{UNIT}` / `{{TOTAL}}` / `[DATE]` / `(LABEL)` — strip; not stored v1
@@ -289,6 +289,20 @@ begins, exactly as milestones have always worked here.
 | G | Generated/transformative behaviour — periodic transactions, auto postings, forecasting, rewrite/close | `[PLANNED]` | `core-redefinition/08` |
 | H | Compatibility and identity — complete register, documented divergences/extensions, drive unexplained mismatches to zero | `[PLANNED]` | `core-redefinition/09` |
 | I | Core 1.0 — stable API, performance/reliability, blank-slate docs, independent release audit | `[PLANNED]` | `core-redefinition/12` §12.5 |
+
+---
+
+## Tooling & Process Initiatives
+
+Cross-cutting dev-tooling and documentation-process work that doesn't
+consume a Stage letter (`core-redefinition/29` §1) — runs parallel to
+the Stage ladder above, not instead of it.
+
+| Initiative | Focus | Status | Plan |
+|---|---|---|---|
+| CodeCompass upgrade + clean-room documentation reconstruction | Reconcile/re-pin CodeCompass and `codecompass-template`; rebuild `README.md`/`docs/**`/`dev-docs/architecture.md` from an evidence-backed, legacy-blind clean-room pass (10 bounded topics, 102 assertions), then reconcile the result against existing `dev-docs/api-spec.md`/`dev-docs/hledger-compatibility.md`/`ROADMAP.md` | Phases 1-6 complete, 2026-11-14 — independent Phase 6 audit verdict: **PASS WITH NON-BLOCKING OBSERVATIONS** (`dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md`). Awaiting explicit user confirmation before this row flips to `[DONE]`, per the standing "never infer completion" rule. CodeCompass itself has since been retired entirely from the project (see `knowledge/DECISIONS.md` and the `## Axiom` section of `CLAUDE.md`), which moots the audit's own re-pin follow-up (there is no further `codecompass`-dependent use to re-pin for). Remaining non-blocking follow-up named by the audit: the deferred `roadmap-context-curator` learning-triage pass is now **done**, 2026-11-14 — 12 findings triaged, see the two new rows immediately below plus `knowledge/EDGE_CASES.md` EC-006 (corrected)/EC-018–EC-023 (new) and `knowledge/DECISIONS.md`'s 2026-11-14 addendum; a `git push` retry once a local SSH auth issue is resolved | `core-redefinition/29` |
+| Plan 29 bug-fix backlog | Fix 7 real `ledgerkit/` production defects found (not fixed — deliberately out of scope) during the CodeCompass-upgrade/clean-room-docs initiative's Phase 3 reconstruction passes: `parse_string_lenient`'s false "never raises" guarantee for a malformed `commodity` directive; a loader `IndexError` for a glob-metacharacter-named containing directory; an uncaught `re.PatternError` from an out-of-range `alias` backreference; silent posting loss when a directive appears mid-open-transaction-block; data corruption (not a clean error) for suffix-commodity/comma-decimal balance-assignment elision; a rounds-vs-truncates inconsistency in `CommodityStyle.format()` at precision 0; plus one minor cleanup item (dead/confused account-name overwrite in `ReportSectionResult.to_dataframe()`, not user-visible). | `[PLANNED]` — not yet scheduled into a Stage; each defect documented with trigger/expected/actual in `knowledge/EDGE_CASES.md` EC-018 through EC-023 (behavioural) and this row (cleanup item), each needing a regression test once fixed | `dev-docs/clean-room/compliance-log.md` (original evidence); `knowledge/EDGE_CASES.md` EC-018–EC-023 |
+| Compat-register corrections (Plan 29 follow-up) | Two defects in `dev-docs/compat-register/` found during Plan 29, outside `roadmap-context-curator`'s own write boundary (owned by `compat-differential-tester`): (1) `LK-COMPAT-PARSER-TAG-001.yaml` and `LK-COMPAT-PARSER-TAG-SCOPE-001.yaml` both cite a nonexistent test class, `tests/test_tags.py::TestParseTags` (confirmed absent — the file's actual classes are `TestBasicTags`, `TestNameDelimiting`, `TestValueHandling`, `TestMultipleValuesPerName`, `TestMultiLineComments`, etc. — found independently twice, Phase 3 and Phase 5); (2) `LK-COMPAT-INCLUDE-001.yaml` remains `status: proposed` (manual-only evidence) and needs re-verification against the real pinned hledger binary, now also covering the two loader defects this same backlog names (EC-019, and EC-006's correction). | `[PLANNED]` — assigned to `compat-differential-tester`, not yet started | `dev-docs/compat-register/LK-COMPAT-PARSER-TAG-001.yaml`, `LK-COMPAT-PARSER-TAG-SCOPE-001.yaml`, `LK-COMPAT-INCLUDE-001.yaml`; `dev-docs/clean-room/compliance-log.md` |
 
 ---
 
