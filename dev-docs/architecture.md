@@ -1,288 +1,652 @@
 # Architecture
 
-## Overview
+This document describes ledgerkit's current module structure, each
+module's responsibilities, and how data actually flows between them. It
+intentionally describes only current, demonstrable structure — not
+planned or proposed changes (those live in `dev-docs/planning/`) and not
+the history of how the structure got here (that lives in
+`knowledge/DECISIONS.md` and `dev-docs/changelog/`).
 
-ledgerkit follows a linear data-flow pipeline:
-
-```
-Journal file(s) (.journal / .ledger)
-        │
-        ▼
-  [ loader.py ]           ← File I/O, include directive expansion, path resolution,
-        │                   glob matching, and circular include detection
-        ▼
-  [ parser.py ]           ← Pure text → structured Python objects (no file I/O)
-        │
-        ▼
-  [ models.py ]           ← Core data model: Transaction, Posting, Amount, etc.
-        │
-        ▼
-  [ commodity_style.py ]  ← CommodityStyle: display-style inference and formatting
-        │
-        ▼
-  [ checks.py ]           ← Validation checks on Journal objects (balance, strict mode, etc.)
-        │
-        ▼
-  [ reports.py ]          ← Consumes model objects, produces report data;
-        │                   BalanceResult / RegisterResult / AccountsResult wrappers
-        ▼
-  [ cli.py ]              ← Validates, formats and prints report data for the terminal
-        │
-        ▼
-  [ _pandas_compat.py ]   ← Lazy pandas import helper (optional dependency)
-```
-
-**`ledgerkit/query/`** (Stage C) sits alongside this pipeline rather than
-strictly within its linear flow: `cli.py` parses a `-q`/`--query` string
-once via `ledgerkit.query.parser.parse()` into a `QueryPlan` (Stage C
-Phase 5 — previously a bare `QueryNode`), which bundles two genuinely
-different things: `plan.predicate` (a `QueryNode` selection AST) and
-`plan.depth` (a `ledgerkit.query.depth.DepthSpec` report-display option —
-**never** a selection predicate; see below). `cli.py` passes
-`plan.predicate` into `reports.py`'s `balance`/`register`/`accounts`/
-`stats` via a private, internal-only parameter (`_query_ast` — not part
-of the public API; see `knowledge/DECISIONS.md`, 2026-09-16) and
-`plan.depth` via a second private parameter (`_query_depth`, added Phase
-5). For `print` (which has no `reports.py` function of its own — it
-iterates `journal.transactions` directly in `cli.py`), only
-`plan.predicate` is used, via `ledgerkit.query.eval.matches_transaction`
-called directly inline — `plan.depth` is never even read for `print`,
-which is what makes it correctly ignore `depth:` entirely, matching
-hledger's own `print` (confirmed source+executable,
-`21-stage-c-phase-5-depth-and-verification-plan.md` §1.3). Filtering
-always delegates to `ledgerkit.query.eval.matches_posting`/
-`matches_transaction` for the predicate half, and to
-`ledgerkit.query.depth.clip_account_name` (or, uniquely for `stats`,
-`account_excluded_by_depth` — a genuine, source-confirmed hledger quirk
-where `stats` excludes rather than clips; see that function's own
-docstring) for the depth half — never a second, local reimplementation of
-either. `ledgerkit/query/` does not import from `reports.py`, `cli.py`,
-or `checks.py` — only from `models.py` (and, since Stage C Phase 6,
-`tags.py` — see below) — so the existing "each module imports only from
-modules below it" principle still holds, with `query/` and `tags.py`
-sitting at the same layer as `models.py` and `query/eval.py` sitting one
-layer above `tags.py`.
-
-**Stage C Phase 6** added `tag:NAME[=REGEX]` query matching, the one
-selection-predicate term that needs `Journal` access to evaluate (every
-other `QueryNode` type only ever needs the `Transaction`/`Posting` already
-passed in). This is the first real edge in `ledgerkit/query/`'s own
-import graph: `ledgerkit/query/eval.py` now imports `ledgerkit.tags`'s
-private `_effective_tags`/`_accounts_effective_tags` helpers to compute a
-posting's/transaction's full effective tag set on demand.
-`matches_transaction`/`matches_posting` both gained an optional
-`journal: Journal | None = None` parameter for this — a real default, so
-every existing caller unaffected by `Tag` keeps working unchanged; a
-`Tag` node evaluated with `journal=None` raises `ValueError` rather than
-silently narrowing to own-tags-only. `reports.py`'s four existing call
-sites (`balance`/`register`/`accounts`/`stats`) and `cli.py`'s `print`
-now pass `journal=journal` through — no new parameter of their own, since
-each already had `journal` in scope. `reports.py`'s `accounts` is the one
-exception: it dispatches `Tag` nodes through a private
-`ledgerkit.query.eval._matches_posting_for_accounts` wrapper instead of
-the ordinary `matches_posting`, replicating hledger's own narrower
-`accounts tag:X` tag-visibility (transaction-own + account-inherited
-only, excluding posting-own and commodity-propagated tags) — every other
-node type behaves identically either way, and `balance`/`register`/
-`print`/`stats` are unaffected by this wrapper's existence. See
-`dev-docs/planning/core-redefinition/23-tag-query-matching-design.md` and
-`24-tag-query-matching-implementation-plan.md`.
-
-**`ledgerkit/tags.py`** (Stage C Phase 4; effective-tags computation added
-Phase 6) is a small, pure-function module that also sits alongside the
-main pipeline rather than in its linear flow. `parser.py` calls
-`tags.parse_tags(comment)` at the point a transaction's, posting's,
-account-directive's, or (since Phase 6) commodity-directive's
-`inline_comment` text has already been fully assembled (same-line plus
-any follow-on indented `;` lines), and stores the resulting
-`list[tuple[str, str]]` on the relevant model field itself
-(`Transaction.tags`, `Posting.tags`, `Journal.declared_account_tags`,
-`Journal.declared_commodity_tags`) — `tags.py` never mutates a model
-object directly. It also provides `effective_date`/`effective_date2`,
-pure functions over a `(Transaction, Posting)` pair that resolve a
-posting's `date:`/`date2:` comment-tag overrides against the
-transaction's own dates, matching ledgerkit's existing no-back-reference
-design (`Posting` has no reference back to its owning `Transaction`).
-`tags.py` imports only from `models.py` (under `TYPE_CHECKING`, for type
-hints only), so it sits at the same layer as `models.py` and `query/`.
-
-**Stage C Phase 6** added four private helpers here for `tag:` query
-matching's effective-tags computation: `_inherited_account_tags` (walks
-an account's `:`-separated ancestor chain, unioning each level's
-`Journal.declared_account_tags` entries — closes a pre-existing gap where
-that field had no consumer anywhere), `_commodity_tags` (looks up
-`Journal.declared_commodity_tags` for a posting's main-amount
-commodities), `_effective_tags` (the full four-source union `ledgerkit.
-query.eval` reads for every command except `accounts`), and
-`_accounts_effective_tags` (the narrower transaction-own +
-account-inherited-only union `accounts` reads instead — design §2.5/§9.2).
-All four are pure, on-demand computations over `Journal`/`Transaction`/
-`Posting`, never mutating `Posting.tags`/`Transaction.tags` — deliberately
-different from hledger's own mechanism (which mutates `ptags`/`ttags`
-once at journal-read time) so as not to silently break Phase 4's own
-already-documented "own tags only" contract for those two fields. All
-four are private (no new public API surface — design §9.3's resolution).
-
-**Stage C Phase 8** (`dev-docs/planning/core-redefinition/
-27-query-shim-convergence-design.md`) ended the "two parallel filtering
-paths" architecture described at the top of this file: `ledgerkit.models.
-Query` — previously matched by `reports.py`'s own ad hoc, non-hledger-
-faithful `_posting_matches`/`_matches_pattern` helpers (any Python regex
-metacharacter switched into raw, unvalidated `re.search` mode) — is now a
-**compatibility constructor** that translates onto the exact same
-`QueryNode` AST/evaluator `-q`/`--query` string terms use. A new module,
-`ledgerkit/query/compat.py` (`_query_to_ast`, `_validated`,
-`_exclusive_end`), does this translation; it lives inside the `query`
-package (not `models.py`) to avoid a circular import (`query/eval.py`
-already imports `models.py`), and `models.py`/`reports.py` reach it via a
-lazy, in-function import — the same pattern `models.py` already used to
-reach `reports.py` itself.
-
-**One canonical evaluation path, plus exactly one named exception.**
-Every one of the seven `Query`-shaped filtering call sites in
-`ledgerkit/` now reaches `ledgerkit.query.eval.matches_posting`/
-`matches_transaction`, via `_query_to_ast`, AND'd with any `_query_ast`
-already present: `reports.balance`/`register`/`accounts`/`stats`
-(`stats` closing a pre-existing gap — `account`/`not_account` were
-previously silently ignored there), `reports.balance_from_spec`'s outer
-query, and `Journal.to_dataframe` (migrated off `_posting_matches`,
-which is now retired — zero remaining callers anywhere in `ledgerkit/`).
-The **one** deliberately separate construct left is
-`ReportSection.accounts`/`.exclude` (`balance_from_spec`'s own
-OR-across-`accounts`/exclude-across-`exclude` combination logic, a
-distinct public surface from `Query` with no equivalent AST shape) —
-still evaluated by `reports._matches_pattern`, but that helper's
-*implementation* was itself refactored to route through
-`ledgerkit.query.regex.compile_hledger_regex`/`.search()` instead of its
-own ad hoc heuristic, so it shares the exact same `HledgerRegex` dialect
-and validation as everything else. This is deliberately **not** described
-as fully unified (one real exception remains) nor as still-two-parallel-
-systems (that exception now shares the same regex dialect) — see the
-design's own §5.1b/§5.3 for the full worked-through scope boundary.
-
-This is a disclosed, intentional set of **breaking** behaviour changes
-(Option A — full `HledgerRegex` convergence for `Query.account`/
-`.not_account`/`.payee`, made while Ledgerkit is still pre-`1.0.0`; see
-`dev-docs/versioning.md`), not "no observable change" — see the design's
-own §5.2 for the complete list of six, and `dev-docs/api-spec.md`'s
-`Query`/`stats`/`balance_from_spec`/`to_dataframe` entries for the
-per-consumer detail.
+Many factual sentences below carry an inline citation of the form
+`<topic-slug>@v1#<assertion-id>`, back to Plan 29's clean-room evidence
+packets (`dev-docs/clean-room/snapshots/`, `assertions/`,
+`implementation-reconstruction/`, `implementation-comparison/`) for ten
+bounded topics: journal-parsing, commodity-styling, query-engine, tags,
+reports-cli, checks, loader, editor-surface, compat-system, and
+current-state. Per the comparison reports' own governing rule, an
+`aligned` classification on a `rule`/`invariant`-kind assertion means
+only that the implementation **currently** behaves this way — not that
+the behaviour is guaranteed never to change, or is necessarily the
+"correct" one relative to hledger. Where a classification was `partial`
+or `insufficiently_verified` rather than `aligned`, that is flagged
+explicitly below rather than silently presented with the same confidence.
+A handful of claims below have no topic citation at all because no
+bounded topic's evidence reached them; those are instead cited directly
+against `ledgerkit/<file>.py:<line>` or a specific test, per
+`dev-docs/clean-room/legacy-reconciliation/architecture.md.md`'s
+reconciliation pass.
 
 ---
 
-## Module Responsibilities
+## 1. Overview: the pipeline
 
-### `ledgerkit/loader.py`
+Ledgerkit is organized as a loosely layered pipeline, plus one leaf module
+each for CLI presentation and for editor/TUI integration:
 
-**Single responsibility**: File I/O, include directive expansion, path
-resolution, glob matching, circular include detection, stdin loading, and
-multi-file merging.
+```
+loader.py  →  parser.py  →  models.py (Journal/Transaction/Posting/Amount)
+                                   │
+                 ┌─────────────────┼───────────────────────┐
+                 ▼                 ▼                        ▼
+             tags.py       commodity_style.py          query/ (subpackage)
+                 │                 │                        │
+                 └─────────────────┴───────────┬────────────┘
+                                                ▼
+                                           checks.py
+                                                │
+                                                ▼
+                                           reports.py
+                                          /          \
+                                    cli.py         writer.py
 
-- `load_journal(path)` — load a single `.journal` or `.ledger` file; returns a
-  fully populated `Journal` object
-- `load_journal_stdin()` — read journal text from `sys.stdin`; returns a
-  `Journal` with `source_file = "(stdin)"`
-- `merge_journals(journals)` — concatenate a list of `Journal` objects into
-  one; `source_file` from the first; `included_files` summed
-- Recursively expands `include` directives before parsing (text-expansion
-  strategy), so directive scope propagates naturally through included content
-- Resolves include paths: relative (to containing file's directory), absolute,
-  and tilde (`~`) expansion; glob patterns via `glob.glob(recursive=True)`
-- Detects circular includes by tracking visited paths
-- Populates `journal.source_file` and `journal.included_files`
-- Raises `ParseError` for unsupported extensions, format prefixes, circular
-  includes, or glob patterns that match no files
-- Raises `FileNotFoundError` if the root file or a non-glob included file does
-  not exist
+editor_model.py — a separate leaf consumer, built directly on parser.py,
+models.py, checks.py, and writer.py; not imported by, and not part of,
+the pipeline above.
+```
 
-### `ledgerkit/parser.py`
+For the CLI entry point, `loader.py` turns one or more files (plus any
+`include` directives) into a single text blob and a line-attribution map,
+then calls `parser.py`'s `parse_string`/`parse_string_lenient` to produce a
+`Journal` (`loader@v1#loader-001`, `loader@v1#loader-005`,
+`loader@v1#loader-008`; `journal-parsing@v1#journal-parsing-008`). The
+resulting `Journal`/`Transaction`/`Posting`/`Amount` objects, defined in
+`models.py`, are then read — never mutated in place by these consumers —
+by `tags.py`, `commodity_style.py` (directly, or via `models.py`'s own
+`commodity_styles` property), and the `query` subpackage
+(`journal-parsing@v1#journal-parsing-010`;
+`commodity-styling@v1#commodity-styling-005`;
+`query-engine@v1#query-engine-001`). `checks.py` separately validates a
+`Journal` or a single `Transaction`
+(`checks@v1#checks-001`). `reports.py` composes the parsed model, the query
+engine, and (for display) `commodity_style.py` into report results
+(`reports-cli@v1#reports-cli-004`). Finally, `cli.py` formats and prints
+those results (`reports-cli@v1#reports-cli-001`), while `writer.py`
+independently serializes `Transaction`/`Journal` objects back to journal
+text (`reports-cli@v1#reports-cli-014`). `editor_model.py` is a separate,
+self-contained consumer of `parser.py`, `models.py`, `checks.py`, and
+`writer.py` for in-memory document editing, built outside this reporting
+pipeline (`editor-surface@v1#editor-surface-001`,
+`editor-surface@v1#editor-surface-005`).
 
-**Single responsibility**: Convert raw `.journal` text (a Python string) into
-`Transaction` objects and a `Journal` container.
+`ledgerkit/_pandas_compat.py` is not itself a pipeline stage — it is a
+lazy-import helper for the optional `pandas` dependency, called only from
+the specific dataframe-returning call sites in `models.py` (e.g.
+`Journal.to_dataframe`, `ledgerkit/models.py:479-493`) and `reports.py`
+that need it. Pandas is an extra-only runtime dependency, not a core one
+(`current-state@v1#current-state-001`).
 
-- `parse_string(text)` — the sole public function; operates on text only,
-  performs no file I/O
-- Reads journal text line by line via a state machine
-- Recognises transaction headers, postings, comments, and directives
-- Delegates inline-comment tag extraction (`name:value` pairs) to
-  `tags.parse_tags()` once a transaction's/posting's/account-directive's/
-  commodity-directive's (Stage C Phase 6) comment text is fully assembled,
-  and applies posting-level `date:`/`date2:` tag overrides via
-  `tags`-adjacent helpers
-- Raises `ParseError` with line number on malformed input
-- Does **not** perform any balance validation, file loading, or reporting logic
-- `include` directive lines encountered in raw text are silently skipped
-  (expansion is always done by `loader.py` before `parse_string` is called)
+---
 
-### `ledgerkit/models.py`
+## 2. `ledgerkit/parser.py`
 
-**Single responsibility**: Define the canonical Python data structures for
-journal entries.
+**Responsibility.** `parser.py` is ledgerkit's sole text→model parser: a
+single module with no sub-files, organised around one shared line-by-line
+parsing engine (`_parse_string_impl`) that both of its public entry points
+call with a different error-handling policy
+(`journal-parsing@v1#journal-parsing-008`). It recognises transaction
+headers and postings via a documented family of compiled regexes
+(`journal-parsing@v1#journal-parsing-001`, covering ISO/slash/dot date
+forms, optional secondary dates, status flags, codes, and inline comments),
+simple dates with directive-overridable default years
+(`journal-parsing@v1#journal-parsing-002`), and a substantial set of
+non-indented directives — `account`, `commodity`, `payee`, `tag`,
+`decimal-mark`, `P`, `alias`/`end aliases`, `Y`, `D`,
+`apply account`/`end apply account`, and block `comment`/`end comment`
+(`journal-parsing@v1#journal-parsing-007`).
 
-Core types:
-- `Amount` — a numeric value paired with a commodity symbol
-- `Posting` — an account name plus an optional `Amount`, inline comment
-  `tags`, and optional `date_override`/`date2_override` (from `date:`/
-  `date2:` comment tags; see `ledgerkit/tags.py`)
-- `Transaction` — a date, optional cleared/pending flag, description, list
-  of `Posting`s, and inline comment `tags` (no date-override field —
-  `date:`/`date2:` tags only take effect at posting scope)
-- `Journal` — top-level container: a list of `Transaction`s, a list of
-  `PriceDirective`s, `declared_accounts`, `declared_account_tags`,
-  `declared_commodities`, `declared_commodity_tags` (Stage C Phase 6),
-  `declared_payees`, `source_file`, and `included_files` count
+**Public surface.** Two entry points share the one parsing engine, both
+exported from `ledgerkit/__init__.py`: `parse_string`, which raises
+`ParseError` on the first malformed line, and `parse_string_lenient`,
+which is documented to collect errors into a returned list and resume
+parsing rather than raising (`journal-parsing@v1#journal-parsing-008`).
+This "never raises" framing is only a `partial` match to the as-built
+behaviour: a malformed, non-indented `commodity` directive currently
+escapes the lenient-mode error-collection path and raises uncaught, an
+exception this topic's own review found and folded into the frozen
+assertion (`journal-parsing@v1#journal-parsing-008`). A separate, pure,
+also-public post-processing function, `resolve_elision`
+(`ledgerkit/parser.py:816`), computes inferred amounts for a transaction
+with exactly one elided posting; it is not invoked by the parsing engine
+itself, so an elided posting's `amount` stays `None` on the `Posting`
+returned by either entry point unless a caller invokes `resolve_elision`
+separately (`journal-parsing@v1#journal-parsing-005`).
 
-Models are plain dataclasses. They contain no parsing or reporting logic.
+**Posting and amount parsing.** A posting line is split into account and
+amount on the first run of two or more whitespace characters, which lets an
+account name containing a single internal space survive intact
+(`journal-parsing@v1#journal-parsing-003`). Amount parsing supports prefix
+and suffix commodity symbols, several negative-sign placements, comma/dot
+thousands-vs-decimal disambiguation (including a `decimal-mark` directive
+override), space-separated digit groups, and E-notation
+(`journal-parsing@v1#journal-parsing-004`). A posting amount token may
+additionally carry a balance-assertion marker and/or a cost annotation
+and/or lot annotations, stripped and parsed in a fixed order
+(`journal-parsing@v1#journal-parsing-009`).
 
-### `ledgerkit/checks.py`
+**Comments and tags.** The parser distinguishes column-0 (always-skipped,
+never-attached) comments from indented follow-on comments attached to the
+last-seen posting or transaction, with `;`-led lines feeding tag extraction
+and `#`-led lines never doing so (`journal-parsing@v1#journal-parsing-006`).
+A posting's `date_override`/`date2_override` fields are populated only from
+that posting's own first `date`/`date2` tag, never from the transaction's
+tags — `models.py`'s own field comments state a transaction-level
+`date`/`date2` tag has no override effect at all
+(`journal-parsing@v1#journal-parsing-010`).
 
-**Single responsibility**: Validate `Journal` objects and return structured
-errors without raising exceptions.
+**Dependencies.** `parser.py` imports only the standard library
+(`datetime`, `re`, `dataclasses`, `decimal`, `typing`) plus two in-project
+modules: `ledgerkit.models`, for the dataclasses it builds, and
+`ledgerkit.tags.parse_tags`, used while assembling a transaction's or
+posting's tag list (`journal-parsing@v1#journal-parsing-010` cites the
+`models.py` field comments this coupling relies on).
 
-- `CheckError` — dataclass with `check_name` and `message` fields
-- Individual check functions (`check_autobalanced`, `check_accounts`,
-  `check_commodities`, `check_payees`, `check_ordereddates`,
-  `check_uniqueleafnames`) — each returns `list[CheckError]`
-- Convenience runners: `run_basic_checks`, `run_strict_checks`, `run_checks`
-- Does **not** perform any file I/O, parsing, or formatting
+---
 
-### `ledgerkit/reports.py`
+## 3. `ledgerkit/models.py`
 
-**Single responsibility**: Accept a `Journal` and produce structured report
-data (not formatted strings).
+**Responsibility.** `models.py` holds ledgerkit's data model: plain
+dataclasses for parsed journal content (`Amount`, `BalanceAssertion`,
+`SourceSpan`, `Posting`, `Transaction`, `PriceDirective`) and for report
+output (`Query`, `RegisterRow`, `BalanceRow`, `ReportSection`, `ReportSpec`,
+`ReportSectionResult`), plus the `Journal` container class itself. Two
+independent topics' evidence converge on describing `models.py` this way:
+journal-parsing's evidence establishes that `models.py` carries no parsing
+logic of its own and that the parser only ever populates its dataclass
+fields (`journal-parsing@v1#journal-parsing-010`, whose cited evidence is
+`models.py`'s own field-comment text), while commodity-styling's evidence
+independently establishes that `Journal` itself hosts derived,
+computed-on-access behaviour — specifically the `commodity_styles`
+property's three-pass priority resolution over already-parsed transactions,
+price directives, and commodity directives
+(`commodity-styling@v1#commodity-styling-005`) — and that one of its
+report-shaped dataclasses, `ReportSectionResult`, has a self-admitted,
+single-commodity limitation in its `to_dataframe()` method
+(`commodity-styling@v1#commodity-styling-008`). Reconciling the two: the
+parsed, "pure data" shapes are untouched by parsing or reporting logic, but
+`Journal` and `ReportSectionResult` both additionally carry derived,
+on-demand computation methods layered on top of that data, not parsing
+itself.
 
-Reports:
-- `balance(journal, ...)` → mapping of account name → running balance
-- `register(journal, ...)` → list of register rows (date, description, amount, balance)
-- `accounts(journal)` → sorted list of account names
-- `stats(journal)` → `JournalStats` dataclass with summary statistics
-- `balance_from_spec(journal, spec, ...)` → structured, section-based balance report
+Every new dataclass field on `Posting`/`Transaction` (and similar model
+types) makes a deliberate `compare=` choice rather than accepting the
+dataclass default silently: a field that changes a posting/transaction's
+*accounting meaning* (an amount, a cost, a lot, a posting-type flag)
+compares `True` (the dataclass default); a field that's parse-context or
+provenance metadata only (`source_line`, `source_span`, `raw_text`,
+`inline_comment`, `Amount.raw`) is `compare=False`. This is confirmed
+directly in the source — `ledgerkit/models.py:29` (`Amount.raw`),
+`:79`/`:103-105` (`Posting.inline_comment`/`source_span`/`raw_text`) are
+all `compare=False`, and the inline comment at `models.py:84` states the
+rationale for the `compare=True` default on accounting-meaningful fields
+— and is discussed further in `dev-docs/planning/core-redefinition/
+16-model-review.md` §16.4. Getting this backwards either breaks
+equality-based tests on metadata that shouldn't affect equality, or lets
+two accounting-distinct postings compare equal.
 
-Reports do **not** print to stdout — they return data that `cli.py` formats.
+**Dependencies.** Both cited topic-evidence sources treat `models.py` as a
+dependency *target* — read by `parser.py` (`journal-parsing@v1#journal-parsing-010`)
+and by `commodity_style.py`'s caller, `Journal.commodity_styles`
+(`commodity-styling@v1#commodity-styling-005`) — rather than a module that
+itself imports deeply into the rest of `ledgerkit/`.
 
-`query: Query | None` filtering (Stage C Phase 8) is translated once per call via
-`ledgerkit.query.compat._query_to_ast` and evaluated through
-`ledgerkit.query.eval.matches_posting`/`matches_transaction` — see the "Stage C
-Phase 8" paragraph above for the full picture, including the one remaining
-exception (`ReportSection.accounts`/`.exclude`, still `reports._matches_pattern`).
+---
 
-### `ledgerkit/cli.py`
+## 4. `ledgerkit/tags.py`
 
-**Single responsibility**: Parse command-line arguments and coordinate
-`loader` → `checks` → `reports` → formatted output.
+**Responsibility.** `tags.py` is a small module of pure functions with no
+model-type definitions of its own, falling into three groups: tag-string
+parsing (`parse_tags`), effective-date resolution
+(`effective_date`/`effective_date2`), and tag-inheritance/effective-tags
+computation (`tags@v1#tags-001`). Tags can be contributed from exactly four
+sources that feed a posting's effective tag set: the posting's own
+comment tags, the transaction's own comment tags, declared account tags
+(inherited from the account itself and every ancestor account), and
+declared commodity tags for the posting's amount's commodity
+(`tags@v1#tags-001`, `tags@v1#tags-004`). This four-source union performs no
+shadowing, precedence, or deduplication of any kind, including when two
+sources declare an identical `(name, value)` pair — a deliberate design
+choice stated in the module's own docstring and independently reproduced
+(`tags@v1#tags-002`). A second, narrower computation,
+`_accounts_effective_tags`, unions only the transaction's own tags and the
+account's inherited tags, deliberately excluding the posting's own tags and
+any commodity-propagated tags (`tags@v1#tags-003`) — used only by
+`ledgerkit.reports.accounts`, replicating hledger's own narrower
+`accounts tag:X` tag-visibility. Separately,
+`effective_date`/`effective_date2` implement a posting-level date-override
+precedence chain that *is* a genuine shadowing mechanism (first non-`None`
+value wins), in explicit contrast to the tag-union functions' "no
+shadowing" rule (`tags@v1#tags-008`). The four tag-inheritance/effective-tags
+helpers behind this (`_inherited_account_tags`, `_commodity_tags`,
+`_effective_tags`, `_accounts_effective_tags`) are all private, pure,
+on-demand computations — none mutates `Posting.tags`/`Transaction.tags`,
+deliberately unlike hledger's own mechanism of mutating `ptags`/`ttags`
+once at journal-read time, so as not to break the "own tags only" contract
+those two fields otherwise carry. See
+`dev-docs/planning/core-redefinition/23-tag-query-matching-design.md` and
+`24-tag-query-matching-implementation-plan.md` for the full design
+rationale, and `knowledge/DECISIONS.md`'s 2026-09-25 entries for the
+underlying judgment calls (full four-source hledger parity over a
+disclosed own-tags-only subset; `accounts`'s narrower visibility
+replicated exactly rather than treated as a divergence).
 
-- Uses `argparse` from the standard library
-- Resolves journal file(s) via `_resolve_files()`: `-f`/`--file` flags (one or
-  more), then positional shorthand, then `$LEDGER_FILE`, then
-  `~/.hledger.journal`
-- Loads each file with `loader.load_journal()` (or `load_journal_stdin()` for
-  `-f -`), then merges with `loader.merge_journals()`
-- Runs default basic checks (`autobalanced`, `parseable`) via `checks.run_basic_checks()`
-  on every command before proceeding; exits 1 on failure
-- With `-s`/`--strict`: additionally runs `accounts` and `commodities` checks
-- `check [NAME...]` command: runs specified checks via `checks.run_checks()`
-- Calls the appropriate `reports.*` function
-- Formats and prints the result to stdout
+**Dependencies.** `tags.py` imports only `datetime` at runtime, plus
+`Journal`, `Posting`, `Transaction` from `ledgerkit.models` solely under
+`TYPE_CHECKING` for forward-reference annotations — so there is no runtime
+import cycle between `tags.py` and `models.py`
+(`tags@v1#tags-001`, whose evidence traces the model fields `tags.py`
+reads without defining them).
+
+---
+
+## 5. `ledgerkit/commodity_style.py`
+
+**Responsibility.** `commodity_style.py` provides `CommodityStyle`, a
+dataclass describing one commodity's display style (prefix/suffix
+position, spacing, decimal mark, group separator, precision), with
+`.format()` and the classmethods `.infer()` and `.parse_style_override()`.
+`.infer()` determines prefix-vs-suffix placement by `startswith`/`endswith`
+string matching on the raw amount text, falling back silently (no
+exception) to treating the whole string as numeric when the commodity
+symbol matches neither end (`commodity-styling@v1#commodity-styling-001`).
+Separator/precision inference follows a fixed heuristic: when both `.` and
+`,` are present, the rightmost is the decimal mark regardless of repeat
+count (`commodity-styling@v1#commodity-styling-003`); when only one
+separator type is present, a single occurrence followed by exactly three
+digits is read as a thousands-group rather than a decimal fraction
+(`commodity-styling@v1#commodity-styling-002`). `.format()` places the
+minus sign differently for prefix- vs. suffix-styled commodities, per an
+explicit hledger-convention comment in the source
+(`commodity-styling@v1#commodity-styling-004`).
+`.parse_style_override()` — which backs the CLI's `-c`/`--commodity-style`
+flag — extracts a commodity symbol by trying a suffix-alphabetic match
+before a prefix-symbol match, and an override only ever changes formatting
+for the one commodity symbol it names
+(`commodity-styling@v1#commodity-styling-006`).
+
+**Dependencies and consumers.** `commodity_style.py` imports only `re`,
+`dataclasses`, and `decimal.Decimal` — it depends on no other `ledgerkit`
+module, making it a dependency-free leaf
+(`commodity-styling@v1#commodity-styling-001`, whose evidence paths are
+confined to `commodity_style.py` itself). It is consumed by `models.py`'s
+`Journal.commodity_styles` property, which resolves one `CommodityStyle`
+per commodity symbol using a three-pass priority scheme — explicit
+`commodity`-directive samples winning over the first posting amount seen,
+which wins over the first price-directive amount seen
+(`commodity-styling@v1#commodity-styling-005`) — and by `Amount.display()`,
+a thin delegator to `style.format(self.quantity)`
+(`commodity-styling@v1#commodity-styling-005`, whose evidence traces this
+call site in `models.py`).
+
+---
+
+## 6. `ledgerkit/query/` (subpackage)
+
+**Responsibility.** The `query` subpackage implements ledgerkit's query
+predicate language as six cooperating modules, each with one clear
+responsibility (`query-engine@v1#query-engine-001` establishes the node-type
+inventory this split is organised around):
+
+- **`ast.py`** defines exactly nine frozen-dataclass predicate node types
+  (`Acct`, `Desc`, `DateSpan`, `MaxAccountLevel`, `Status`, `Tag`, `And`,
+  `Or`, `Not`), unioned into a `QueryNode` type with no shared superclass or
+  method, plus the top-level `QueryPlan` dataclass that pairs a `predicate`
+  with a separate `depth: DepthSpec` field
+  (`query-engine@v1#query-engine-001`). `MaxAccountLevel` is reachable only
+  by direct Python construction — the string-query parser has no token
+  shape that ever produces one (`query-engine@v1#query-engine-002`).
+- **`parser.py`** tokenizes a query string and builds the `QueryNode` tree
+  plus a `DepthSpec`. `depth:` terms are intercepted before the
+  predicate-combination step and never inserted into the predicate tree at
+  all — a query consisting solely of `depth:` terms produces the vacuous
+  `And(())` predicate (`query-engine@v1#query-engine-003`). Term combination
+  buckets same-type unnegated `Acct`/`Desc`/`Status` terms into one `Or`
+  each, while every other term (including any negated term, regardless of
+  prefix) is AND'd in individually
+  (`query-engine@v1#query-engine-005`).
+- **`eval.py`** provides `matches_transaction`/`matches_posting`, which walk
+  a `QueryNode` tree against a `Transaction`/`Posting`, and a private
+  `_matches_posting_for_accounts` variant. Both public functions raise
+  `ValueError` if a `Tag` node is evaluated with no `journal` supplied,
+  while every other node type is unaffected by a missing `journal`
+  (`query-engine@v1#query-engine-004`). At the transaction level,
+  `Acct`/`MaxAccountLevel` match if *any* posting in the transaction
+  satisfies the check; at the posting level, only that one posting is
+  checked (`query-engine@v1#query-engine-009`). `Tag` matching consults a
+  four-source "effective tags" union — the same four sources `tags.py`
+  defines — with no shadowing (`query-engine@v1#query-engine-010`);
+  `_matches_posting_for_accounts` is identical except that its `Tag`
+  branch sources tags from a narrower function, used only by
+  `ledgerkit.reports.accounts` (`query-engine@v1#query-engine-011`).
+- **`depth.py`** defines `DepthSpec` and is explicitly never a selection
+  filter — depth is a report-display clipping/aggregation option kept
+  deliberately separate from the predicate AST
+  (`query-engine@v1#query-engine-014`).
+- **`regex.py`** implements a restricted "HledgerRegex" dialect on top of
+  Python's `re`, rejecting several Python-only constructs (lookaround,
+  backreferences, Perl/POSIX shorthand classes, lazy quantifiers) so that a
+  pattern is never silently reinterpreted with different semantics
+  (`query-engine@v1#query-engine-012`).
+- **`compat.py`** translates the separate, legacy `Query` dataclass (used
+  historically by `reports.py`) into the same `QueryNode` tree the string
+  parser produces, so every `Query`-shaped filter in `ledgerkit/` is
+  evaluated by the one canonical `eval.py` engine
+  (`query-engine@v1#query-engine-015`). `compat.py`'s own translated fields
+  are each eagerly validated at translation time, not deferred to
+  evaluation time (`query-engine@v1#query-engine-015`), via a private
+  `_validated` helper that raises `QueryParseError`
+  (`ledgerkit/query/parser.py:41`, a `ValueError` subclass) rather than a
+  bare `ValueError` or a silently-swallowed failure.
+
+**Dependencies.** `eval.py` is the one module in the subpackage that
+imports outside it at module scope — `ledgerkit.models` (for
+`Journal`/`Posting`/`Transaction`) and `ledgerkit.tags` (for the
+effective-tags helpers `query-engine@v1#query-engine-010` describes as
+consumed, not reimplemented, by the `Tag` branch). `compat.py` avoids a
+runtime import of `ledgerkit.models`, using a `TYPE_CHECKING`-only
+reference instead (`query-engine@v1#query-engine-015`).
+
+See `dev-docs/planning/core-redefinition/
+21-stage-c-phase-5-depth-and-verification-plan.md`,
+`23-tag-query-matching-design.md`, `24-tag-query-matching-implementation-plan.md`,
+and `27-query-shim-convergence-design.md` for the design history and
+rationale behind this subpackage's current shape, and
+`knowledge/DECISIONS.md`'s 2026-09-16/09-17/09-25/09-26 entries for the
+specific judgment calls (depth as a report option rather than a
+`QueryNode`; `stats`'s depth-exclusion quirk replicated rather than
+treated as a divergence; the `Query`-shim convergence itself).
+
+---
+
+## 7. `ledgerkit/checks.py`
+
+**Responsibility.** `checks.py` defines ledgerkit's validation checks in
+three fixed, named tiers mirroring hledger's own classification:
+`BASIC_CHECK_NAMES` (`parseable`, `autobalanced`, `assertions`), run by
+default on every CLI command; `STRICT_CHECK_NAMES` (`accounts`,
+`commodities`), run only with `-s`/`--strict`; and `OTHER_CHECK_NAMES`
+(`payees`, `ordereddates`, `uniqueleafnames`), run only when named
+explicitly (`checks@v1#checks-001`). `check_autobalanced` treats a
+transaction with exactly one elided posting as always balanced regardless
+of commodity count, fails unconditionally on two or more elided postings,
+and otherwise requires every commodity's net to equal exactly zero
+(`checks@v1#checks-002`). The two strict-tier checks,
+`check_accounts`/`check_commodities`, each report at most one error per
+run, stopping at the first undeclared account or commodity found, and build
+a shared multi-line, caret-annotated error message distinct from every
+other check's single-line message
+(`checks@v1#checks-003`, `checks@v1#checks-004`,
+`checks@v1#checks-005`). `check_assertions` validates four balance-assertion
+variants carried per-posting, processing postings in `(date,
+source_line-or-0)` order rather than parse/list order, and maintains a
+running per-account-per-commodity balance across transactions
+(`checks@v1#checks-006`). The "other"-tier checks each implement an
+independent rule and, unlike the strict tier, are not capped at one error
+per run (`checks@v1#checks-007`). The runner `run_checks` composes the
+three tiers with a `skip` set and an explicit `names` list; this composition
+is only a `partial` match to a clean "run once, dedup correctly" model — the
+frozen assertion and its review both confirm a basic/strict-tier name that
+is simultaneously `skip`-suppressed and explicitly re-requested via `names`
+currently executes zero times rather than once, because the runner's
+"already run" check is a static tier-membership test, not a record of what
+actually executed (`checks@v1#checks-008`).
+
+**Dependencies.** `checks.py` imports only the standard library
+(`datetime`, `collections.defaultdict`, `dataclasses`, `decimal`) plus
+`ledgerkit.models` — confirmed as its only in-project dependency by this
+topic's evidence (`checks@v1#checks-001`, whose evidence traces the
+`Journal`/`Posting`/`Transaction` fields each check function reads).
+
+---
+
+## 8. `ledgerkit/loader.py`
+
+**Responsibility.** `loader.py` handles multi-file loading: file I/O,
+`include`-directive expansion, path resolution (tilde, absolute, or
+relative-to-the-including-file), glob matching, and circular-include
+detection, before handing one flattened text blob to `parser.py`'s
+`parse_string` (`loader@v1#loader-001`, `loader@v1#loader-005`).
+`include` detection is a line-anchored regex requiring the literal keyword
+at column 0 followed by whitespace, so an indented `include` line is never
+recognised as a directive (`loader@v1#loader-001`). Path resolution follows
+a fixed precedence — tilde expansion, then absolute-as-is, then relative to
+the *containing file's* own directory (not the process `cwd` and not
+necessarily the root file's directory for nested includes) — with glob
+expansion triggered by the presence of `*`/`?`/`[` in the target
+(`loader@v1#loader-002`). Circular-include detection uses an ancestor-stack
+`visited` set (added before recursing, removed after return) rather than a
+global "already processed" record; this is confirmed to correctly reject a
+mutual two-file cycle, but is only a `partial` match to a "detects all
+repeat inclusion" reading, since a diamond-shaped include graph is
+currently not treated as circular and instead silently duplicates the
+shared file's content with no warning
+(`loader@v1#loader-004`). Because inclusion works by textual splicing
+rather than an AST-level merge, directive scope active before an `include`
+line propagates naturally into the included text, since it is parsed in
+one continuous pass; this is architecturally distinct from the separate
+`merge_journals` function, which concatenates already-parsed `Journal`
+objects and so cannot propagate directive scope across the journals it
+merges (`loader@v1#loader-005`). `merge_journals` itself is order-preserving
+list concatenation across `transactions`, `prices`, and all four declared-*
+lists, with a single-element-list identity fast path and a `ValueError` on
+an empty list (`loader@v1#loader-006`). Because every included file's text
+is flattened into one blob before parsing, `load_journal` separately tracks
+a `line_map` so a `ParseError`'s line number can be remapped back to its
+true originating file and line before being re-raised
+(`loader@v1#loader-008`).
+
+**Dependencies.** `loader.py` imports `glob`, `os`, `re`, `pathlib.Path`
+from the standard library, plus `ledgerkit.models.Journal` and
+`ledgerkit.parser.{ParseError, parse_string}` — the only two in-project
+dependencies this topic's evidence establishes
+(`loader@v1#loader-005`, whose evidence traces the `parse_string` call
+site that sits downstream of `_expand_includes`'s text splicing).
+
+---
+
+## 9. `ledgerkit/reports.py`
+
+**Responsibility.** `reports.py` computes report results from an
+already-parsed `Journal`, returning structured data (dicts, dataclasses, or
+thin wrapper objects) rather than formatted text —
+`cli.py` owns all display formatting
+(`reports-cli@v1#reports-cli-001`, whose evidence establishes the CLI's own
+formatting responsibility as the counterpart to this module's pure
+computation). `balance()` returns a flat
+`dict[account, dict[commodity, Decimal]]` by default, or — with `tree=True`
+— a `list[BalanceRow]` that additionally includes every implicit parent
+account with aggregated subtotals
+(`reports-cli@v1#reports-cli-004`). `register()` returns a chronological
+`list[RegisterRow]` whose `running_balance` is a single cumulative sum
+across all rows in output order, never re-aggregated by account even when a
+depth setting clips several postings' displayed account names to the same
+string; this specific claim about `RegisterRow`'s own field semantics is
+drawn from a `rule`/`invariant`-kind assertion whose comparison classified
+it `insufficiently_verified` against the independent reconstruction (the
+reconstruction's evidence boundary did not extend to reading `models.py`'s
+own `RegisterRow` definition), so it should be read as the current,
+single-source claim this topic's own evidence establishes, not as
+independently corroborated (`reports-cli@v1#reports-cli-006`). The
+`accounts()` CLI output has no separator/zero-total convention, unlike
+`balance()` (`reports-cli@v1#reports-cli-008`). `stats()` is the one report
+function where a depth constraint *excludes* accounts deeper than the limit
+from `account_count`/`account_depth` (via
+`query.depth.account_excluded_by_depth`), rather than clipping/aggregating
+them the way `balance()`, `register()`, and `accounts()` all do via
+`query.depth.clip_account_name`
+(`reports-cli@v1#reports-cli-012`). `balance_from_spec()` computes a
+structured, multi-section report driven by `ReportSpec`/`ReportSection`
+dataclasses; it is reachable from the Python API but, as of this survey, is
+not wired to any of the six CLI subcommands
+(`reports-cli@v1#reports-cli-013`).
+
+**One canonical evaluation path, plus exactly one named exception.** Every
+`Query`-shaped filtering call site in `ledgerkit/` reaches
+`ledgerkit.query.eval.matches_posting`/`matches_transaction`, via
+`ledgerkit.query.compat._query_to_ast`
+(`query-engine@v1#query-engine-015`): `reports.balance`/`register`/
+`accounts`/`stats`, `reports.balance_from_spec`'s outer query, and
+`Journal.to_dataframe` (`ledgerkit/models.py:479-493`, whose own docstring
+states it now goes through the same canonical path "balance()/register()/
+accounts()/stats() use," having previously called `reports._posting_matches`
+directly). `_posting_matches` itself is retired with zero remaining callers
+anywhere in `ledgerkit/`, mechanically enforced by a dedicated test
+(`tests/test_reports.py:139-160`). The one deliberately separate construct
+left is `ReportSection.accounts`/`.exclude` (`balance_from_spec`'s own
+OR-across-`accounts`/exclude-across-`exclude` combination logic, a distinct
+public surface from `Query` with no equivalent AST shape) — still evaluated
+by `reports._matches_pattern`, but that helper's *implementation* routes
+through `ledgerkit.query.regex.compile_hledger_regex`/`.search()`
+(`ledgerkit/reports.py:32,213-239,621-667`) instead of its own ad hoc
+heuristic, so it shares the exact same `HledgerRegex` dialect and
+validation as everything else.
+
+This reflects a disclosed, intentional set of **breaking** behaviour
+changes for `Query.account`/`.not_account`/`.payee` (made while ledgerkit
+is still pre-`1.0.0`; see `dev-docs/versioning.md`), not "no observable
+change" — see `dev-docs/api-spec.md`'s `Query`/`stats`/`balance_from_spec`/
+`to_dataframe` entries for the per-consumer detail, and
+`dev-docs/planning/core-redefinition/27-query-shim-convergence-design.md`
+for the design's own full worked-through scope boundary.
+
+**Dependencies.** `reports.py` imports `ledgerkit.models`,
+`ledgerkit.parser.resolve_elision`, and several names from the `query`
+subpackage (`query.ast.QueryNode`; `query.depth.{DepthSpec,
+account_excluded_by_depth, clip_account_name}`;
+`query.eval.{matches_posting, matches_transaction,
+_matches_posting_for_accounts}`; `query.regex.compile_hledger_regex`), plus
+a function-local (not module-scope) import of
+`query.compat._query_to_ast` inside the functions that need it
+(`reports-cli@v1#reports-cli-012`, whose evidence traces the
+`account_excluded_by_depth`/`clip_account_name` call sites this dependency
+list is built from).
+
+---
+
+## 10. `ledgerkit/cli.py`
+
+**Responsibility.** `cli.py` exposes exactly six subcommands — `balance`,
+`register`, `accounts`, `print`, `stats`, `check` — selected via a single
+required positional argument on one flat `argparse.ArgumentParser`; there
+are no argparse subparsers, so every subcommand shares one global flag set
+and `<subcommand> --help` currently prints the identical top-level usage
+text rather than a subcommand-specific help page
+(`reports-cli@v1#reports-cli-001`, `reports-cli@v1#reports-cli-002`; this
+flat-command-set structure is independently corroborated by a direct
+`--help` run recorded under `current-state@v1#current-state-004` and
+`current-state@v1#current-state-005`). Journal-file resolution for every
+non-`check` command follows a strict precedence — `-f`/`--file` flags, then
+a positional `journal` shorthand, then `$LEDGER_FILE`, then
+`~/.hledger.journal` — while for `check`, every positional argument is
+instead treated as a check *name*, never a journal path
+(`reports-cli@v1#reports-cli-003`). `cli.py` owns all of the formatting
+logic for `balance`'s right-aligned per-(account, commodity) rows with a
+depth-0 `"..."` row shown unconditionally
+(`reports-cli@v1#reports-cli-005`), `register`'s fixed-width columns with
+account-name abbreviation and date/description blanking on continuation
+rows (`reports-cli@v1#reports-cli-007`), and `print`'s per-transaction
+text output, which matches hledger's own `print` semantics by filtering on
+whole transactions and deliberately ignoring `depth:` entirely
+(`reports-cli@v1#reports-cli-009`). `check`, run via `cli.py`, is the one
+command with a distinct control-flow path: on success it prints nothing and
+exits 0, and on failure it prints each error's message to stderr and exits
+1; `-I`/`--ignore-assertions` and `-s`/`--strict` both thread into this same
+dispatch (`reports-cli@v1#reports-cli-015`).
+
+**Dependencies.** `cli.py` imports `argparse`, `contextlib`, `os`, `sys`,
+`time`, `decimal.Decimal`, and `pathlib.Path` at module scope, plus
+`ledgerkit.__version__`; it lazily imports `ledgerkit.loader`,
+`ledgerkit.models.Journal`, `ledgerkit.commodity_style.CommodityStyle`,
+`ledgerkit.query`, `ledgerkit.checks`, and `ledgerkit.reports` inside
+`main()`, after argument parsing
+(`reports-cli@v1#reports-cli-003`, whose evidence traces `_resolve_files`,
+the function this module-structure claim is anchored on).
+
+---
+
+## 11. `ledgerkit/writer.py`
+
+**Responsibility.** `writer.py` is a self-contained serializer providing
+`transaction_to_text()` and `journal_to_text()`. `transaction_to_text()` is
+documented, and tested, to round-trip through `parse_string()` to an
+equivalent `Transaction` (same date, flag, description, postings, amounts,
+and comments — `source_span`/`raw_text` are explicitly excluded from the
+guarantee), with amount columns right-aligned to a shared column computed
+from the widest account name among postings that carry an explicit amount
+(`reports-cli@v1#reports-cli-014`). `journal_to_text()` serializes every
+transaction in `journal.transactions`, separated by exactly one blank line,
+but — as documented in its own docstring — does not serialize directives
+(`account`, `commodity`, `payee`, `P`) in the current version; a caller
+needing full round-trip fidelity for directives is directed to the raw
+source file instead (`reports-cli@v1#reports-cli-014`).
+
+**Dependencies.** `writer.py` imports only `ledgerkit.models` (`Amount`,
+`Journal`, `Transaction`), with no file I/O and no imports of `parser`,
+`loader`, `checks`, or `cli` — consistent with its role as a pure,
+independent serializer called by, but not calling into, the rest of the
+pipeline (`reports-cli@v1#reports-cli-014`, whose evidence traces the full
+`writer.py` import list).
+
+---
+
+## 12. `ledgerkit/editor_model.py`
+
+**Responsibility.** `editor_model.py` defines a single public class,
+`EditorDocument`, with four public attributes (`path`, `journal`, `lines`,
+`dirty`) and seven public methods for in-memory, span-tracked document
+editing: construction, three mutation methods
+(`add_transaction`/`update_transaction`/`delete_transaction`), `save`,
+`reload`, and `validate_transaction`
+(`editor-surface@v1#editor-surface-001`). Its constructor loads the journal
+via `parser.parse_string()` directly, not `loader.load_journal()`, and as a
+stated "V1 limitation" does not process `include` directives — the
+module's own docstring points callers needing full include support at
+`loader.load_journal()` instead
+(`editor-surface@v1#editor-surface-002`). Each mutation method sets
+`dirty = True` and keeps every affected transaction's `source_span`
+line-number bookkeeping consistent with the in-memory text buffer, shifting
+later spans only when a mutation's net line-count delta is nonzero
+(`editor-surface@v1#editor-surface-003`). `validate_transaction` delegates
+solely to `checks.check_transaction_autobalanced`, running only the
+autobalanced check against the given transaction in isolation and never
+raising (`editor-surface@v1#editor-surface-004`). The module's own
+docstring states its intended consumer and architectural boundary directly:
+"Intended for use by TUI/editor frontends. Not imported by any core
+module." (`editor-surface@v1#editor-surface-005`) — i.e. `editor_model.py`
+is a leaf consumer of the rest of `ledgerkit/`, never a dependency of it.
+
+**Dependencies.** `editor_model.py` imports, from within `ledgerkit`
+itself: `ledgerkit.checks.{CheckError, check_transaction_autobalanced}`,
+`ledgerkit.models.{Journal, SourceSpan, Transaction}`,
+`ledgerkit.parser.parse_string`, and
+`ledgerkit.writer.transaction_to_text`
+(`editor-surface@v1#editor-surface-002`,
+`editor-surface@v1#editor-surface-004`).
+
+**Actual external adoption.** The separate `ledgerkit-editor` project — an
+external TUI consumer, pinned to `ledgerkit==1.0.0.dev1`
+(`editor-surface@v1#editor-surface-006`) — currently does not import or
+instantiate `EditorDocument` anywhere in its source or test trees; the
+symbol appears only in two non-executable comments
+(`editor-surface@v1#editor-surface-007`). That project's actual runtime
+`ledgerkit` usage is instead built directly on `ledgerkit.load()`,
+`ledgerkit.parse_string_lenient()`, `ledgerkit.transaction_to_text()`,
+`ledgerkit.journal_to_text()`, `ledgerkit.Query`, and
+`ledgerkit.commodity_style.CommodityStyle`, across six of its own source
+files (`editor-surface@v1#editor-surface-008`). This is recorded here
+because it bears directly on `editor_model.py`'s own stated purpose
+("intended for use by TUI/editor frontends") versus its only known
+real-world frontend's actual integration choice — a gap between intent and
+adoption, not a contradiction within either topic's own evidence.
 
 ---
 
@@ -290,30 +654,106 @@ exception (`ReportSection.accounts`/`.exclude`, still `reports._matches_pattern`
 
 | Layer | Error type | Action |
 |---|---|---|
-| `loader` | `ParseError` | Raised for extension/format/circular/glob errors; line numbers re-attributed to original source file |
-| `loader` | `FileNotFoundError` | Raised if root or non-glob included file is missing |
-| `parser` | `ParseError` | Raised with line number and message |
-| `checks` | `list[CheckError]` | Returned (never raised); CLI converts to stderr + exit 1 |
-| `reports` | `ValueError` | Raised for invalid arguments |
-| `cli` | Any | Caught, printed to stderr, exit code 1 |
+| `loader` | `ParseError` | Raised for extension/format/circular/glob errors; line numbers re-attributed to original source file (`loader@v1#loader-001/008`) |
+| `loader` | `FileNotFoundError` | Raised if root or non-glob included file is missing (`loader@v1#loader-001`) |
+| `parser` | `ParseError` | Raised with line number and message (`journal-parsing@v1#journal-parsing-008`; `ledgerkit/parser.py:79` — `ParseError(ValueError)`) |
+| `checks` | `list[CheckError]` | Returned (never raised); CLI converts to stderr + exit 1 (`checks@v1#checks-001`) |
+| `query`/`reports` | `QueryParseError` (a `ValueError`) | Raised eagerly at translation time for an invalid `Query`/`-q` field (excluded regex construct, empty pattern); a `ValueError` is also raised directly from `ledgerkit.query.eval` if a `Tag` node is evaluated with no `journal` (`query-engine@v1#query-engine-004/015`; `ledgerkit/query/parser.py:41`, `ledgerkit/query/compat.py`'s `_validated`) |
+| `cli` | Any | Caught, printed to stderr, exit code 1 (`ledgerkit/cli.py:216-219,263,274,289,494-498`) |
 
 ---
 
 ## Design Principles
 
-- Each module imports only from modules below it in the pipeline
-  (`cli` → `loader` → `parser`/`models`; `cli` → `checks` → `models`;
-  `reports` → `models`)
-- No circular imports
-- No global mutable state
-- Every new dataclass field on `Posting`/`Transaction` (and similar model
-  types) must make a deliberate `compare=` choice, not accept the
-  dataclass default silently. A field that changes a posting/transaction's
-  *accounting meaning* (an amount, a cost, a lot, a posting-type flag)
-  should compare `True`; a field that's parse-context/provenance metadata
-  only (`source_line`, `source_span`, `raw_text`, `inline_comment`,
-  `Amount.raw`) should be `compare=False`, matching the existing
-  precedent. Getting this backwards either breaks equality-based tests on
-  metadata that shouldn't affect equality, or lets two accounting-distinct
-  postings compare equal. See `dev-docs/planning/core-redefinition/
-  16-model-review.md` §16.4.
+- **Import layering.** No module imports back "up" into the modules that
+  depend on it — see each module's own "Dependencies" subsection above for
+  the current, precise per-module import list (this replaced a shorter,
+  now-outdated three-item summary that predated `tags.py`,
+  `commodity_style.py`, the `query` subpackage, `writer.py`, and
+  `editor_model.py`).
+- **No circular imports.** Confirmed per-module: `tags.py` references
+  `ledgerkit.models` only under `TYPE_CHECKING`
+  (`tags@v1#tags-001`), and `query/compat.py` avoids a runtime import of
+  `ledgerkit.models` for the same reason
+  (`query-engine@v1#query-engine-015`); no module reachable from `cli.py`
+  or `reports.py` imports back into either.
+- **No global mutable state.** Every module-level assignment across
+  `ledgerkit/*.py` and `ledgerkit/query/*.py` is a compiled regex, a tuple,
+  a frozenset, a dict used read-only, or an `__all__` list — none is
+  mutated after import. `cli.py`'s one module-level scalar
+  (`_PROGRAM_START = time.perf_counter()`) is set once and only ever read
+  afterward.
+- **Deliberate `compare=` choices on model dataclass fields.** See §3
+  above (`ledgerkit/models.py:29,79,84,103-105`) and
+  `dev-docs/planning/core-redefinition/16-model-review.md` §16.4.
+
+---
+
+## Cross-cutting structural notes
+
+**No third-party imports in the core pipeline.** Every module-dependency
+list established above is confined to the Python standard library plus
+other `ledgerkit` modules; none of `parser.py`, `models.py`, `tags.py`,
+`commodity_style.py`, the `query` subpackage, `checks.py`, `loader.py`, or
+`writer.py` imports a third-party package
+(`journal-parsing@v1#journal-parsing-010`,
+`commodity-styling@v1#commodity-styling-001`, `tags@v1#tags-001`,
+`query-engine@v1#query-engine-001`, `checks@v1#checks-001`,
+`loader@v1#loader-005`, `reports-cli@v1#reports-cli-014` — each topic's own
+evidence confirms this for its own module's import list). Pandas is an
+optional, extra-only runtime dependency rather than a core one
+(`current-state@v1#current-state-001`), consistent with `reports.py`'s
+dataframe-returning wrapper classes needing it only on that one call path.
+
+**Two coexisting query-filtering mechanisms.** `reports.py`'s functions
+currently accept both a legacy `Query` dataclass (`query=`) and an
+internal `_query_ast`/`_query_depth` pair sourced from the CLI's `-q` flag;
+`query/compat.py` exists specifically to translate the former into the same
+`QueryNode` tree the latter already uses, so a single canonical evaluator
+(`query/eval.py`) ultimately executes either path
+(`query-engine@v1#query-engine-015`). See §9 above for the full inventory
+of call sites this now covers, and the one remaining exception
+(`ReportSection.accounts`/`.exclude`).
+
+**Depth has two different report-time meanings.** `balance()`, `register()`,
+and `accounts()` all clip and roll up account names at a given depth,
+never excluding a posting outright; `stats()` is a documented, confirmed
+exception that excludes accounts deeper than the limit from its
+account-count fields instead
+(`reports-cli@v1#reports-cli-012`, `query-engine@v1#query-engine-014`).
+
+---
+
+## What this document does not cover
+
+Per the scope of the evidence it draws on, this document describes
+`ledgerkit/` module structure and data flow only. Two of the ten bounded
+topics behind its citations are not module-architecture topics and are
+not further summarised here:
+
+- **compat-system** describes `dev-docs/compat-register/`'s own YAML
+  schema and the current state of its 49 compatibility-classification
+  entries — a documentation/process artifact, not a `ledgerkit/` code
+  module (`compat-system@v1#compat-system-001` through
+  `compat-system@v1#compat-system-011`). See
+  `dev-docs/hledger-compatibility.md` for the current In Scope / Out of
+  Scope / Undecided picture this register feeds.
+- **current-state** is a point-in-time snapshot of package metadata, git
+  state, test-suite results, and live CLI behaviour as of its own freeze
+  date; this document draws on only the subset of it that corroborates a
+  structural claim already made above
+  (`current-state@v1#current-state-001`,
+  `current-state@v1#current-state-004`,
+  `current-state@v1#current-state-005`), not its version/git/test-count
+  facts, which are not architectural.
+
+For the history of how this structure came to be — the Stage/Phase-by-
+Phase design decisions behind the `query`/`tags` subsystems, the
+`Query`-shim convergence, and similar — see
+`dev-docs/planning/core-redefinition/` (in particular
+`21-stage-c-phase-5-depth-and-verification-plan.md`,
+`23-tag-query-matching-design.md`,
+`24-tag-query-matching-implementation-plan.md`, and
+`27-query-shim-convergence-design.md`) and the dated entries in
+`knowledge/DECISIONS.md`. This document itself intentionally does not
+narrate that history.

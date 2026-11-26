@@ -1,0 +1,39 @@
+{
+  "assertions": {
+    "loader-001": {
+      "content_hash": "e5d77ab054c934bb7e16a7e97869b6d62f299fe14d7ae973fbec22cabc192976",
+      "path": "dev-docs/clean-room/assertions/loader/loader-001.md"
+    },
+    "loader-002": {
+      "content_hash": "63c275478c500a23feefcc90e144d836296de17724b068b71f42579f01359dd8",
+      "path": "dev-docs/clean-room/assertions/loader/loader-002.md"
+    },
+    "loader-003": {
+      "content_hash": "3f032ba69d99d4e69a74906ee320fe42e234e4cd466a38253f7a9e13ef23a373",
+      "path": "dev-docs/clean-room/assertions/loader/loader-003.md"
+    },
+    "loader-004": {
+      "content_hash": "edc1337e91f1328a0c12ed0359147c8cca26764465d9a2002b5b6c8734667eae",
+      "path": "dev-docs/clean-room/assertions/loader/loader-004.md"
+    },
+    "loader-005": {
+      "content_hash": "76ce2f15adc32bc593032a24380f4aea07efed465103d650d1ecf355b0f9e2dc",
+      "path": "dev-docs/clean-room/assertions/loader/loader-005.md"
+    },
+    "loader-006": {
+      "content_hash": "a2335dbe22dff7f7dfd753a535704a261c8dc0c68528e1d117c052c7807027c9",
+      "path": "dev-docs/clean-room/assertions/loader/loader-006.md"
+    },
+    "loader-007": {
+      "content_hash": "176eae143a9ee82dffa9f03ea40c8fd8529a361591ea3be5c593002111d49f0d",
+      "path": "dev-docs/clean-room/assertions/loader/loader-007.md"
+    },
+    "loader-008": {
+      "content_hash": "391de960d1ef8b3d8fcf86c9e53bc83c1c9ae14a907c2a7d42e57aaf612e0fdc",
+      "path": "dev-docs/clean-room/assertions/loader/loader-008.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "loader@v1"
+}

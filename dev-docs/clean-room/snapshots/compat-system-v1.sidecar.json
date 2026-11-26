@@ -1,0 +1,51 @@
+{
+  "assertions": {
+    "compat-system-001": {
+      "content_hash": "553812371eea71bb76aab5b78ddc23075802aac358e8dd046255b184c66e47b9",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-001.md"
+    },
+    "compat-system-002": {
+      "content_hash": "f46be3156511469bfff1466d7e11565675b7bea622de599cd973e03d8b1181fd",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-002.md"
+    },
+    "compat-system-003": {
+      "content_hash": "f1c31b6da037f7f586547860db041aae25e9706197f8c7b249ddec981b60a3b9",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-003.md"
+    },
+    "compat-system-004": {
+      "content_hash": "c893eecafb5c84632f5c32e071d23263eb3d003b45780d13202a00cd91f22728",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-004.md"
+    },
+    "compat-system-005": {
+      "content_hash": "cff71fddd020e01c2b13ad72e641f064db91afaeef2bfc5827341839221c62f4",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-005.md"
+    },
+    "compat-system-006": {
+      "content_hash": "ee34540bb305666da47177014bd9acab1ef509656aadf65017771af7829e48c5",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-006.md"
+    },
+    "compat-system-007": {
+      "content_hash": "fa800ad8054113c773a1e35a230282c0344ad5ec5449ef3200b8cf0916469abc",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-007.md"
+    },
+    "compat-system-008": {
+      "content_hash": "6c104c0a943135740714e1b07ff792e17f4fb4713b4b0977006688d1dfaddb1b",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-008.md"
+    },
+    "compat-system-009": {
+      "content_hash": "f7f5d2e1fdde663308c01362f0a615b6a187a825739454892ec543fb5abd9d0a",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-009.md"
+    },
+    "compat-system-010": {
+      "content_hash": "8cff08a57be56a6a261d8c324dc8131d0c65ff47cc373cceaa30a0bea85879a6",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-010.md"
+    },
+    "compat-system-011": {
+      "content_hash": "a670b0fd8cd2d713c640b5c5ba49561d853e7075474293f575658ee3bebed1f7",
+      "path": "dev-docs/clean-room/assertions/compat-system/compat-system-011.md"
+    }
+  },
+  "created": "2026-10-02T16:50:03Z",
+  "repository_revision_at_freeze": "51881415a204af8908834ec602a54f6e1f67dbdd",
+  "snapshot_id": "compat-system@v1"
+}

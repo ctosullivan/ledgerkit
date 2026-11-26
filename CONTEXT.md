@@ -1,81 +1,91 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Implementing the twice-amended Plan 29
-(`dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-
-room-docs.md`) straight through to closeout. **Phases 1 and 2 are
-done.** About to begin Phase 3 (evidence-backed clean-room
-reconstruction, plan §4) — the real per-topic pipeline.
+Plan 29 (`dev-docs/planning/core-redefinition/29-codecompass-upgrade-
+and-clean-room-docs.md`) — the CodeCompass reconciliation + clean-room
+documentation reconstruction initiative — **is now complete through all
+six phases**, independently audited (Phase 6: `release-phase-auditor`,
+verdict `PASS WITH NON-BLOCKING OBSERVATIONS`), and closed out with a
+synthesis retro. No further implementation work remains on this
+initiative. Awaiting the user's own explicit confirmation to flip
+`ROADMAP.md`'s "Tooling & Process Initiatives" row to `[DONE]` — not
+inferred, per the standing rule.
 
 ## Where We Are
-Phase 2 complete: clean-room template adopted into `dev-docs/clean-room/`;
-`check_snapshot.py` built and self-tested (7/7 fixture cases correct,
-including both historical-integrity checks); isolation preflight run,
-honest tier recorded as `best-effort` (filesystem/command/network all
-directly demonstrated open; same host confirmed). Retro: `dev-docs/
-retros/CODECOMPASS-UPGRADE-PHASE-2.md`. Plan 29 §13 updated. Next: Phase
-3, topic by topic (plan §4.1's table, 10 rows) — for each: dispatch a
-fresh, evidence-only assertion-research agent (bounded topic + permitted
-evidence paths + output format only — never this plan's prose, never
-legacy docs) → immediately inspect its transcript for compliance → if
-contaminated, discard and rerun; log to `dev-docs/clean-room/
-compliance-log.md` (not created yet — first Phase 3 action creates it)
-→ `domain-skeptic` REVIEW mode → freeze snapshot + sidecar → run
-`check_snapshot.py` → fresh `implementation-reconstructor` dispatch →
-immediate transcript check → `domain-skeptic` COMPARISON mode.
+Everything through Phase 6 is committed locally (commit history below).
+`git push` has been blocked all session on a local SSH-agent auth issue
+(`ssh-add -l` → "The agent has no identities") — flagged repeatedly,
+still unresolved; all work is safe locally regardless.
+
+Three non-blocking follow-ups are recorded in `ROADMAP.md`'s own new
+row for whoever picks them up next (not blockers, not this session's to
+act on further unless asked):
+1. CodeCompass's live checkout has drifted past this initiative's Phase
+   1 pin (`96a1e4d5...` → `dbcfe50a...`) — re-pin before any further
+   `codecompass`-dependent command is run under this initiative's name.
+   Confirmed harmless to everything already done (zero such commands
+   ran after Phase 1).
+2. Retry `git push` once the SSH issue is resolved.
+3. (Already done this response) the deferred learning-triage pass —
+   listed here only because the ROADMAP row's own text still names it;
+   no further action needed.
+
+Two new `ROADMAP.md` backlog rows now track what this initiative found
+but correctly didn't fix: a "Plan 29 bug-fix backlog" (6 real
+`ledgerkit/` production bugs + 1 code-cleanliness defect, all
+documented in `knowledge/EDGE_CASES.md` EC-018–EC-023) and
+"Compat-register corrections (Plan 29 follow-up)" (2 entries needing a
+targeted `compat-differential-tester` re-check) — both `[PLANNED]`,
+neither this session's to implement without separate direction.
 
 ## Decisions In Flight
-- The isolation preflight probe ran as `general-purpose` rather than the
-  two new named types, since they weren't yet dispatchable
-  `subagent_type` values at the moment the probe was dispatched (they
-  became available moments later, confirmed by a system notification
-  mid-Phase-2). Judgment call: not re-running the probe under the new
-  types, since the three routes that matter (filesystem/command/
-  network) are already conclusively open via tools (`Read`, `Bash`)
-  every real dispatch has regardless of named type — recorded in the
-  Phase 2 retro, not silently glossed over.
-- **`implementation-reconstructor` and `domain-skeptic` ARE now real,
-  dispatchable `subagent_type` values** (confirmed via a system
-  notification during Phase 2) — Phase 3 dispatches should use them by
-  name directly, not `general-purpose` with an embedded brief as
-  originally planned as a fallback.
+None — this initiative is closed. The only open item is the user's own
+confirmation decision (whether/when to mark the ROADMAP row `[DONE]`),
+which is explicitly not something to infer or push on.
 
 ## Files Currently Relevant
-- `dev-docs/planning/core-redefinition/29-codecompass-upgrade-and-clean-
-  room-docs.md` — §4 (whole Phase 3), §4.1 (the 10-topic table), §4.2
-  (the exact per-topic pipeline), §4.2a (the compliance-check
-  procedure).
-- `dev-docs/clean-room/assertions/TEMPLATE.md` — the assertion format,
-  including the `Evidence-paths:` machine-checkable convention Phase 2
-  added.
-- `dev-docs/clean-room/check_snapshot.py` — run against every frozen
-  snapshot before treating it as frozen (`python dev-docs/clean-room/
-  check_snapshot.py <topic>`).
-- `dev-docs/clean-room/isolation-preflight.md` — the honest `best-effort`
-  baseline Phase 6 will audit against.
+- `dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md` — the
+  independent Phase 6 audit, full evidence trail.
+- `dev-docs/retros/CODECOMPASS-UPGRADE-CLEANROOM-DOCS-CLOSEOUT.md` — the
+  initiative-wide synthesis retro.
+- `dev-docs/clean-room/compliance-log.md` — the complete, continuous
+  audit trail across all 6 phases; now closed out, not actively
+  appended to unless this initiative is somehow reopened.
+- `ROADMAP.md`'s new "Tooling & Process Initiatives" section — where any
+  future session should look first to see this initiative's status and
+  its 3 recorded follow-ups.
+- `knowledge/EDGE_CASES.md` (EC-018–EC-023, EC-006 corrected),
+  `knowledge/DECISIONS.md` (new 2026-11-14 addendum),
+  `knowledge/DOMAIN_RULES.md` (include-directive entry corrected) — all
+  now the durable record of this initiative's non-documentation
+  findings.
 
 ## Blockers / Open Questions
-None. Proceeding directly per explicit instruction.
+**For the user, not blocking further work**: whether to confirm this
+initiative complete (flips the ROADMAP row to `[DONE]`), and separately,
+whether/when to fix `ssh-add` so `git push` can succeed.
 
 ## What NOT To Revisit
-- Don't re-run the isolation preflight under the new agent types —
-  judgment call made and recorded in the Phase 2 retro; the conclusion
-  (`best-effort`) is already fully supported.
-- Don't let the main orchestrating session author Phase 3 assertions
-  directly — every topic's assertion-research dispatch must be a fresh
-  `Agent` call (never a `fork`), receiving only the bounded topic,
-  permitted evidence paths, and output format.
-- Don't skip the immediate post-dispatch transcript check for any Phase
-  3/4 dispatch, and don't defer it to Phase 6 — log every verdict to
-  `dev-docs/clean-room/compliance-log.md` as it happens.
-- Don't validate a snapshot against today's working tree —
-  `check_snapshot.py` already resolves cited evidence against the
-  frozen git revision's own tree; trust it, don't hand-wave a check.
-- Don't begin Stage D as part of this task.
+- Don't re-run any Phase 1-6 step of this initiative — all done, all
+  independently audited, all compliant.
+- Don't infer this initiative's `[DONE]` status from the audit passing
+  — that flip requires the user's own explicit statement, per the
+  standing rule this project has applied consistently throughout.
+- Don't attempt to fix any of the 8 findings now tracked in
+  `ROADMAP.md`'s 2 new backlog rows as part of continuing "this task" —
+  they're correctly scoped as separate future work, not loose ends of
+  Plan 29 itself.
+- Don't begin Stage D unprompted — it remains `[PLANNED]`, unaffected
+  by this initiative's closeout.
 
 ## Recent Git State (before this response's commit)
-0c89ceb feat(codecompass-upgrade-phase-1): CodeCompass reconciliation + enforced revision pinning
-4277036 docs: second amendment to CodeCompass/clean-room plan, approved to implement
-e1b0144 docs: amend CodeCompass upgrade + clean-room docs plan per review
-7032b3e docs: plan CodeCompass upgrade + clean-room docs reconstruction
-6c90b4c docs: mark Stage C [DONE], archive its changelog history
+63d310f feat(codecompass-upgrade-phase-5): legacy reconciliation, all 9 documents
+6de34a3 feat(codecompass-upgrade-phase-4): clean-room documentation drafting, all 6 docs + current-state artifact
+c2cb98f feat(codecompass-upgrade-phase-3): comparison mode + phase 3 closeout for all 10 topics
+f55294f feat(codecompass-upgrade-phase-3): model-blind implementation reconstruction for all 10 topics
+7224bb5 feat(codecompass-upgrade-phase-3): clean-room assertion research, review, and freeze for all 10 topics
+
+**This response commits Phase 6's closeout** — the final commit of
+Plan 29's six-phase initiative. Push will be attempted per the Commit &
+Push Cadence rule but is expected to fail on the same SSH issue noted
+above; this does not block the initiative's own completion status.

@@ -26,6 +26,16 @@ per failure, never a silent pass):
      revision's own historical blob content, is a failure here, even if
      it resolves fine against the live filesystem right now.
 
+     A citation whose path is ABSOLUTE is a reference to a different
+     (external) git repository entirely -- e.g. a research clone used by
+     the editor-surface topic, not a Ledgerkit source/test path. These
+     are resolved against the sidecar's own "external_repositories" map
+     ({absolute path prefix: {"origin_url", "revision"}}), checked
+     against THAT repository's own pinned revision, never Ledgerkit's.
+     An absolute-path citation with no matching registered external
+     repository is a failure, not a silent skip -- the same fail-closed
+     discipline check 6 already applies to relative paths.
+
 Usage:
     python check_snapshot.py <topic>          # check a real snapshot
     python check_snapshot.py --self-test       # run the internal fixture
@@ -160,6 +170,34 @@ def range_resolves(content: str, start: int, end: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# External-repository resolution for absolute-path citations (e.g. the
+# editor-surface topic's research clones of a different project
+# entirely). An absolute citation is resolved against the sidecar's own
+# "external_repositories" map, never against REPO_ROOT.
+
+
+def resolve_citation_target(
+    main_repo: Path,
+    main_revision: str,
+    external_repositories: dict,
+    citation_path: str,
+) -> tuple[Path, str, str] | None:
+    """Return (repo, revision, path-relative-to-repo) for a citation, or
+    None if an absolute citation matches no registered external repo."""
+    if not Path(citation_path).is_absolute():
+        return main_repo, main_revision, citation_path
+
+    for prefix, entry in external_repositories.items():
+        prefix_resolved = str(Path(prefix))
+        if citation_path == prefix_resolved or citation_path.startswith(
+            prefix_resolved.rstrip("/") + "/"
+        ):
+            rel = str(Path(citation_path).relative_to(Path(prefix_resolved)))
+            return Path(entry["repo_root"]), entry["revision"], rel
+    return None
+
+
+# ---------------------------------------------------------------------------
 # The six checks.
 
 
@@ -197,6 +235,24 @@ def check_snapshot(
             f"commit in {repo} (git cat-file -e {revision}^{{commit}} failed)"
         )
         return result  # checks 6 below are meaningless without a real revision
+
+    external_repositories = sidecar.get("external_repositories", {})
+    checked_external_revisions: set[tuple[str, str]] = set()
+    for prefix, entry in external_repositories.items():
+        ext_repo = Path(entry.get("repo_root", prefix))
+        ext_revision = entry.get("revision")
+        if not ext_revision:
+            fail(f"external_repositories[{prefix!r}] is missing a revision")
+            continue
+        if not revision_exists(ext_repo, ext_revision):
+            fail(
+                f"external_repositories[{prefix!r}]'s recorded revision "
+                f"{ext_revision!r} does not exist as a real git commit in "
+                f"{ext_repo} (git cat-file -e {ext_revision}^{{commit}} "
+                f"failed)"
+            )
+            continue
+        checked_external_revisions.add((str(ext_repo), ext_revision))
 
     assertions_meta = sidecar.get("assertions", {})
     if not assertions_meta:
@@ -260,36 +316,53 @@ def check_snapshot(
             continue
 
         # Check 6: cited local evidence resolves against the FROZEN
-        # revision's own tree, never today's working tree.
+        # revision's own tree, never today's working tree. Absolute-path
+        # citations resolve against a registered external repository's
+        # own pinned revision instead.
         assertion_text = actual_content.decode("utf-8", errors="replace")
         for citation in parse_evidence_citations(assertion_text):
-            if not file_existed_at_revision(repo, revision, citation.path):
+            target = resolve_citation_target(
+                repo, revision, external_repositories, citation.path
+            )
+            if target is None:
+                fail(
+                    f"assertion {aid!r} cites {citation.raw!r}, an absolute "
+                    f"path, but no external_repositories entry in the "
+                    f"sidecar covers it -- an absolute-path citation must "
+                    f"be pinned to its own repository's revision, never "
+                    f"silently skipped"
+                )
+                continue
+            cite_repo, cite_revision, cite_path = target
+
+            if not file_existed_at_revision(cite_repo, cite_revision, cite_path):
                 fail(
                     f"assertion {aid!r} cites {citation.raw!r}, but "
-                    f"{citation.path!r} did not exist at revision "
-                    f"{revision} (git cat-file -e {revision}:{citation.path} "
-                    f"failed) -- a later source change must not silently "
-                    f"validate against today's tree"
+                    f"{cite_path!r} did not exist at revision "
+                    f"{cite_revision} in {cite_repo} (git cat-file -e "
+                    f"{cite_revision}:{cite_path} failed) -- a later source "
+                    f"change must not silently validate against today's tree"
                 )
                 continue
             if citation.line_start is not None:
-                content = historical_content(repo, revision, citation.path)
+                content = historical_content(cite_repo, cite_revision, cite_path)
                 if content is None:
                     fail(
                         f"assertion {aid!r} cites {citation.raw!r}, but "
-                        f"the historical content of {citation.path!r} at "
-                        f"{revision} could not be retrieved"
+                        f"the historical content of {cite_path!r} at "
+                        f"{cite_revision} in {cite_repo} could not be "
+                        f"retrieved"
                     )
                 elif not range_resolves(content, citation.line_start, citation.line_end):
                     fail(
                         f"assertion {aid!r} cites {citation.raw!r}, but "
                         f"lines {citation.line_start}-{citation.line_end} do "
-                        f"not resolve against {citation.path!r}'s own "
-                        f"content AT REVISION {revision} (that historical "
-                        f"blob has a different number of lines) -- resolving "
-                        f"against today's file instead would be exactly the "
-                        f"false-pass/false-fail risk this check exists to "
-                        f"prevent"
+                        f"not resolve against {cite_path!r}'s own content AT "
+                        f"REVISION {cite_revision} in {cite_repo} (that "
+                        f"historical blob has a different number of lines) "
+                        f"-- resolving against today's file instead would be "
+                        f"exactly the false-pass/false-fail risk this check "
+                        f"exists to prevent"
                     )
 
     return result
@@ -448,6 +521,66 @@ def _run_self_test_in(tmp: Path) -> int:
     )
     result = check_snapshot(repo, sidecar_path, assertions_dir)
     checks.append(("evidence range only resolves against today's tree, not the frozen revision", False, result))
+
+    # Case H/I use their own separate assertions directory so they don't
+    # inherit the deliberately-broken fixture-002/003 files from cases
+    # F/G above (which would otherwise also show up as "extra on disk"
+    # failures here, muddying what these two cases are actually testing).
+    ext_assertions_dir = repo / "assertions" / "fixture-topic-ext"
+    ext_assertions_dir.mkdir(parents=True)
+
+    # Case H: an absolute-path citation correctly resolved against a
+    # registered external repository's own pinned revision -- expect
+    # PASS (proves the external-repo path isn't just a silent skip).
+    ext_repo = tmp / "external-fixture-repo"
+    ext_repo.mkdir()
+    subprocess.run(["git", "init", "-q", ext_repo.as_posix()], check=True)
+    subprocess.run(["git", "-C", ext_repo.as_posix(), "config", "user.email", "t@example.com"], check=True)
+    subprocess.run(["git", "-C", ext_repo.as_posix(), "config", "user.name", "Test"], check=True)
+    (ext_repo / "ext.py").write_text("a\nb\nc\n")
+    subprocess.run(["git", "-C", ext_repo.as_posix(), "add", "."], check=True)
+    subprocess.run(["git", "-C", ext_repo.as_posix(), "commit", "-q", "-m", "initial"], check=True)
+    ext_revision = subprocess.run(
+        ["git", "-C", ext_repo.as_posix(), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    ext_citation_path = str(ext_repo / "ext.py")
+    _write_assertion(ext_assertions_dir / "fixture-004.md", "fixture-004", f"{ext_citation_path}:1-2")
+
+    def make_ext_sidecar(**overrides) -> Path:
+        sidecar = {
+            "snapshot_id": "fixture-topic-ext@v1",
+            "created": "2026-10-02T00:00:00Z",
+            "repository_revision_at_freeze": frozen_revision,
+            "assertions": {
+                "fixture-004": {
+                    "path": "assertions/fixture-topic-ext/fixture-004.md",
+                    "content_hash": _sha256_of(ext_assertions_dir / "fixture-004.md"),
+                },
+            },
+        }
+        sidecar.update(overrides)
+        path = tmp / "sidecar-ext.json"
+        path.write_text(json.dumps(sidecar, indent=2))
+        return path
+
+    sidecar_path = make_ext_sidecar(
+        external_repositories={
+            str(ext_repo): {
+                "repo_root": str(ext_repo),
+                "origin_url": "file:///nonexistent/fixture-only",
+                "revision": ext_revision,
+            }
+        },
+    )
+    result = check_snapshot(repo, sidecar_path, ext_assertions_dir)
+    checks.append(("absolute-path citation resolves against its own registered external repo", True, result))
+
+    # Case I: an absolute-path citation with NO registered external repo
+    # -- expect FAIL (never a silent skip).
+    sidecar_path = make_ext_sidecar(external_repositories={})
+    result = check_snapshot(repo, sidecar_path, ext_assertions_dir)
+    checks.append(("absolute-path citation with no registered external repo", False, result))
 
     all_ok = True
     for name, expect_ok, result in checks:

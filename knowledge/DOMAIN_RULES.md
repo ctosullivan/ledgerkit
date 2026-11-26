@@ -158,6 +158,25 @@ There are two distinct comment forms inside a journal, and **indentation** is th
 
 ## `include` directive: glob vs explicit path error handling
 
+**CORRECTED 2026-11-14 (roadmap-context-curator learning-triage, Plan 29
+closeout):** the second bullet below is stale and contradicted by
+current, test-confirmed behaviour. A glob pattern that matches no files
+raises `ParseError("include: no files matched {raw_target!r}", ...)` —
+see `ledgerkit/loader.py:_expand_includes` and
+`tests/test_loader/test_loader.py::test_glob_no_matches_raises`. It is
+NOT silent. `knowledge/EDGE_CASES.md` EC-006 carried the identical stale
+claim and has its own matching correction. The corrected rule:
+
+- **Explicit path** (no glob characters): raises `FileNotFoundError` if file does not exist.
+- **Glob pattern** (`*`, `**`, `?`, `[range]`): raises `ParseError` if no files match — this IS an error, same as the explicit-path case, just a different exception type.
+
+Separately — not yet fully resolved, tracked as a real production bug —
+a containing directory whose own name contains a glob metacharacter can
+cause a **third**, undocumented outcome (an uncaught `IndexError`)
+instead of either exception above; see `knowledge/EDGE_CASES.md` EC-019.
+
+**Original text below (kept for history, the second bullet is wrong):**
+
 - **Explicit path** (no glob characters): raises `FileNotFoundError` if file does not exist.
 - **Glob pattern** (`*`, `**`, `?`, `[range]`): silently produces no entries if no files match — this is NOT an error.
 

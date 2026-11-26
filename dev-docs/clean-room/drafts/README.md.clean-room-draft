@@ -1,0 +1,347 @@
+<!--
+producer: phase-4-drafting
+document: README.md
+dispatch-id: readme-clean-room-draft-20261114
+date: 2026-11-14
+-->
+
+# ledgerkit
+
+> "Plain-text accounting (hledger-compatible)" — the CLI's own description
+> string (current-state@v1#current-state-004).
+
+ledgerkit is a Python implementation of the hledger plain-text accounting
+tool.
+
+## Status
+
+As of the repository revision this document was drafted from, the
+package's declared version is `1.0.0.dev1`, it targets Python `>=3.8`, and
+it declares zero required runtime dependencies in `pyproject.toml`. An
+optional `pandas` extra (`pandas>=1.3`) is available for callers who want
+DataFrame-based access to report output (current-state@v1#current-state-001).
+
+At that same revision, running the project's own test suite reportedly
+produced 935 collected tests, 29 skipped, and zero failures or errors
+(`OK (skipped=29)`). This specific figure is a point-in-time snapshot of
+one test run rather than an independently re-confirmed, ongoing guarantee
+(current-state@v1#current-state-003).
+
+## Command-line interface
+
+ledgerkit exposes exactly six report/validation subcommands through a
+single flat `argparse` parser, selected via one required positional
+`command` argument: `balance`, `register`, `accounts`, `print`, `stats`,
+`check`. There is no `argparse` subparsers tree, so no subcommand has its
+own distinct `--help` text — every subcommand's `--help` output is
+byte-identical to the top-level `--help` output
+(reports-cli@v1#reports-cli-001; current-state@v1#current-state-004,
+current-state@v1#current-state-005).
+
+A shared set of global flags applies uniformly to every command regardless
+of which report is selected: `--version`; `-v`/`--verbose` (for `stats`,
+also shows commodity names); `-1` (stats only: a single tab-separated
+output line); `-o`/`--output-file FILE`; `-f`/`--file FILE` (repeatable);
+`-s`/`--strict`; `-I`/`--ignore-assertions`; `-q`/`--query TERMS`; and
+`-c`/`--commodity-style STYLE` (repeatable) (reports-cli@v1#reports-cli-002).
+
+### Journal file resolution
+
+For every command except `check`, the journal file is resolved with a
+strict four-tier precedence: one or more `-f`/`--file` flags, then a
+single positional `journal` argument as shorthand, then the
+`$LEDGER_FILE` environment variable, then `~/.hledger.journal` if
+present. Combining `-f` with a positional argument is a hard error, and
+exhausting all four sources without a result exits with "no journal file
+specified." For the `check` command specifically, any positional
+arguments are read as check *names*, never as a journal-file shorthand —
+`check` must get its journal from `-f`, the environment variable, or the
+default (reports-cli@v1#reports-cli-003).
+
+## Reports
+
+### `balance`
+
+`balance` computes per-commodity net balances for each account. The
+underlying `reports.balance()` function returns a flat mapping (account →
+commodity → net amount) by default, or, with `tree=True`, a list of rows
+that additionally include every implicit parent account with aggregated
+self-plus-descendant amounts and an `is_subtotal` marker
+(reports-cli@v1#reports-cli-004).
+
+The CLI prints one line per (account, commodity) pair — right-aligned
+amount first, account name shown only on that account's last row — a
+dashed separator sized to the widest amount/total string, then one
+grand-total line per nonzero commodity (or a bare `"0"` if everything nets
+to zero). Zero-net rows are omitted, except that a depth-0 `"..."` row
+(produced by a `depth:0` query) is always printed regardless of its own
+value, including when it is nonzero because the queried subset doesn't
+itself balance to zero. Negative amounts are wrapped in ANSI red escape
+codes (reports-cli@v1#reports-cli-005).
+
+### `register`
+
+`register`'s underlying `reports.register()` function returns a
+chronological list of rows whose `running_balance` is described as a
+single cumulative sum across every row in output order, not re-grouped or
+re-aggregated per account — even when a depth setting causes several
+postings' displayed account names to collapse to the same string
+(reports-cli@v1#reports-cli-006). That specific accumulation-under-depth-
+clipping interaction has not been independently re-confirmed beyond the
+original claim, so it is stated here with that caveat.
+
+On screen, `register` prints one fixed-width line per row (date,
+description, abbreviated account, right-aligned amount, right-aligned
+running balance). The date and description columns are blanked on every
+row after a transaction's first posting, long account names are
+abbreviated by progressively shortening leading (non-last)
+colon-separated components, and a running balance of exactly zero prints
+as a bare `"0"` (reports-cli@v1#reports-cli-007).
+
+### `accounts`
+
+`accounts` prints the sorted, deduplicated list of account names, one per
+line, with no separator or total-line convention — a query that matches
+nothing produces genuinely empty output, unlike `balance`
+(reports-cli@v1#reports-cli-008).
+
+### `print`
+
+`print` reprints each matching transaction in journal-like text: a header
+line with date, status flag, and description, followed by one indented
+line per posting. A `-q`/`--query` filter on `print` matches whole
+transactions — if any posting matches, every posting of that transaction
+is printed, not just the matching one — and `print` deliberately ignores
+`depth:` entirely, matching hledger's own `print` semantics
+(reports-cli@v1#reports-cli-009).
+
+`print` does not serialize inline comments: neither a transaction
+header's nor a posting's inline comment is ever printed. This is a real,
+confirmed divergence from the journal-text round-trip that
+`ledgerkit.writer.transaction_to_text()` provides for the same data.
+Whether this omission is a deliberate scope decision for `print` or an
+unnoted gap is an open, unresolved question that the available evidence
+does not settle (reports-cli@v1#reports-cli-010).
+
+### `stats`
+
+`stats`'s underlying `reports.stats()` function returns a dataclass
+holding only deterministic journal data (transaction counts, date range,
+account/commodity counts, and so on); elapsed-time and
+transactions-per-second figures are measured and formatted only by the
+CLI layer, never stored on that dataclass. By default the CLI prints a
+multi-line labeled report; with `-1` it instead prints one tab-separated
+line (version, source file, elapsed time, transactions/second); with
+`-v`/`--verbose`, the "Commodities" line additionally lists commodity
+names (reports-cli@v1#reports-cli-011).
+
+`stats` is the one report function where a `depth:` query constraint
+*excludes* accounts deeper than the limit from the account count, rather
+than clipping/aggregating them the way `balance`, `register`, and
+`accounts` all do — described as a deliberate, source-confirmed exception
+rather than an oversight (reports-cli@v1#reports-cli-012).
+
+As a concrete illustration at one recorded point in time: running `stats`
+against the project's own sample fixture produced a non-empty, multi-line
+report (for example `Txns : 5 (0.2 per day)`, `Accounts : 6 (depth 3)`),
+while running `check` against the same fixture succeeded with exit code 0
+and produced no stdout output at all — a passing `check` run is silent by
+design, with the exit code as the only success signal
+(current-state@v1#current-state-008).
+
+### `check`
+
+`check` has a distinct control-flow path: an unconditional "basic checks"
+gate runs before every command (including `check` itself), alongside
+`check`'s own named-check logic. `-I`/`--ignore-assertions` suppresses
+only the "assertions" basic check, in both that gate and in `check`'s own
+explicit run; `-s`/`--strict` additionally runs a stricter check set for
+every non-`check` command, and is forwarded into `check` itself
+(reports-cli@v1#reports-cli-015).
+
+### Report specs (Python API only)
+
+`reports.balance_from_spec()` computes a structured, multi-section
+balance report (for example, an income statement with an inverted
+"Income" section) from `ReportSpec`/`ReportSection` dataclasses. It is
+reachable from the Python API (`ledgerkit.balance_from_spec`,
+`ledgerkit.ReportSpec`, `ledgerkit.ReportSection`) but, as of this
+revision, is not wired to any of the six CLI subcommands
+(reports-cli@v1#reports-cli-013).
+
+## Journal text serialization
+
+`ledgerkit.writer.transaction_to_text()` serializes a single transaction
+to hledger journal-format text designed to round-trip through the parser
+back to an equivalent transaction (same date, flag, description,
+postings, amounts, and comments). Amount columns are right-aligned to a
+shared column computed from the widest account name among postings that
+carry an explicit amount, and an elided posting is printed as a bare
+account name with no amount. `journal_to_text()` serializes a whole
+journal's transactions separated by exactly one blank line each
+(reports-cli@v1#reports-cli-014) — this part of the claim is the more
+broadly corroborated half of it. As of this revision, `journal_to_text()`
+is also stated to explicitly not serialize directives (`account`,
+`commodity`, `payee`, `P`); callers needing full round-trip fidelity for
+directives are expected to keep the raw source file instead — this
+directive-exclusion detail is the more narrowly-evidenced half of the same
+claim (reports-cli@v1#reports-cli-014).
+
+## Journal format support
+
+### Transactions and dates
+
+A transaction header line accepts dates in several forms — `YYYY-MM-DD`,
+`YYYY/MM/DD`, `YYYY.MM.DD`, and year-omitted forms with optional leading
+zeros and mixed separators — optionally followed by a secondary date
+introduced with `=`, an optional status flag (`*` cleared, `!` pending),
+an optional parenthesized code, a description, and an optional
+`;`-introduced inline comment (journal-parsing@v1#journal-parsing-001).
+
+Dates elsewhere in a journal accept an optional 4-digit year followed by
+a 1-2 digit month and day separated by `-`, `/`, or `.`; when the year is
+omitted, a default year (itself overridable via the `Y` directive) is
+substituted, and an invalid calendar date is rejected
+(journal-parsing@v1#journal-parsing-002).
+
+### Postings and amounts
+
+A posting line is split into account and amount on the first run of two
+or more whitespace characters, which lets an account name containing a
+single internal space survive intact; a posting with no amount token
+after that split is treated as an elided amount, to be resolved later
+(journal-parsing@v1#journal-parsing-003).
+
+Amount parsing supports prefix and suffix commodity symbols, a leading
+minus sign or a minus sign appearing after a prefix symbol,
+comma-thousands/period-decimal formatting by default (reversible via a
+`decimal-mark` directive), E-notation, and space-separated digit groups
+(journal-parsing@v1#journal-parsing-004).
+
+`resolve_elision()` leaves a transaction's postings unchanged unless
+exactly one posting has an elided amount; in that case it computes the
+net of every explicit posting per commodity and replaces the elided
+posting with one synthetic, `inferred=True` posting per commodity (sorted
+by symbol), each the negation of that commodity's net. A transaction with
+two or more elided postings is in practice rejected earlier, at parse
+time, before `resolve_elision` ever sees it in that shape
+(journal-parsing@v1#journal-parsing-005).
+
+A posting amount may also carry a balance assertion (`=`, `==`, `=*`,
+`==*`) and/or a cost annotation (` @ price` / ` @@ total`) and/or lot
+annotations (`{amount}`, `{{amount}}`, `[date]`, `(label)`); these are
+stated to be mutually composable on one posting line and are stripped and
+parsed in a fixed order (journal-parsing@v1#journal-parsing-009).
+
+A posting's own comment may carry a `date`/`date2` tag that overrides
+that posting's effective date; only the posting's own first occurrence of
+such a tag takes effect, the transaction's own tags have no such override
+effect, and an unparseable date value in the tag is a hard error
+(journal-parsing@v1#journal-parsing-010).
+
+### Comments
+
+Comment syntax distinguishes four cases: a column-0 `;` or `#` line is
+always a silently-skipped top-level comment, never attached to any
+transaction; an indented `;`-led line inside an open transaction block is
+appended to the last-seen posting's (or, if none yet, the transaction's)
+inline comment; an indented `#`-led line inside a block extends the
+transaction's source span without being attached to any comment field;
+and a same-line comment after `;` on a header or posting line is captured
+directly. Only `;`-led comments are scanned for tags — `#`-led comments
+never are (journal-parsing@v1#journal-parsing-006).
+
+### Directives
+
+The parser recognizes a substantial set of non-indented directives:
+`account`, `commodity`, `payee`, `tag`, `decimal-mark`, `P` (market
+price), `alias`/`end aliases`, `Y` (default year), `D` (default commodity
+and style), `apply account`/`end apply account`, and `comment`/`end
+comment` (block comment). It also recognizes, but does not implement the
+bodies of, `~` (periodic transaction rule) and `=` (auto-posting rule)
+headers, emitting a warning for each in lenient mode rather than treating
+them as hard errors (journal-parsing@v1#journal-parsing-007). This
+inventory does not address what happens when one of these directives
+appears in the middle of an already-open transaction block — that
+interaction is outside what the available evidence for this inventory
+examined.
+
+### Strict vs. lenient parsing
+
+The parser offers two public entry points with different error policies.
+`parse_string` raises on the first malformed line. `parse_string_lenient`
+is designed to never raise: for essentially every directive handler, it
+instead collects each error/warning into a returned list, discards the
+malformed transaction, and resumes parsing at the next blank line or
+transaction header — intended for use cases such as editor integrations
+that re-parse on every keystroke. As of this revision, a malformed
+non-indented `commodity` directive (an empty body, an unterminated quote,
+or an unparseable body) is a confirmed exception to that guarantee: it
+raises unconditionally even under `parse_string_lenient`. This is the one
+exception the available evidence names explicitly; it should not be read
+as a guarantee that no other case can break the "never raises" contract
+(journal-parsing@v1#journal-parsing-008).
+
+## hledger compatibility tracking
+
+ledgerkit tracks its behavioural compatibility with hledger through a
+structured compatibility register (`dev-docs/compat-register/`), rather
+than an informal list. Each entry is a YAML file classified under a
+closed, five-value `kind` taxonomy — `compatible`, `extension`,
+`intentional_divergence`, `unsupported`, `unexplained_mismatch` — each
+mapped to a corresponding `relationship` value (compatible→equivalent,
+extension→superset, unsupported→subset, intentional_divergence→
+incomparable); `unexplained_mismatch` has no single fixed relationship
+(compat-system@v1#compat-system-001).
+
+Each entry also carries a four-tier `status`: `proposed`, `self-verified`
+(confirmed by the same session that implemented the feature, with real
+command output), `verified` (confirmed only by a separately-dispatched
+differential-testing role — never written directly by the implementing
+session), and `final`. This authorship restriction is a written policy
+that was found to hold, without exception, across every entry carrying
+one of these statuses at the time it was checked
+(compat-system@v1#compat-system-002).
+
+A dedicated resolution lifecycle governs `unexplained_mismatch` entries:
+resolving one requires creating a brand-new entry (new id, kind, and
+status) that references the old one, while the original mismatch entry
+is kept unmodified except for an added back-reference — its own `kind`
+field is never edited in place. As of the recorded survey, this mechanism
+had been exercised exactly twice, and both of the register's
+`unexplained_mismatch` entries had been resolved
+(compat-system@v1#compat-system-005).
+
+As of one recorded survey of the register, it held 49 entries: 40
+classified `compatible`, 6 `unsupported`, 2 `unexplained_mismatch` (both
+since resolved, per the lifecycle above), and 1 `intentional_divergence`,
+with no entry yet using the `extension` kind. Of those 49, 26 were still
+at `status: proposed` — not yet checked against the real hledger binary
+by an independently-dispatched verifier — 9 were `self-verified`, and 14
+were `verified`; no entry had yet reached `final`. These specific counts
+describe a point-in-time snapshot of an actively-changing register, not a
+fixed, permanent figure (compat-system@v1#compat-system-003,
+compat-system@v1#compat-system-004).
+
+## Known current limitations
+
+A few behaviours are worth calling out explicitly rather than only
+discovering them by use:
+
+- `print` does not preserve inline comments on round-trip through the
+  journal text, and whether this is intentional is an open, unresolved
+  question (reports-cli@v1#reports-cli-010).
+- A malformed `commodity` directive is not actually caught leniently by
+  `parse_string_lenient`, despite that function's documented "never
+  raises" contract (journal-parsing@v1#journal-parsing-008).
+- `check`'s positional arguments are read as check names, not as a
+  journal-file shorthand, unlike every other command's positional
+  argument (reports-cli@v1#reports-cli-003).
+- `reports.balance_from_spec()` and its `ReportSpec`/`ReportSection`
+  dataclasses are usable from the Python API but are not wired to any
+  CLI subcommand (reports-cli@v1#reports-cli-013).
+- Over half of the hledger-compatibility register's entries were, as of
+  one recorded point, still at the lowest verification tier
+  (`proposed`), meaning the corresponding compatibility claims had not
+  yet been checked against the real hledger binary by an independent
+  process (compat-system@v1#compat-system-004).

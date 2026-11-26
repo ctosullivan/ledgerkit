@@ -9,6 +9,501 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Plan 29 PR — fix overclaiming round-trip guarantee found by independent Codex review] — 2026-11-26
+
+**Human:** directed an independent orchestrator review of the clean-room
+documentation PR, including requesting independent Codex review.
+
+**Claude:** Codex flagged `docs/python-api.md:537`: the documented
+`transaction_to_text` round-trip guarantee was false for transactions
+with a secondary date, a cost annotation, or a balance assertion.
+Reproduced empirically: none of `Transaction.date2`,
+`Posting.cost_raw`, or `Posting.balance_assertion` are serialised at
+all, so they are silently absent after round-tripping (tags survive
+only because they live in the preserved inline-comment text, confirmed
+separately). Corrected both `docs/python-api.md` and
+`ledgerkit/writer.py::transaction_to_text`'s own docstring to name the
+three exclusions explicitly instead of implying full fidelity. Added
+`knowledge/EDGE_CASES.md` EC-024 and extended `ROADMAP.md`'s "Plan 29
+bug-fix backlog" row (now 8 items). Full suite re-run after the change:
+935 passed.
+
+### [CodeCompass upgrade + clean-room docs — Phase 6, independent final validation + initiative closeout] — 2026-11-14
+
+Full detail: [dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md](dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md), [dev-docs/retros/CODECOMPASS-UPGRADE-CLEANROOM-DOCS-CLOSEOUT.md](dev-docs/retros/CODECOMPASS-UPGRADE-CLEANROOM-DOCS-CLOSEOUT.md)
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** dispatched an independent `release-phase-auditor` to run
+Plan 29's own Phase 6 audit (§7.1's 8 criteria, each reported separately
+— never collapsing isolation-tier/workflow-fidelity/boundary-compliance
+into one line). Verdict: **PASS WITH NON-BLOCKING OBSERVATIONS**, every
+claim independently re-verified (tests re-run: 935 passed; all 10
+snapshots re-checked via `check_snapshot.py`: all pass; 5
+independently-picked provenance sentences re-traced; all 3 Phase 3
+contamination events re-confirmed to have left no surviving output).
+Two genuine findings not in any prior retro: `ROADMAP.md` had no
+"Tooling & Process Initiatives" section (added, in-progress state, per
+plan §8 item 1); CodeCompass's live checkout had drifted past its Phase
+1 pin (confirmed harmless — zero `codecompass` commands ran under this
+initiative after Phase 1 — flagged for re-pinning before any future
+use). Ran the deferred learning-triage pass
+(`roadmap-context-curator`): all 12 accumulated findings from Phases 3
+and 5 triaged into durable records — 6 new `knowledge/EDGE_CASES.md`
+entries (EC-018–EC-023) for the real production bugs Phase 3 found, 1
+corrected in place (EC-006, dated addendum, original preserved), 1
+`knowledge/DECISIONS.md` addendum correcting a false entry, 1
+`knowledge/DOMAIN_RULES.md` correction (an unprompted 13th finding
+caught proactively), and 2 new `ROADMAP.md` backlog rows — nothing left
+untriaged. Wrote the initiative's closeout retro, synthesising all six
+phases. This closes out Plan 29's entire six-phase initiative; per the
+standing "never infer completion" rule, `ROADMAP.md`'s new row is not
+flipped to `[DONE]` here — that requires the user's own explicit
+confirmation, separately. 935 tests still pass; no `ledgerkit/` source
+changed.
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, dev-docs/api-spec.md change confirmed and applied] — 2026-11-14
+
+**Human:** confirmed applying all 3 of the `docs-maintainer` dispatch's
+proposed, additive disclosures to the protected `dev-docs/api-spec.md`,
+per CLAUDE.md's Unauthorised Change Rule's confirm-first requirement.
+
+**Claude:** applied the reconciliation dispatch's proposed revision
+(`dev-docs/clean-room/legacy-reconciliation/api-spec.md.proposed-
+revision`) to the live `dev-docs/api-spec.md`, after fixing one
+unrelated mechanical slip the dispatch had introduced (a stray one-space
+misalignment in an unrelated `Commands:` summary block, unrelated to
+either intended edit) so the applied diff is exactly the three additive
+disclosures: `load_journal`'s two confirmed loader gaps
+(`loader@v1#loader-002/003/007`), `run_checks`'s two confirmed skip/
+names/strict interaction asymmetries (`checks@v1#checks-008`), and
+`run_basic_checks`'s one-line note that `skip` only applies to its own
+basic-tier call. No signature changed; nothing removed. 935 tests still
+pass.
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, legacy reconciliation: ROADMAP.md] — 2026-11-14
+
+**Human:** directed the `docs-maintainer` agent to run Plan 29 §6's Legacy
+Reconciliation Mode for `ROADMAP.md`, splitting current-state fact from
+forward-looking project intent per §6.1's explicit rule for this
+document.
+
+**Claude:** classified only `ROADMAP.md`'s current-state-fact claims
+against the five-way scheme (`dev-docs/clean-room/legacy-reconciliation/
+ROADMAP.md.md`): 4 supported, 1 fixed (`stale_or_contradicted` — the
+Milestone 4 scope line "(currently only leading `-$300` works)" was
+stale since both sign forms parse correctly today, confirmed by direct
+execution and rewritten to past tense), 1 left explicitly open
+(whether Stage A's "first real CodeCompass usage" follow-up has
+occurred — deferred to `roadmap-context-curator`'s own territory rather
+than decided here). All 16 forward-looking intent items/sections
+(Milestone 5's `[SUPERSEDED]` block, the Future/Backlog table, the
+still-`[PLANNED]` Stage D-I rows) were left verbatim and untouched, per
+the hard rule that nothing in the current tree can confirm or deny a
+future plan. Only one line of `ROADMAP.md` changed.
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, legacy reconciliation: README.md] — 2026-11-14
+
+**Human:** directed the `docs-maintainer` agent to run Plan 29 §6's Legacy
+Reconciliation Mode for `README.md`, now that the Phase 4 clean-room
+draft and the real legacy document can both be read together.
+
+**Claude:** classified 32 distinct legacy claims against the five-way
+scheme (`dev-docs/clean-room/legacy-reconciliation/README.md.md`): 25
+supported, 2 fixed (`stale_or_contradicted` — an incomplete directive
+list, a command-order mismatch against the canonical `COMMANDS` tuple),
+2 `rationale_requiring_verification` resolved by tracing to the project's
+own planning docs (not knowledge/*.md, which had no relevant entry), 3
+`useful_example` re-grounded, 0 obsolete. Went beyond trusting draft/
+legacy agreement for every out-of-scope topic the legacy README also
+touched, via direct independent re-verification this session (a live
+935-test run, live bug reproductions, `git show v1.0.0:LICENSE`).
+Merged in 7 wholly new sections from the Phase 4 draft (Status,
+CLI interface, Reports, Journal text serialization, Journal format
+support, an expanded Hledger Compatibility section, Known current
+limitations), deliberately not duplicating `docs/usage.md`'s or
+`docs/journal-format.md`'s own detailed reference material. 4 explicit
+open questions preserved rather than silently decided.
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, legacy reconciliation: docs/python-api.md + dev-docs/api-spec.md] — 2026-11-14
+
+**Human:** directed the `docs-maintainer` agent to run Plan 29 §6's Legacy
+Reconciliation Mode (§6.3/§6.4) for `docs/python-api.md` and
+`dev-docs/api-spec.md` together, cross-checking the two against each
+other and against the Phase 3 evidence for all 10 clean-room topics, with
+full access to the already-committed Phase 4 clean-room draft
+(`dev-docs/clean-room/drafts/python-api.md.clean-room-draft`).
+
+**Claude:** classified every claim in `docs/python-api.md` against the
+five-way scheme (`dev-docs/clean-room/legacy-reconciliation/
+python-api-and-api-spec.md`) and rewrote it live, preserving the
+document's existing structure/examples and the clean-room draft's inline
+citations. Closed a large set of coverage gaps that had zero mention in
+the prior doc despite being documented, re-exported public API in
+`dev-docs/api-spec.md`: `ledgerkit.checks` (new "Validating Transactions"
+section, including the `run_checks` skip/names/strict asymmetry disclosed
+by `checks@v1#checks-008`), `ledgerkit.writer` (new "Serializing
+Transactions" section), `ledgerkit.EditorDocument` (new section, with the
+known-adoption-gap caveat), `resolve_elision`, the Stage C
+Phase 4/Editor-Readiness `Posting`/`Transaction` fields
+(`tags`/`date_override`/`source_span`/`raw_text`/`inline_comment`), a new
+"Working with Tags" section, `BalanceRow`/`RegisterRow`/`SourceSpan`, the
+Stage C Phase 9 empty-alternation regex-rejection note (already in
+`api-spec.md` but missing here), and several previously-undocumented known
+limitations (lenient-parsing non-exhaustiveness, two confirmed
+`load_journal` gaps, `ReportSectionResult.to_dataframe()`'s
+single-commodity quirk). `dev-docs/api-spec.md` was **not** edited live
+(Unauthorised Change Rule) — two confirmed divergences from evidence
+(`run_checks`'s undisclosed skip/strict asymmetry per `checks-008`;
+`load_journal`'s non-exhaustive `Raises` section per `loader-002/003/007`)
+were written as a full proposed revision to
+`dev-docs/clean-room/legacy-reconciliation/api-spec.md.proposed-revision`
+for the user to confirm. Ran the §6.4 coverage check: 67 of 72 public
+symbols `api-spec.md` lists have a corresponding Phase 3 assertion; 5 gaps
+recorded (`ReportSection`, `ReportSpec`, `load_journal_stdin`,
+`run_strict_checks`, `Journal.to_dataframe`/report-wrapper
+`to_dataframe()`s).
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, legacy reconciliation: dev-docs/architecture.md] — 2026-11-14
+
+**Human:** directed the `docs-maintainer` agent to run Plan 29 §6's Legacy
+Reconciliation Mode for `dev-docs/architecture.md`, with full access to
+both the already-committed Phase 4 clean-room draft
+(`dev-docs/clean-room/drafts/architecture.md.clean-room-draft`) and the
+real legacy document.
+
+**Claude:** classified every claim in the real `dev-docs/architecture.md`
+against the five-way scheme
+(`dev-docs/clean-room/legacy-reconciliation/architecture.md.md`), tracing
+each `supported` claim to a specific Phase 3 assertion id or a direct
+`ledgerkit/*.py:line`/test citation rather than to draft/legacy agreement
+alone. Rebuilt the document on the clean-room draft's structure (far more
+complete and precisely cited than the legacy version) and merged in
+everything from the legacy doc still independently true: the Error
+Handling Strategy table (re-grounded, and corrected — `reports.py` no
+longer raises a bare `ValueError` itself; invalid-query errors now surface
+as `QueryParseError` from `query/compat.py`'s `_validated`), the Design
+Principles section (import-layering bullet rewritten to point at the
+per-module Dependencies subsections rather than a now-stale three-item
+list; "no circular imports" and "no global mutable state" re-verified
+directly; the `compare=` dataclass-field convention kept, re-grounded
+against `models.py:29,79,84,103-105`), and the "one canonical evaluation
+path, plus exactly one named exception" `reports.py`/`query/compat.py`
+unification detail (not in the draft at all; re-grounded directly against
+`reports.py:32,213-239,621-667`, `models.py:479-493`, and
+`tests/test_reports.py:139-160`'s zero-remaining-callers enforcement
+test). Found and fixed two materially stale sections rather than
+restoring them as written: the legacy `parser.py` section's claim that
+`parse_string` is "the sole public function" (false — `parse_string_lenient`
+and `resolve_elision` are both public and exported), and the legacy
+`checks.py` section's check-function inventory (missing `check_parseable`
+and `check_assertions`, and the three fixed `*_CHECK_NAMES` tiers
+entirely). Dropped the legacy doc's "Stage C Phase N" historical
+narration throughout (per `11-documentation-lifecycle.md` §11.2, decision
+history belongs in `knowledge/DECISIONS.md`/`dev-docs/planning/`, not
+restated as narrative in a current-truth doc) in favour of the draft's
+atemporal structural description, adding "see also" pointers to the
+relevant design docs for readers wanting the rationale/history. Preserved
+every inline `<topic>@v1#<id>` citation carried over from the draft.
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, legacy reconciliation: dev-docs/hledger-compatibility.md] — 2026-11-14
+
+**Human:** directed the `docs-maintainer` agent to run Plan 29 §6's Legacy
+Reconciliation Mode, specifically §6.3, for `dev-docs/hledger-
+compatibility.md` — a reconciliation-only document with no parallel
+Phase 4 clean-room draft.
+
+**Claude:** classified every claim in the real `dev-docs/hledger-
+compatibility.md` against the five-way scheme (`dev-docs/clean-room/
+legacy-reconciliation/hledger-compatibility.md.md`), re-verifying each
+against the compat-register's own `evidence:`/`reason:` fields (not just
+`kind`/`status`), the `compat-system`/`journal-parsing`/
+`commodity-styling`/`query-engine`/`tags`/`loader`/`checks` topics' Phase
+3 assertion/reconstruction/comparison artefacts, and direct live
+execution against this checkout where neither settled a claim. Preserved
+the document's existing structure throughout (reconciliation, not a
+redraft). Fixed two claims found false by direct execution: the
+"Balance assignments" paragraph (previously claimed `= EXPECTED` with no
+explicit posting amount parses cleanly with the posting amount stored as
+`None` — actually unimplemented, raising a clean `ParseError` for
+prefix-commodity amounts and silently producing a wrong, uncaught
+`Amount` for suffix-commodity amounts under `decimal-mark ,` mode; this
+also meant `knowledge/DECISIONS.md`'s 2026-05-03 entry's own rationale no
+longer matches the as-built code — flagged to the lead, not edited,
+since `knowledge/` is outside this role's write boundary), and the
+`include` directive's "Circular includes raise `ParseError`" claim
+(true for genuine multi-file cycles, but a literal self-include instead
+raises a misleading `FileNotFoundError` naming a path that demonstrably
+exists). Also documented a newly-confirmed, previously-undocumented
+`IndexError` crash when an include target's resolved path has a
+glob-metacharacter-containing ancestor directory. Flagged two items for a
+future `compat-differential-tester` re-check rather than guessing an
+answer: `LK-COMPAT-PARSER-TAG-001`/`LK-COMPAT-PARSER-TAG-SCOPE-001`'s
+broken `TestParseTags` test citation (confirmed non-existent in
+`tests/test_tags.py`), and `LK-COMPAT-INCLUDE-001` (`status: proposed`,
+`manual`-only evidence) needing re-verification against real hledger for
+the two loader defects above. Everything else in the document (~38
+claim-groups across every section) was re-traced to specific Phase 3
+evidence and confirmed `supported` with no change. **Lead follow-up,
+same phase:** the document's own opening paragraph (line 11) still said
+"each entry there is `status: proposed`" as a blanket present-tense
+claim — missed by the dispatch above despite its own re-verification
+pass — stale against the register's actual, repeatedly-confirmed
+distribution (26 proposed / 9 self-verified / 14 verified / 0 final,
+`compat-system@v1#compat-system-004`); fixed directly.
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, legacy reconciliation: docs/usage.md] — 2026-11-14
+
+**Human:** directed the `docs-maintainer` agent to run Plan 29 §6's Legacy
+Reconciliation Mode for `docs/usage.md`, now that the Phase 4 clean-room
+draft and the real legacy document can both be read together.
+
+**Claude:** classified every claim in the legacy `docs/usage.md` against
+the five-way scheme (`dev-docs/clean-room/legacy-reconciliation/
+usage.md.md`), tracing each candidate `supported` claim to a specific
+Phase 3 assertion from the `reports-cli`, `checks`, and `current-state`
+topics rather than accepting draft/legacy agreement at face value. Found
+and fixed eight `stale_or_contradicted` gaps: the default check tier was
+documented as just `autobalanced` when it is actually `parseable` +
+`autobalanced` + `assertions`, and the check-names table omitted
+`assertions` entirely; the "Specifying the journal file" section never
+stated `check`'s own exception (a bare positional names a check, never a
+journal, for that command only); `balance`/`register`/`accounts`/`print`/
+`stats` were one-line stubs missing verified, user-relevant behaviour
+(ANSI-red negatives and the unconditional depth-0 `"..."` row for
+`balance`; fixed-width columns, date/description blanking, and the
+never-regrouped running-balance invariant for `register`; the
+genuinely-empty-output-on-no-match behaviour for `accounts`; the exact
+output format and — materially — that `print` drops inline `;` comments
+entirely, unlike ledgerkit's own round-trip serialiser; `-1`/`-v` modes
+and the depth-*exclusion* quirk unique to `stats`); five real global
+flags (`--version`, `-v`, `-1`, `-o`, `-I`) were never documented anywhere
+in the file; no note existed that subcommand-level `--help` doesn't
+exist; and the Python-library snippet's `balance()` type comment
+(`dict[str, Decimal]`) was wrong — the actual shape is a nested
+account→commodity→Decimal mapping, matching `docs/python-api.md`'s own
+`BalanceResult` description once cross-checked. Added a new "Exit codes"
+section and a "stats" sample-output block grounded directly in a
+reproduced `current-state@v1#current-state-008` live run. Left the
+`-q`/`--query` deep-dive and `-c`/`--commodity-style` sections unchanged —
+outside this dispatch's permitted evidence (`query-engine`/`tags`/
+`commodity-styling` topics) and not contradicted by anything given here.
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, legacy reconciliation: docs/journal-format.md] — 2026-11-14
+
+**Human:** directed the `docs-maintainer` agent to run Plan 29 §6's Legacy
+Reconciliation Mode for `docs/journal-format.md`, now that the Phase 4
+clean-room draft and the real legacy document can both be read together.
+
+**Claude:** classified every claim in the legacy `docs/journal-format.md`
+against the five-way scheme (`dev-docs/clean-room/legacy-reconciliation/
+journal-format.md.md`), tracing each candidate `supported` claim to a
+specific Phase 3 assertion from the `journal-parsing`, `commodity-styling`,
+`tags`, `loader`, and `compat-system` topics rather than accepting
+draft/legacy agreement at face value. Found and fixed four
+`stale_or_contradicted` legacy claims that were simply wrong — secondary
+dates, balance assertions, cost/lot annotations, and decimal-comma style
+were all listed as "Unsupported in v1" despite being implemented and
+tested — and found that the legacy doc never documented the `account`,
+`commodity`, `payee`, `tag`, `decimal-mark`, `Y`, `D`, or `apply account`
+directives at all, added as a new Directives section. Preserved every one
+of the clean-room draft's confirmed, unflattering findings with their
+citations intact rather than dropping them for not matching the legacy
+doc's narrower original scope: `parse_string_lenient`'s broken never-raise
+guarantee (a malformed `commodity` directive, and separately an
+invalid-backreference `alias` applied later, both escape it uncaught), a
+directive appearing inside a still-open transaction silently dropping
+that transaction's remaining postings, balance-assignment elision's two
+different failure modes (a clean error for a prefix-commodity amount, but
+silent corruption for a suffix-commodity amount under comma-decimal
+mode), three distinct loader glob-escaping gaps (a bracketed containing-
+directory name causing an uncaught `IndexError`, a bracketed filename
+causing a misleading `ParseError`, and a literal self-include causing a
+misleading `FileNotFoundError`), diamond-include silent duplication, and
+a commodity-style-inference bug that can silently produce a nonsensical
+precision value. Flagged, but did not fix (outside this role's write
+boundary), a direct conflict between `knowledge/EDGE_CASES.md`'s EC-006
+and the current, test-confirmed glob-no-match behaviour — EC-006 appears
+to predate a later change and was never updated.
+
+### [CodeCompass upgrade + clean-room docs — Phase 5, legacy reconciliation: docs/getting-started.md] — 2026-11-14
+
+**Human:** directed the `docs-maintainer` agent to run Plan 29 §6's Legacy
+Reconciliation Mode for `docs/getting-started.md`, now that the Phase 4
+clean-room draft and the real legacy document can both be read together.
+
+**Claude:** classified every claim in the legacy `docs/getting-started.md`
+against the five-way scheme (`dev-docs/clean-room/legacy-reconciliation/
+getting-started.md.md`), re-tracing each candidate `supported` claim to a
+specific Phase 3 assertion's own directly-checked evidence rather than
+accepting draft/legacy agreement at face value. Published the reconciled
+`docs/getting-started.md`: the Phase 4 draft as the base, with every one
+of its own inline citations preserved, plus a new Installation section
+(pip install + the `pandas` extra + the `pyproject.toml` console-script
+entry, citing `CHANGELOG.md`'s `1.0.0` PyPI-release record and
+`current-state-001`'s pre-release-`1.0.0.dev1` caveat side by side,
+rather than picking one and dropping the other), a restored plain-English
+elision gloss, and a new "What's next" cross-link section to
+`usage.md`/`journal-format.md`/`python-api.md`. Deliberately did not
+restore the legacy's own sample journal (redundant with the draft's
+already-cited example) or `print`-as-first-command (superseded by the
+draft's better-evidenced `stats` recommendation). Left one explicit open
+question rather than silently resolving it: whether a live `pip install
+ledgerkit` today actually retrieves code matching this exact checkout —
+no Phase 3 assertion performed a live PyPI check.
+
+### [CodeCompass upgrade + clean-room docs — Phase 4, clean-room documentation drafting] — 2026-11-14
+
+Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-4.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-4.md)
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** drafted the six clean-room-redraft documents (`README.md`,
+`dev-docs/architecture.md`, `docs/getting-started.md`, `docs/usage.md`,
+`docs/journal-format.md`, `docs/python-api.md`) plus the current-
+shipped-state factual artifact, via 7 fresh isolated dispatches, each
+scoped to only the topics its document naturally needs (3-10 of the 10
+Phase 3 topics), never the real document it replaces, this plan's own
+prose, or any legacy documentation. Every factual sentence traces to a
+Phase 3 snapshot citation; confidence language calibrated to each
+cited assertion's comparison classification throughout. Confirmed,
+unflattering current-behaviour facts Phase 3 found (the broken never-
+raise guarantee, silent data-loss and corruption cases, `check`'s
+silent success, `print` dropping comments) were included where a
+document's own scope called for them, per explicit instruction, rather
+than quietly omitted. Caught and fixed a precondition failure before
+dispatching: the editor-surface snapshot's external-repository clone
+under `/tmp` had been cleaned up during the six-week gap since Phase 3
+closed — re-cloned from the recorded origin URL at the exact pinned SHA,
+exactly the recovery path `PINNED-REVISIONS.md` had anticipated. Wrote
+the phase's retro. Drafts live under `dev-docs/clean-room/drafts/`, not
+overwriting any real document — this commit is Plan 29's hard boundary
+between drafting and Phase 5's legacy reconciliation. 935 tests still
+pass; no `ledgerkit/` source changed.
+
+---
+
+### [CodeCompass upgrade + clean-room docs — Phase 3, COMPARISON + phase closeout] — 2026-11-14
+
+Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-3.md)
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** completed Phase 3's full 9-step per-topic pipeline (Plan 29
+§4.2) by dispatching `domain-skeptic` COMPARISON mode for all 10 topics,
+classifying alignment between each topic's frozen snapshot and its
+independent implementation-reconstruction report. Final tally across
+all 10 topics: **97 aligned, 9 partial, 5 insufficiently_verified, 0
+conflicting, 0 not_implemented** — zero contradictions found anywhere
+between two independently-produced, model-blind artefacts, which is
+itself meaningful corroboration that neither step fabricated or guessed
+at scale. One dispatch (reports-cli) had its own `Write` tool call
+hard-blocked by the harness; resumed the same agent to recover the full
+verbatim report text and persisted it directly as the lead, rather than
+losing the work or treating the block as something to route around.
+This closes out Phase 3 entirely: 102 assertions, 10 snapshots, 10
+implementation-reconstruction reports, and 10 comparison reports, all
+produced with zero legacy documentation consulted at any step. Wrote
+the phase's closeout retro. 935 tests still pass; no `ledgerkit/` source
+changed (8 real production bugs/defects found across this phase remain
+recorded, not fixed — out of scope for a documentation phase).
+
+---
+
+### [CodeCompass upgrade + clean-room docs — Phase 3, implementation reconstruction] — 2026-10-03
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** dispatched a fresh, model-blind `implementation-reconstructor`
+for all 10 bounded topics (Plan 29 §4.2 step 5) — each given only its
+own primary evidence paths (source, tests, live CLI/Python execution),
+never the assertions, snapshots, or any legacy documentation produced so
+far. Every dispatch's transcript was inspected immediately for boundary
+compliance; all 10 came back compliant (one self-disclosed a brief,
+unused peek, logged as a note per the standard established in Phase 3's
+review step). Two dispatches (`journal-parsing`, `commodity-styling`)
+were interrupted mid-task by the account's weekly rate limit on a
+trailing, inessential verification step — in both cases the report
+itself had already been fully written to disk beforehand, recovered by
+reading the file directly rather than redispatching from scratch.
+Independent reconstruction surfaced **three more real production bugs**
+beyond the two already found in Phase 3's review step, all recorded, none
+fixed (out of scope for this phase): an `alias` directive with an
+out-of-range backreference raises an uncaught `re.PatternError` from
+both parse functions; a non-indented `account`/`commodity`/`payee`/`tag`
+directive encountered mid-open-transaction-block silently discards every
+subsequent posting line with no error; and hledger's balance-assignment
+elision syntax silently corrupts data for suffix-commodity/comma-decimal
+input (absorbs the literal `=` as a currency symbol, drops the
+assertion, raises nothing). Also found a confirmed dead/confused code
+fragment in `ReportSectionResult.to_dataframe()` and a rounds-vs-
+truncates inconsistency in `CommodityStyle.format()` depending on
+whether `precision` is zero. The `editor-surface` reconstruction's most
+decision-relevant finding: an unanchored, twice-verified whole-clone
+search found **zero real usage** of `EditorDocument` by the external
+`ledgerkit-editor` consumer it was built for — the editor's actual
+pipeline is an independently-built implementation on lower-level
+functions instead. 935 tests still pass; no `ledgerkit/` source changed
+(all findings flagged for a future tracked-fix task, not addressed
+here). Full cumulative bug tally recorded in
+`dev-docs/clean-room/compliance-log.md`.
+
+---
+
+### [CodeCompass upgrade + clean-room docs — Phase 3, assertion research/review/freeze] — 2026-10-03
+
+**Human:** directed continuing Plan 29's implementation straight through
+to closeout.
+
+**Claude:** executed the per-topic clean-room assertion pipeline (Plan 29
+§4.2) for all 10 bounded topics (journal-parsing, commodity-styling,
+query-engine, tags, reports-cli, checks, loader, editor-surface,
+compat-system, current-state) — 102 assertion files total. Each topic's
+assertion-research ran as a fresh, isolated dispatch given only its
+bounded evidence paths, never this plan's prose or any legacy
+documentation; each dispatch's transcript was inspected immediately
+against §4.2a's boundary-compliance gate. Three contamination events
+(compat-system attempts 1–2: narrative/out-of-scope-source reads) were
+discarded and rerun from a fresh context per the plan's own mechanical
+rule, not edited in place. Every topic then went through an independent
+`domain-skeptic` REVIEW pass, which found and fixed genuine defects by
+direct execution rather than rubber-stamping — including a backwards
+specificity rule in query-engine-014 that self-contradicted its own next
+clause, a false "necessarily nets to zero" claim in reports-cli-005, and
+an anchored-grep false negative in editor-surface-008 that missed 8 of 9
+real runtime import sites. Two real **production bugs** were surfaced as
+a byproduct (recorded, not fixed — out of scope for this phase):
+`parse_string_lenient`'s documented "never raises" guarantee is false for
+a malformed `commodity` directive (parser.py:1324-1334 lacks the
+try/except guard every other directive handler has), and a containing
+directory named with a glob metacharacter (e.g. `inc[1]`) causes the
+loader's glob-vs-literal classification to diverge, silently misrouting
+a plain include into an uncaught `IndexError`. All 10 topics were then
+mechanically frozen into `dev-docs/clean-room/snapshots/` and run through
+`check_snapshot.py` as a hard gate — which caught three real citation
+defects before any snapshot was accepted: two off-by-one whole-file line
+citations (ledgerkit/cli.py and ledgerkit/query/ast.py each cited one
+line past their real end) and a literal, unresolvable glob
+(`dev-docs/compat-register/*.yaml`) used as an Evidence-paths entry
+instead of enumerated files. Extended `check_snapshot.py` itself to
+resolve absolute-path citations (the editor-surface topic's evidence
+lives in an external `ledgerkit-editor` research clone, a different git
+repository entirely) against a registered external repository's own
+pinned revision via a new `external_repositories` sidecar field, rather
+than silently skipping them or wrongly resolving them against
+Ledgerkit's own tree — added two new self-test cases (pass and fail) to
+prove this resolves and fails closed correctly; pin recorded in
+`dev-docs/clean-room/PINNED-REVISIONS.md`. All 102 assertions across all
+10 topics now pass the checker. 935 tests still pass; no `ledgerkit/`
+source changed (the two production bugs found are flagged for a future
+tracked fix, not addressed here).
+
+---
+
 ### [CodeCompass upgrade + clean-room docs — Phase 2] — Isolation workflow adoption + snapshot checker — 2026-10-02
 
 Full detail: [dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-2.md](dev-docs/retros/CODECOMPASS-UPGRADE-PHASE-2.md)

@@ -1,0 +1,952 @@
+<!--
+producer: phase-4-drafting
+document: docs/python-api.md
+dispatch-id: plan29-phase4-python-api-20261114T000000Z
+date: 2026-11-14
+-->
+
+# Ledgerkit Python API
+
+This document describes ledgerkit's public Python API surface — the
+interface available to code that imports `ledgerkit` as a library, as
+opposed to the `ledgerkit` CLI. It is organised module by module. Only
+public (non-underscore-prefixed) names are covered.
+
+Every factual claim below traces to a specific clean-room assertion,
+cited as `<topic-slug>@v1#<assertion-id>`. Where the comparison pass
+between an assertion and an independent, model-blind implementation
+reconstruction classified the match as `partial` or found a gap, that
+hedge is carried into the text below rather than stated as settled
+fact.
+
+---
+
+## `ledgerkit.parser`
+
+### `parse_string(text, default_year=None, source_file="(string)") -> Journal`
+
+Parses a complete journal-format string into a `Journal` in **strict
+mode**: the first malformed line raises `ParseError` immediately
+(journal-parsing@v1#journal-parsing-008). `default_year` supplies the
+year for a "year-omitted" date form (e.g. `M/DD`) and can itself be
+overridden mid-parse by a `Y` directive
+(journal-parsing@v1#journal-parsing-002).
+
+### `parse_string_lenient(text, default_year=None, source_file="(string)") -> tuple[Journal, list[ParseError]]`
+
+Parses the same grammar but is designed never to raise: it collects
+every `ParseError`/`ParseWarning` into the returned list, discards the
+malformed transaction, and resumes parsing at the next blank line or
+transaction header — intended for editor integrations that re-parse on
+every keystroke (journal-parsing@v1#journal-parsing-008). This
+"never raises" guarantee is **not fully exhaustive as currently
+implemented**: a malformed, non-indented `commodity` directive (empty
+body, unterminated quoted symbol, or an otherwise unparseable body)
+raises `ParseError` unconditionally, uncaught, even when a caller has
+asked for lenient collection (journal-parsing@v1#journal-parsing-008).
+An independent, model-blind reconstruction of this module corroborated
+that specific exception and additionally found a second, differently
+typed one — an `alias` directive whose pattern compiles but whose
+replacement contains an out-of-range backreference escapes as an
+uncaught `re.PatternError`, not even a `ParseError` — so the comparison
+between the frozen assertion and the reconstruction was classified
+`partial` on this point specifically: treat "lenient mode never raises"
+as an incomplete guarantee with at least two known exceptions, not a
+closed set (journal-parsing@v1#journal-parsing-008).
+
+### `resolve_elision(txn: Transaction) -> list[Posting]`
+
+A pure, standalone function — **not** invoked automatically by either
+parsing entry point. A posting with no explicit amount is left with
+`amount = None` by the parser; a caller must call `resolve_elision`
+separately to obtain the inferred amount
+(journal-parsing@v1#journal-parsing-005). Given a transaction's
+postings:
+
+- If none are elided, the list is returned unchanged.
+- If exactly one posting is elided, it is replaced by one synthetic
+  posting per distinct commodity present among the other postings,
+  each holding the negation of that commodity's net sum, sorted
+  ascending by commodity symbol, each marked `inferred=True` and
+  carrying the elided posting's `source_line`. The synthetic postings
+  are spliced in at the original elided posting's list position, so
+  the order of the surrounding non-elided postings is preserved
+  (journal-parsing@v1#journal-parsing-005,
+  commodity-styling@v1#commodity-styling-007).
+- If two or more postings are elided, the list is returned unchanged
+  by `resolve_elision` itself — in practice this shape is rejected
+  earlier, at parse time, with `ParseError("a transaction block may
+  have at most one elided amount")`, so `resolve_elision` only sees
+  the two-or-more-elided case via direct, non-parser construction of a
+  `Transaction` (journal-parsing@v1#journal-parsing-005).
+
+### `ParseError` / `ParseWarning`
+
+`ParseError` is a `ValueError` subclass; `ParseWarning` is a
+`ParseError` subclass used only as a non-fatal advisory collected by
+`parse_string_lenient`, for constructs such as a periodic-transaction
+(`~`) or auto-posting (`=`) rule header, which are recognised and
+skipped rather than treated as hard errors
+(journal-parsing@v1#journal-parsing-007).
+
+### Known parsing limitations relevant to API callers
+
+- hledger's balance-assignment-elision syntax (an elided posting
+  amount combined with a balance assertion, written as `account  =
+  AMOUNT` with no separate amount before the `=`) is not implemented.
+  For a prefix-commodity amount this currently fails cleanly with
+  `ParseError: invalid amount: '= $100'`. For a suffix-commodity amount
+  under comma-decimal mode, the same unimplemented syntax does **not**
+  fail at all — it silently produces a wrong `Amount` (the literal `=`
+  character is absorbed as if it were a currency symbol) with the
+  balance assertion silently dropped, and no error or warning
+  (journal-parsing@v1#journal-parsing-009).
+- A non-indented `account`/`commodity`/`payee`/`tag` directive
+  appearing while a transaction block is still open silently discards
+  every subsequent posting line of that still-open block, with no
+  error and no warning (journal-parsing@v1#journal-parsing-007).
+
+---
+
+## `ledgerkit.models`
+
+`models.py` holds plain dataclasses only — no parsing or reporting
+logic lives there (journal-parsing@v1#journal-parsing-010; the module
+has zero imports from `parser.py`).
+
+### `Amount`
+
+Fields: `quantity: Decimal`, `commodity: str`, `raw: Optional[str] =
+None`. `raw` is excluded from `repr`/`__eq__` comparison, so two
+`Amount`s with the same quantity and commodity compare equal
+regardless of how each was originally written in source text
+(journal-parsing@v1#journal-parsing-010). `Amount` carries a method,
+`display(style)`, which delegates directly to the given style object's
+own `format(quantity)` method (see `ledgerkit.commodity_style` below).
+
+A posting in ledgerkit's current data model can reference at most one
+commodity in its main amount — there is no `MixedAmount` concept
+(tags@v1#tags-009).
+
+### `BalanceAssertion`
+
+Fields: `amount: Amount`, `inclusive: bool = False`, `sole_commodity:
+bool = False`. These two independent booleans together cover all four
+of hledger's balance-assertion markers (`=`, `==`, `=*`, `==*`):
+`inclusive` selects whether subaccounts are summed in (the `*`
+variants), and `sole_commodity` selects whether every other commodity
+present in that account must be exactly zero (the `==` variants)
+(checks@v1#checks-006).
+
+### `SourceSpan`
+
+Fields: `file: str`, `start_line: int`, `end_line: int`; both line
+numbers are 1-indexed and inclusive (journal-parsing@v1#journal-parsing-010).
+
+### `Posting`
+
+Fields include `account: str`, `amount: Optional[Amount] = None`,
+`balance_assertion: Optional[BalanceAssertion] = None`, `cost_raw:
+Optional[str] = None`, `source_line: Optional[int] = None`, `inferred:
+bool = False`, `inline_comment: Optional[str] = None`, `tags:
+list[tuple[str, str]]`, `date_override: Optional[date] = None`,
+`date2_override: Optional[date] = None`
+(journal-parsing@v1#journal-parsing-010,
+journal-parsing@v1#journal-parsing-005). `inline_comment` is excluded
+from equality comparison; `date_override`/`date2_override` are
+deliberately *included* in equality comparison, per an in-model
+comment explaining that they change parsing-visible state, not merely
+provenance (journal-parsing@v1#journal-parsing-010).
+
+`Posting.date_override`/`date2_override` are set only from the first
+occurrence of a `date`/`date2` comment tag on that posting's own
+parsed tags — never from the transaction's own tags, and a
+`date`/`date2` tag written in a transaction-level comment has no
+override effect at all (journal-parsing@v1#journal-parsing-010,
+tags@v1#tags-008). An unparseable date value in such a tag is a hard
+error, raised immediately in strict mode or collected (with the
+override left unset) in lenient mode
+(journal-parsing@v1#journal-parsing-010).
+
+### `Transaction`
+
+Fields include `date: date`, `description: str`, `date2: Optional[date]
+= None`, `postings: list[Posting]`, `cleared: bool = False`, `pending:
+bool = False`, `code: str = ""`, `comment: str = ""`, `source_line:
+Optional[int] = None`, `source_span: Optional[SourceSpan] = None`,
+`raw_text: Optional[str] = None`, `inline_comment: Optional[str] =
+None`, `tags: list[tuple[str, str]]`
+(journal-parsing@v1#journal-parsing-010). There is deliberately no
+`date_override`-equivalent field at the transaction level — this is an
+explicit design choice, not an oversight
+(journal-parsing@v1#journal-parsing-010, tags@v1#tags-008).
+
+### `PriceDirective`
+
+Fields: `date: date`, `commodity: str`, `price: Amount`
+(journal-parsing@v1#journal-parsing-010).
+
+### `Journal`
+
+A container with fields including `transactions: list[Transaction]`,
+`prices: list[PriceDirective]`, `declared_accounts: list[str]`,
+`declared_commodities: list[str]`, `declared_payees: list[str]`,
+`declared_tags: list[str]`, `declared_account_tags: dict[str,
+list[tuple[str, str]]]`, `declared_commodity_tags: dict[str,
+list[tuple[str, str]]]`, `source_file: Optional[str]`,
+`included_files: int`
+(journal-parsing@v1#journal-parsing-010, loader@v1#loader-006,
+loader@v1#loader-008, tags@v1#tags-001). `declared_account_tags` and
+`declared_commodity_tags` are keyed by the exact declared account
+path / commodity symbol — not pre-expanded for inheritance
+(tags@v1#tags-004).
+
+`Journal` also exposes convenience report methods (`balance`,
+`register`, `accounts`, `stats`, `to_dataframe`, `commodity_styles`)
+that lazily delegate into `ledgerkit.reports`,
+`ledgerkit.commodity_style`, and `ledgerkit.query`
+(journal-parsing@v1#journal-parsing-010). `Journal.commodity_styles`
+is documented further under `ledgerkit.commodity_style` below.
+
+### `Journal.commodity_styles` resolution order
+
+`Journal.commodity_styles` resolves one `CommodityStyle` per commodity
+symbol using a three-pass priority scheme, highest priority last in
+code but documented as winning overall: (1) the first posting amount
+seen for that commodity, in transaction/posting order; (2) failing
+that, the first price-directive amount for that commodity; (3) an
+explicit `commodity` directive's own sample amount for that symbol,
+which unconditionally overwrites whatever either earlier pass set
+(commodity-styling@v1#commodity-styling-005). No test in the permitted
+evidence directly exercises this directive-overrides-posting priority
+claim; it rests on direct reading of the property's own docstring and
+implementation, which were independently confirmed to agree with each
+other (commodity-styling@v1#commodity-styling-005).
+
+---
+
+## `ledgerkit.loader`
+
+### `load_journal(path: str | os.PathLike) -> Journal`
+
+The main multi-file entry point. Resolves `path`, recursively expands
+every `include <path>` directive it finds by **textual substitution**
+— not an AST-level merge — producing one combined text string that is
+parsed exactly once via `parse_string()`
+(loader@v1#loader-005). As a direct consequence, directive scope
+active before an `include` line (for example an `alias` directive)
+propagates naturally into the included content, because the included
+text is spliced in at the exact textual position of the `include` line
+within one continuous parse (loader@v1#loader-005).
+
+`include` detection requires the literal keyword `include` at column 0
+followed by one or more whitespace characters; an indented `include`
+line is never recognised as a directive at all
+(loader@v1#loader-001). The include target is resolved via fixed
+precedence: a `~`-prefixed path is expanded against the user's home
+directory; an absolute path is used as-is; otherwise the path is
+resolved relative to the *containing file's own directory* (the
+immediate parent file for a nested include, not the process's current
+working directory and not necessarily the root file's directory)
+(loader@v1#loader-002). If the resolved path string contains a glob
+metacharacter (`*`, `?`, `[`), it is expanded via a recursive glob and
+the matches sorted; a target that collides with its own containing
+file is always filtered out of the result before further processing
+(loader@v1#loader-002, loader@v1#loader-003).
+
+Circular includes are detected via an ancestor-stack set threaded
+through the recursive expansion (a path is tracked only while it is
+currently "in progress" along the active include chain, not globally
+across every file ever included) — a target already on that stack
+raises `ParseError("circular include detected: ...")`
+(loader@v1#loader-004). Because the stack models ancestry rather than
+global history, a "diamond" include graph (two sibling files that both
+independently include the same third file) does **not** trigger
+circular-include detection: the shared file's content is expanded and
+merged twice, with no warning, and `Journal.included_files` reports
+only the count of distinct files touched, not the number of times
+content was duplicated (loader@v1#loader-004).
+
+A `ParseError` raised while parsing the expanded text is re-attributed
+back to its true originating file and local line number (not the line
+number in the flattened blob) via an internal line-to-source map built
+during expansion; this remap only fires when the error's line number
+falls within the map's range, otherwise the original, untranslated
+exception propagates unchanged (loader@v1#loader-008).
+
+Missing-file handling branches on whether the raw include target
+string was itself glob-shaped: if so and no files match, `ParseError`
+("no files matched") is raised; if not, and the single resolved target
+does not exist, `FileNotFoundError` is raised instead, naming the
+resolved absolute path (loader@v1#loader-007). Unsupported file
+extensions (anything other than `.journal`/`.ledger`) and recognised
+hledger format-type prefixes (e.g. `csv:`, `timedot:`) on an include
+target are always rejected with `ParseError`, checked before the
+not-found logic applies (loader@v1#loader-007). This two-outcome
+dichotomy for a missing target is **not fully exhaustive**: when a
+containing directory's own name happens to contain a glob
+metacharacter, a plain, non-glob include target resolved inside it can
+be silently reclassified as a glob internally, match zero files, and
+raise an uncaught `IndexError` instead of either documented exception
+— a confirmed, reproducible gap rather than a hypothetical one
+(loader@v1#loader-002, loader@v1#loader-003,
+loader@v1#loader-007). Separately, a file that includes itself by its
+own literal filename is filtered out by the self-reference guard and
+then reported as `FileNotFoundError` even though the file demonstrably
+exists on disk — a misleading, but currently real, error message
+(loader@v1#loader-003).
+
+### `load_journal_stdin() -> Journal`
+
+Reads all of standard input and parses it directly; it does **not**
+perform include expansion at all.
+
+### `merge_journals(journals: list[Journal]) -> Journal`
+
+A separate public function from the include mechanism. Merges
+already-parsed `Journal` objects by order-preserving concatenation of
+`transactions`, `prices`, `declared_accounts`, `declared_commodities`,
+`declared_payees`, and `declared_tags` across all inputs
+(loader@v1#loader-006). `source_file` on the result is taken from the
+first input only; `included_files` is the arithmetic sum of each
+input's own `included_files`. A single-element input list is a fast
+path returning the original object unchanged (`is` identity, not a
+copy); an empty input list raises `ValueError`
+(loader@v1#loader-006). Because `merge_journals` operates on already
+-parsed objects rather than splicing source text, directive scope
+captured within one journal's own parse cannot propagate into another
+journal being merged this way — the two merge mechanisms are not
+interchangeable (loader@v1#loader-005).
+
+---
+
+## `ledgerkit.tags`
+
+### `parse_tags(comment: Optional[str]) -> list[tuple[str, str]]`
+
+Parses hledger-style `name:value` tags out of a comment string (an
+empty or `None` comment yields `[]`). The grammar implemented is more
+permissive, and in one respect stricter, than hledger's own manual
+prose suggests:
+
+- A tag name has no character-class restriction beyond "not a colon,
+  no internal whitespace, and the candidate text must not end in
+  whitespace" — digits, punctuation, and non-ASCII characters are all
+  accepted (tags@v1#tags-007).
+- A space immediately before a colon voids that entire tag candidate —
+  not merely producing an empty-string name — and scanning resumes
+  right after the voided colon, so a genuine tag appearing later on
+  the same line is still found (tags@v1#tags-005).
+- A tag's value runs from just after the colon to the next literal
+  comma or end of line; a colon *inside* a value does not terminate
+  it. There is no escaping mechanism for a comma inside a value, so a
+  value can never contain a literal comma — this is treated as a
+  genuine hledger grammar limitation, not a ledgerkit omission
+  (tags@v1#tags-006).
+- The same tag name may legitimately repeat, with different values, in
+  one result; `parse_tags` always returns an ordered list of pairs,
+  never a dict collapsed by name (tags@v1#tags-007).
+
+### `effective_date(txn, posting) -> date`
+
+Returns the posting's own `date_override` if set, otherwise the
+transaction's `date` (tags@v1#tags-008).
+
+### `effective_date2(txn, posting) -> date`
+
+A four-level fallback chain, each level checked in order, stopping at
+the first value that is not `None`: the posting's own `date2_override`;
+then the transaction's `date2`; then the posting's own
+`date_override` (its *primary* override, reused here as a
+secondary-date fallback); then the transaction's primary `date`
+(tags@v1#tags-008).
+
+### Tag inheritance and effective-tags computation
+
+Beyond `parse_tags` itself, `tags.py` implements the inheritance and
+union logic that other parts of ledgerkit (notably query evaluation,
+see `ledgerkit.query` below) rely on for tag matching, even though the
+specific helper functions that do this work are private
+(`_inherited_account_tags`, `_effective_tags`,
+`_accounts_effective_tags`, `_posting_commodities`,
+`_commodity_tags`). Documenting their behaviour here because public
+query matching depends on it:
+
+- An account inherits declared tags from itself and every strict
+  ancestor in its `:`-separated hierarchy (concatenated
+  least-specific-first); a sibling branch does not inherit a
+  different sibling's tags at any depth (tags@v1#tags-004).
+- The full "effective tags" of a (transaction, posting) pair is the
+  union of four independent sources — the posting's own tags, the
+  transaction's own tags, the posting's account's inherited tags, and
+  the posting's commodity's declared tags — concatenated with **no
+  shadowing, precedence, or deduplication of any kind**, including
+  when two sources declare the exact same `(name, value)` pair
+  (tags@v1#tags-001, tags@v1#tags-002). This is an explicit,
+  documented design choice: hledger's own manual prose describes an
+  override order, but ledgerkit's implementation deliberately does not
+  replicate that as precedence.
+- A second, narrower view used for `accounts`-style tag matching
+  unions only the transaction's own tags and the account's inherited
+  tags, explicitly excluding the posting's own tags and any
+  commodity-propagated tags (tags@v1#tags-003). This narrower view's
+  actual wiring to a specific caller (stated in its own docstring to
+  be `ledgerkit.reports.accounts`, via `ledgerkit.query`'s
+  accounts-mode dispatch) was not independently verified against that
+  caller within the permitted evidence for this topic — only the
+  function's own, directly-tested behaviour in isolation is confirmed
+  (tags@v1#tags-003).
+- Because `Posting.amount` is a single `Amount`, not a collection, the
+  per-posting commodity list consumed by the commodity-tag lookup is
+  always zero or one element in the current data model, even though
+  the underlying helper is shaped to accept an arbitrary-length list
+  for forward compatibility (tags@v1#tags-009).
+
+---
+
+## `ledgerkit.commodity_style`
+
+### `CommodityStyle`
+
+A dataclass with fields `commodity: str`, `prefix: bool = True`,
+`space: bool = False`, `decimal_mark: str = "."`, `group_separator: str
+= ""`, `precision: int = 2`.
+
+#### `CommodityStyle.infer(commodity: str, raw_amount_str: str) -> CommodityStyle` (classmethod)
+
+Determines prefix-vs-suffix placement by plain string matching: it
+strips a leading minus sign, then checks whether the remainder starts
+with the commodity symbol (prefix) or ends with it (suffix); if a
+symbol degenerately matches both ends, the prefix branch wins because
+it is checked first (commodity-styling@v1#commodity-styling-001). If
+the symbol matches neither end — a case the implementation's own
+comment calls a rare edge case — `prefix` stays `True` and the
+*entire* stripped string, including any unrelated text, is treated as
+the numeric portion fed into decimal/group-separator inference; this
+is not a benign no-op, since it can silently corrupt the inferred
+`precision` by counting non-digit characters toward the digit count
+(commodity-styling@v1#commodity-styling-001).
+
+Decimal-mark and group-separator inference, given the numeric
+substring once the commodity symbol is stripped:
+
+- If both `.` and `,` are present, whichever occurs rightmost in the
+  string is the decimal mark and the other is the group separator,
+  regardless of how many times either character repeats
+  (commodity-styling@v1#commodity-styling-003).
+- If only one of the two separator characters is present, and it
+  occurs exactly once, is not at position 0, and is followed by
+  exactly three digits, it is classified as a digit-group separator
+  (precision becomes 0); in every other single-separator case it is
+  the decimal mark, with precision equal to the digit count after its
+  last occurrence (commodity-styling@v1#commodity-styling-002).
+
+#### `CommodityStyle.format(self, quantity: Decimal) -> str`
+
+Formats a `Decimal` according to the style's fields. Negative-sign
+placement is asymmetric by design, matching hledger's own convention:
+for a prefix-style commodity the sign goes immediately after the
+symbol and before the number, with the normal `space` gap dropped
+entirely in the negative case (e.g. `"£-5,000.00"`, even when the
+positive form would be `"£ 5,000.00"`); for a suffix-style commodity
+the sign goes before the number (ahead of its normal leading position)
+and the `space` gap before the trailing symbol is preserved as usual
+(e.g. `"-1,234.56 EUR"`) (commodity-styling@v1#commodity-styling-004).
+
+#### `CommodityStyle.parse_style_override(style_string: str) -> CommodityStyle` (classmethod)
+
+Backs the CLI's `-c`/`--commodity-style` flag, but is equally usable
+as a Python API for constructing a `CommodityStyle` from a sample
+string. It extracts the commodity symbol by trying a suffix-alphabetic
+match first (e.g. picking `"USD"` out of `"1,000.00 USD"`), and only on
+failure tries a leading-symbol match (e.g. `"$"` out of `"$1,000.00"`).
+It raises `ValueError` if the string is empty, contains no digit
+characters at all, or contains digits but matches neither pattern (for
+example a bare numeric string with no commodity symbol)
+(commodity-styling@v1#commodity-styling-006). An override constructed
+this way only affects the formatting of the one commodity symbol it
+names — it never changes any other commodity's inferred style, even
+within the same report run (commodity-styling@v1#commodity-styling-006).
+The exact CLI-side plumbing that merges a successfully-parsed override
+into a report's per-commodity styles map lives in `ledgerkit.cli`, and
+was not independently inspected as part of this topic's evidence
+(commodity-styling@v1#commodity-styling-006).
+
+---
+
+## `ledgerkit.query`
+
+The public surface re-exported from `ledgerkit/query/__init__.py`
+funnels two distinct inputs — a hand-written query string, and the
+separate, legacy `ledgerkit.models.Query` dataclass shape used
+elsewhere in the project — through one evaluator, so every filtering
+operation in ledgerkit is governed by the same semantics
+(query-engine@v1#query-engine-015).
+
+### AST node types
+
+Nine frozen dataclasses, unioned into the `QueryNode` type alias, with
+no shared base class or method — every consumer dispatches on them via
+`isinstance` chains (query-engine@v1#query-engine-001):
+
+- `Acct(pattern: str)`
+- `Desc(pattern: str)`
+- `DateSpan(start: Optional[date], end: Optional[date])` — `end` is
+  exclusive
+- `MaxAccountLevel(n: int)`
+- `Status(value: TxnStatus)` — `TxnStatus` is an enum of `UNMARKED`,
+  `PENDING`, `CLEARED`
+- `Tag(name_pattern: str, value_pattern: Optional[str] = None)`
+- `And(terms: tuple[QueryNode, ...])`
+- `Or(terms: tuple[QueryNode, ...])`
+- `Not(term: QueryNode)`
+
+`MaxAccountLevel` is reachable only by constructing it directly in
+Python — there is no string-query spelling that ever produces one; it
+is deliberately distinct from hledger's own `depth:`/`--depth`, which
+is a report-display option, not a selection predicate, and is modelled
+separately (below) (query-engine@v1#query-engine-002).
+
+### `QueryPlan(predicate: QueryNode, depth: DepthSpec = DepthSpec())`
+
+The result of `parse()`: a predicate tree plus a separately-carried
+`DepthSpec`. `predicate` never contains a `depth:` term — `parse()`
+intercepts every `depth:`-prefixed token before the combination step
+and merges it into the accumulated `DepthSpec` instead; a query
+consisting solely of `depth:` terms produces `predicate == And(())`,
+the vacuous "match everything" node
+(query-engine@v1#query-engine-003).
+
+### `parse(query_text: str) -> QueryPlan`
+
+Tokenizes on whitespace while keeping a `prefix:"quoted phrase"`
+together as one token with its quotes stripped; both single and
+double quotes are accepted, escaping a quote character inside a
+quoted token is not supported, and an unterminated quote degrades to
+treating the remainder as plain literal text rather than raising
+(query-engine@v1#query-engine-006).
+
+After tokenizing, unnegated terms of the same node type (`Acct`,
+`Desc`, or `Status`) are OR'd together into one bucket each; every
+other term — `DateSpan`, `Tag`, and crucially *any* `Not`-wrapped term
+regardless of its inner prefix — is AND'd in individually alongside
+the OR buckets. A negated same-prefix term (e.g. two `not:acct:`
+terms) is never folded into that prefix's OR bucket even when
+unnegated terms of the same prefix are also present
+(query-engine@v1#query-engine-005).
+
+`date:` accepts exactly four value shapes: a closed range (two full
+dates joined by `-`, `..`, or `" to "`), an open-from range (`D..`),
+an open-to range (`..D`), or a single bare date. A single bare date `D`
+becomes `DateSpan(D, D + 1 day)`; a written range's end date becomes
+the literal, exclusive bound exactly as given, with no auto-increment
+— so a range written as if it were inclusive is silently one day short
+of the single-date case's own convention. A four-digit year is
+mandatory; two-digit years are rejected (query-engine@v1#query-engine-007).
+
+`depth:REGEX=N` and `tag:NAME=REGEX` both split their value on the
+*first* `=` character only, so a later literal `=` is preserved
+verbatim in the right-hand side (for example `tag:rate==0.05` becomes
+a tag named `rate` with value `=0.05`). `not:depth:...`, with any
+number of `not:` wraps, is rejected at parse time with
+`QueryParseError`, since depth is a report option, not a negatable
+predicate (query-engine@v1#query-engine-008).
+
+### `matches_transaction(node, txn, journal=None) -> bool` / `matches_posting(node, txn, posting, journal=None) -> bool`
+
+Evaluate a `QueryNode` against a transaction, or against one specific
+posting of a transaction. They agree on every node type except how
+`Acct`/`MaxAccountLevel` are checked: at the transaction level, they
+match if *any* posting in the transaction satisfies the account-level
+check; at the posting level, only that one posting's own account is
+checked. `Desc`, `DateSpan`, and `Status` are transaction-level facts
+and are evaluated identically by both functions. All text matching
+(`Acct`/`Desc`) is case-insensitive, infix (substring) matching —
+always `.search()`, never `.match()`/`.fullmatch()`
+(query-engine@v1#query-engine-009).
+
+A `Tag` node's evaluation is the one case where `journal` matters: both
+functions raise `ValueError` if a `Tag` node is evaluated while
+`journal` is `None` — this is a deliberate "loud failure" rather than
+silently narrowing to a smaller tag set, and every other node type is
+unaffected by `journal` being absent (query-engine@v1#query-engine-004).
+When a `journal` is supplied, `Tag` matching uses the full four-source
+"effective tags" of the (transaction, posting) pair described under
+`ledgerkit.tags` above, with no shadowing between sources; at the
+transaction level, a `Tag` node matches if the transaction's own tags
+match *or* if any posting's effective tags match, checked as two
+independent conditions (query-engine@v1#query-engine-010).
+
+A second, package-private posting matcher sharing the same recursive
+`And`/`Or`/`Not` dispatch body, parameterised by which tag-source
+function it calls, backs a narrower accounts-mode tag visibility (the
+union described under `ledgerkit.tags` above) — it is not part of the
+public surface, but its existence explains why `ledgerkit.reports.accounts`'s
+tag-query behaviour can differ from `matches_posting`'s own default
+visibility for the same journal (query-engine@v1#query-engine-011).
+
+### `DepthSpec`, `clipped_depth_for_account`, `clip_account_name`, `merge_depth_specs`
+
+`DepthSpec` is never a selection filter — it is a report-display
+clipping/aggregation option, deliberately kept outside the predicate
+AST. It has two fields: `flat: Optional[int]`, a general clip depth,
+and `by_pattern: tuple[tuple[str, int], ...]`, an ordered list of
+`(regex, depth)` pairs contributed by `depth:REGEX=N` terms
+(query-engine@v1#query-engine-014).
+
+`merge_depth_specs` combines two specs by taking the **minimum** of
+their `flat` values (treating `None` as "no constraint") and
+concatenating `by_pattern` (query-engine@v1#query-engine-003,
+query-engine@v1#query-engine-014).
+
+`clipped_depth_for_account` resolves one account's effective clip
+depth using a counterintuitive specificity rule: among the
+`by_pattern` entries that match the account itself or any strict
+ancestor, the entry whose matched ancestor is *deepest* — or that
+matches the account itself but no strict ancestor at all, the single
+most-specific case — wins; ties between equally-specific entries go to
+the later-declared one. If no `by_pattern` entry matches, `flat` is the
+fallback, and if that is also unset the account is not clipped.
+`clip_account_name` renders a depth-0 clip as the literal string
+`"..."`, never an empty string and never exclusion
+(query-engine@v1#query-engine-014). No test in the permitted evidence
+for this topic directly exercises `clipped_depth_for_account` or
+`clip_account_name` in isolation — this specificity and tie-break rule
+was confirmed by direct execution rather than by an existing unit
+test, a gap independently rediscovered by a model-blind implementation
+reconstruction of the same module
+(query-engine@v1#query-engine-014).
+
+A third, separate function in the same module,
+`account_excluded_by_depth`, is a genuine boolean-exclusion check
+(stated to be used only by `ledgerkit.reports.stats`) rather than a
+clipping function — conflating it with `clipped_depth_for_account`
+would be a real correctness bug for any caller extending
+depth-aware reporting (query-engine@v1#query-engine-014).
+
+### `validate_hledger_regex(pattern: str) -> None` / `compile_hledger_regex(pattern: str) -> re.Pattern`
+
+Implement a restricted "HledgerRegex" dialect on top of Python's `re`,
+deliberately never silently reinterpreting a construct using Python's
+own semantics where it would differ from hledger's regex engine
+(query-engine@v1#query-engine-012). A pattern is rejected, raising
+`UnsupportedRegexConstructError` (a `ValueError` subclass), if it
+contains: an inline-flag/named/non-capturing/lookaround `(?...)`
+construct; a numeric backreference (`\1`–`\9`); a GNU word-boundary
+escape (`\<`/`\>`); a Perl shorthand class (`\d`/`\D`/`\w`/`\W`/`\s`/`\S`);
+a POSIX named class (`[[:alpha:]]`-style); or a lazy/non-greedy
+quantifier (`*?`/`+?`/`??`). A pattern that is empty, or contains an
+unescaped `|` with nothing on one side of it (detected by a dedicated
+escape-aware scan rather than a single compiled regex, since
+distinguishing a real `|` from an escaped `\|` needs variable-length
+backslash-parity counting that a fixed-width `re` lookbehind cannot
+express), is also rejected — both of these two additional rejections
+are documented as breaking changes from this module's own earlier
+behaviour. A pattern that merely admits an empty match (such as `.*`
+or `a*`) remains valid; only the literal empty string itself is
+rejected (query-engine@v1#query-engine-012,
+query-engine@v1#query-engine-013). `compile_hledger_regex` always
+compiles with `re.IGNORECASE`.
+
+---
+
+## `ledgerkit.reports`
+
+Pure report-computation functions; all CLI-facing formatting (amount
+display, column alignment, ANSI colouring) lives in `ledgerkit.cli`,
+not here (reports-cli@v1#reports-cli-005, reports-cli@v1#reports-cli-007).
+
+### `balance(journal, query=None, tree=False, ...) -> dict[str, dict[str, Decimal]] | list[BalanceRow]`
+
+By default returns a flat mapping of account name to a mapping of
+commodity to net `Decimal`. With `tree=True`, instead returns
+`list[BalanceRow]`, additionally including every implicit parent
+account (every colon-prefix of every posted-to account) with
+`is_subtotal=True` for pure-parent rows, each row's amounts aggregated
+over itself plus all descendants, sorted alphabetically by account
+name (reports-cli@v1#reports-cli-004).
+
+### `register(journal, query=None, ...) -> list[RegisterRow]`
+
+Returns a chronological list of rows, one per posting. Per the
+assertion's own description, `running_balance` is the cumulative sum
+of `amount.quantity` across *all* rows in output order — never
+re-grouped or re-aggregated by account, even when a depth setting
+clips several postings' displayed account names to the same string
+(reports-cli@v1#reports-cli-006). This specific invariant was not
+independently re-confirmed by a model-blind implementation
+reconstruction of this module (the reconstruction's own evidence did
+not extend to exercising depth-clipping together with
+`running_balance`), so treat it as asserted and internally
+well-evidenced, but not doubly corroborated
+(reports-cli@v1#reports-cli-006).
+
+### `accounts(journal, query=None, ...) -> list[str]`
+
+Returns the sorted, deduplicated list of account names matching the
+given query (reports-cli@v1#reports-cli-008).
+
+### `stats(journal, query=None, ...) -> JournalStats`
+
+Returns a dataclass containing only deterministic journal data
+(transaction count, date range, per-day rates, payee/account/commodity
+counts, and so on); runtime figures such as elapsed time and
+transactions-per-second are measured and formatted only by the CLI
+layer, not stored on `JournalStats` (reports-cli@v1#reports-cli-011).
+`stats` is the one report function in this module where a `depth:`
+constraint **excludes** accounts deeper than the limit from
+`account_count`/`account_depth`, via a genuinely boolean-exclusion
+function, rather than clipping and aggregating them the way
+`balance`/`register`/`accounts` all do — documented as a real,
+source-confirmed hledger quirk rather than a ledgerkit invention
+(reports-cli@v1#reports-cli-012).
+
+### `balance_from_spec(journal, spec, query=None) -> list[ReportSectionResult]`
+
+Computes a structured, multi-section balance report (for example an
+income statement, with sections such as "Income" marked `invert=True`
+and "Expenses" not) driven by `ReportSpec`/`ReportSection` dataclasses,
+returning one `ReportSectionResult` per section. **This function is
+Python-API-only** — it is reachable from `ledgerkit.balance_from_spec`,
+`ledgerkit.ReportSpec`, and `ledgerkit.ReportSection`, but none of the
+six CLI subcommands (`balance`, `register`, `accounts`, `print`,
+`stats`, `check`) ever invoke it; there is no CLI command that wires
+to it (reports-cli@v1#reports-cli-013).
+
+`ReportSectionResult.to_dataframe()` carries a known, self-acknowledged
+single-commodity limitation: its own docstring states multi-commodity
+support is deferred, and its implementation picks one commodity —
+taken from an arbitrary/first key of the journal's commodity-styles
+map, not a per-row lookup — and applies that one style to every row
+regardless of which commodity each row's value actually originated in
+(commodity-styling@v1#commodity-styling-008).
+
+---
+
+## `ledgerkit.writer`
+
+### `transaction_to_text(txn: Transaction) -> str`
+
+Serialises a single `Transaction` to hledger journal-format text. The
+returned string is guaranteed to round-trip through `parse_string()`
+to an equivalent `Transaction` — same date, flag, description,
+postings, amounts, and comments; `source_span`/`raw_text` are excluded
+from that guarantee (reports-cli@v1#reports-cli-014). Amount columns
+are right-aligned to a shared column computed from the widest account
+name among postings that carry an explicit amount, plus a minimum
+two-space gap; an elided posting (no amount) is printed as a bare
+`"    {account}"` line (reports-cli@v1#reports-cli-014).
+
+### `journal_to_text(journal: Journal) -> str`
+
+Serialises every transaction in `journal.transactions`, separated by
+exactly one blank line. It explicitly does **not** serialise
+directives (`account`, `commodity`, `payee`, `P`) as of this version —
+a caller needing full round-trip fidelity for directive content should
+work with the raw source file rather than re-serialising the `Journal`
+(reports-cli@v1#reports-cli-014).
+
+---
+
+## `ledgerkit.checks`
+
+### Tier constants
+
+Three fixed tuples, mirroring hledger's own classification
+(checks@v1#checks-001):
+
+- `BASIC_CHECK_NAMES = ("parseable", "autobalanced", "assertions")` —
+  run by default on every CLI command.
+- `STRICT_CHECK_NAMES = ("accounts", "commodities")` — run only when
+  strict mode is requested, in addition to the basic tier.
+- `OTHER_CHECK_NAMES = ("payees", "ordereddates", "uniqueleafnames")` —
+  run only when explicitly named.
+
+`ALL_CHECK_NAMES` is their concatenation.
+
+### Individual check functions
+
+Each has the signature `(journal: Journal) -> list[CheckError]`
+(`CheckError` has `check_name: str`, `message: str`, `line_number:
+Optional[int] = None`). Checks never print — formatting and display is
+entirely the caller's responsibility (checks@v1#checks-001).
+
+- **`check_parseable`** — a no-op: by the time a `Journal` object
+  exists, parseability has already been established by the parser, so
+  this always returns `[]`.
+- **`check_autobalanced`** / **`check_transaction_autobalanced`** —
+  treat a transaction as balanced if it has exactly one elided posting
+  (`amount is None`), regardless of how many commodities the other
+  postings use; two or more elided postings unconditionally fails with
+  a "multiple elided postings" error; with zero elided postings, every
+  commodity's net sum across the transaction's postings must equal
+  exactly zero, with one `CheckError` per offending commodity
+  (checks@v1#checks-002).
+- **`check_accounts`** — reports at most one `CheckError` per run,
+  stopping at the very first posting (in transaction, then posting,
+  order) whose account is not in `journal.declared_accounts`
+  (case-sensitive); if `declared_accounts` is empty, every account is
+  considered undeclared, so the first posting's account is the sole
+  error (checks@v1#checks-003).
+- **`check_commodities`** — the same stop-at-first behaviour for the
+  first posting whose non-empty commodity symbol is not in
+  `journal.declared_commodities`; a posting with no amount is skipped
+  entirely, and a posting whose amount's commodity symbol is the
+  *empty string* (not merely a zero quantity) is always exempt from
+  this check (checks@v1#checks-004).
+- **`check_payees`** — flags each distinct transaction `description`
+  not present in `declared_payees` exactly once, regardless of how many
+  transactions repeat that description; flags everything if
+  `declared_payees` is empty or unset (checks@v1#checks-007).
+- **`check_ordereddates`** — flags a transaction whose date is less
+  than a running high-water mark, not the literal immediately-preceding
+  transaction's date: the mark advances to a transaction's own date
+  only when that transaction itself was *not* flagged, so a flagged,
+  out-of-order transaction leaves the comparison baseline unchanged for
+  whatever comes after it (checks@v1#checks-007). Same-date
+  transactions never trigger it.
+- **`check_uniqueleafnames`** — flags every account-name "leaf" (the
+  text after the last `:`, or the whole name if there is no `:`) that
+  is shared by two or more distinct full account names anywhere in the
+  journal (checks@v1#checks-007).
+- **`check_assertions`** — validates all four balance-assertion
+  variants (`=`, `==`, `=*`, `==*`, modelled as the `inclusive` and
+  `sole_commodity` flags on `BalanceAssertion`), processing postings in
+  `(date, source_line or 0)` order — **not** journal/parse order — and
+  maintaining a running per-account-per-commodity balance. A mismatch
+  between the expected and actual balance, and (independently) a
+  sole-commodity violation, each append their own separate
+  `CheckError`, so a single posting can produce more than one error
+  (checks@v1#checks-006).
+
+Strict-tier failures (`accounts`, `commodities`) produce a distinctive
+multi-line `CheckError.message`: a file:line header, a reconstructed
+transaction/posting source line, a caret underline positioned under
+the offending account name or amount text, an explanation, and example
+`account`/`commodity` directive suggestions — every other check's
+message is a single-line plain string
+(checks@v1#checks-005).
+
+### Runners
+
+- **`run_basic_checks(journal, *, skip=None) -> list[CheckError]`** —
+  runs every name in `BASIC_CHECK_NAMES` except any present in `skip`.
+- **`run_strict_checks(journal, *, skip=None) -> list[CheckError]`** —
+  runs the basic tier (with `skip` applied there) and then
+  unconditionally appends every `STRICT_CHECK_NAMES` result; `skip` is
+  **not** applied to the strict-tier names themselves.
+- **`run_checks(journal, names=None, *, strict=False, skip=None) -> list[CheckError]`** —
+  validates `names` against the internal check registry up front,
+  raising `ValueError` if any name is unrecognised; always runs the
+  basic tier (minus `skip`); additionally runs the strict tier,
+  unconditionally with respect to `skip`, if `strict=True`; then runs
+  every remaining name in `names` that is not already a member of a
+  prior tier's name set (checks@v1#checks-001,
+  checks@v1#checks-008).
+
+  This "already run" membership test is a **static union of tier name
+  sets**, not a record of what actually executed. Two confirmed
+  consequences follow, and whether either is intentional design or an
+  oversight is not resolved as of this writing:
+
+  1. A basic-tier (or, under `strict=True`, strict-tier) name that is
+     both suppressed via `skip` and explicitly re-requested via
+     `names` executes **zero** times, not once — `skip` suppresses the
+     tier's own run, and the static membership check then also blocks
+     the explicit `names`-loop from giving it a second chance
+     (checks@v1#checks-008).
+  2. `skip` is never consulted by `run_checks`'s own strict-tier
+     branch, so a name present in both `skip` and `STRICT_CHECK_NAMES`
+     still runs whenever `strict=True` — the opposite failure mode
+     from (1) (checks@v1#checks-008).
+
+  An independent, model-blind implementation reconstruction of this
+  module corroborated the coarse-grained dedup/validation behaviour of
+  `run_checks`, and separately found the identical kind of asymmetry
+  in `run_checks`'s sibling function `run_strict_checks` (whose own
+  `skip` parameter only ever reaches the basic-tier call inside it),
+  but did not independently re-test the two sharper claims above for
+  `run_checks` itself — treat them as asserted from direct code
+  reading and reproduction, not doubly corroborated
+  (checks@v1#checks-008).
+
+---
+
+## `ledgerkit.editor_model`
+
+### `EditorDocument`
+
+A single public class intended for in-memory, span-tracked editing of
+one journal file by a TUI/editor frontend. Its own module docstring
+states it is "Intended for use by TUI/editor frontends. Not imported
+by any core module" (editor-surface@v1#editor-surface-005).
+
+Public attributes: `path: str`, `journal: Journal`, `lines: list[str]`,
+`dirty: bool`. Public methods: `__init__(self, path: str)`,
+`add_transaction(self, txn: Transaction) -> None`,
+`update_transaction(self, original: Transaction, updated: Transaction)
+-> None`, `delete_transaction(self, txn: Transaction) -> None`,
+`save(self) -> None`, `reload(self) -> None`,
+`validate_transaction(self, txn: Transaction) -> list[CheckError]`
+(editor-surface@v1#editor-surface-001).
+
+`__init__` loads the journal via `ledgerkit.parser.parse_string()`
+directly — **not** `ledgerkit.loader.load_journal()` — and so does not
+process `include` directives at all. This is a stated v1 limitation
+with an explicit pointer in the class's own docstring to use
+`loader.load_journal()` when full include support is required
+(editor-surface@v1#editor-surface-002).
+
+Each of the three mutation methods (`add_transaction`,
+`update_transaction`, `delete_transaction`) sets `self.dirty = True`
+after mutating `self.lines` and `self.journal.transactions`, and
+recomputes `source_span` for affected/subsequent transactions so that
+line-number bookkeeping stays consistent with the in-memory text
+buffer; the span shift is conditional on a non-zero line-count delta,
+not unconditional (for example, replacing a transaction with one that
+serialises to the same number of lines does not shift later spans)
+(editor-surface@v1#editor-surface-003). `update_transaction` and
+`delete_transaction` both require the given transaction to already
+carry a `source_span` (editor-surface@v1#editor-surface-003).
+
+`validate_transaction(txn)` runs only the single "autobalanced" check
+(`ledgerkit.checks.check_transaction_autobalanced`) against the given
+transaction in isolation, returns a possibly-empty list of
+`CheckError`, and never raises
+(editor-surface@v1#editor-surface-004).
+
+### A note on current adoption
+
+`EditorDocument` is implemented and unit-tested inside ledgerkit
+itself, and its own docstring names "TUI/editor frontends" as its
+intended consumer. As of the pinned external revision examined for
+this clean-room effort, the one real such frontend project
+(`ledgerkit-editor`) that depends on `ledgerkit` **does not import or
+instantiate `EditorDocument` anywhere** in its source or test code —
+an exhaustive search of that project found the class named only in two
+non-executable places, a docstring line and a `# TODO` comment
+describing a not-yet-implemented future action
+(editor-surface@v1#editor-surface-007). That project's six other
+runtime import sites into `ledgerkit` instead call
+`parse_string_lenient`, `load`, `transaction_to_text`,
+`journal_to_text`, and construct `Query` directly — the same
+lower-level functions and types documented elsewhere in this document
+(editor-surface@v1#editor-surface-008,
+editor-surface@v1#editor-surface-009). This is a fact about current
+external adoption, not a reason to omit `EditorDocument`'s own
+documented behaviour above, which remains fully functional and tested
+within ledgerkit's own suite.
+
+---
+
+## Citation key
+
+Citations above reference the following clean-room snapshot topics,
+each at version 1: `journal-parsing`, `commodity-styling`,
+`query-engine`, `tags`, `reports-cli`, `checks`, `loader`,
+`editor-surface`. The `compat-system` and `current-state` topics were
+read in full per this dispatch's instructions but contributed no
+citable facts to this document — they describe the compat-register
+tooling and the project's current git/test/CLI-help state
+respectively, neither of which bears on the Python library API
+surface.

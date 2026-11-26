@@ -1,0 +1,376 @@
+<!--
+producer: phase-4-drafting
+document: docs/usage.md
+dispatch-id: plan29-phase4-usage-20261114
+dispatch-timestamp: 2026-11-14T00:00:00Z
+date: 2026-11-14
+-->
+
+# Ledgerkit CLI usage
+
+Ledgerkit is invoked as `python -m ledgerkit <command> [options] [journal...]`.
+The package's declared version is `1.0.0.dev1`, it requires Python 3.8 or
+later, and it declares zero required third-party runtime dependencies (an
+optional `pandas` extra exists for the `.to_dataframe()` convenience methods
+on report results) (current-state@v1#current-state-001).
+
+## Command synopsis
+
+The CLI exposes exactly six subcommands, selected via a single required
+positional `command` argument: `balance`, `register`, `accounts`, `print`,
+`stats`, `check`. There is no per-subcommand argument parser — all six
+commands share one flat set of global flags (reports-cli@v1#reports-cli-001).
+The top-level `--help` output is:
+
+```
+usage: ledgerkit [-h] [--version] [-v] [-1] [-o FILE] [-f FILE] [-s] [-I]
+                 [-q TERMS] [-c STYLE]
+                 {balance,register,accounts,print,stats,check} [journal ...]
+
+Plain-text accounting (hledger-compatible)
+
+positional arguments:
+  {balance,register,accounts,print,stats,check}
+                        Report to run: balance, register, accounts, print,
+                        stats, check
+  journal               Journal file (shorthand for -f; all commands except
+                        check), or check names (check command only)
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  -v, --verbose         Show more detailed output (stats: commodity names)
+  -1                    Show a single tab-separated line of output (stats
+                        only)
+  -o, --output-file FILE
+                        Write output to FILE instead of stdout
+  -f, --file FILE       Read data from FILE, or stdin if -. May be specified
+                        more than once.
+  -s, --strict          Enable strict mode: also check that accounts and
+                        commodities are declared
+  -I, --ignore-assertions
+                        Disable balance assertion checking
+  -q, --query TERMS     Filter using a query string (see ledgerkit.query),
+                        e.g. 'acct:food date:2024'. Applies to balance,
+                        register, accounts, stats, and print.
+  -c, --commodity-style STYLE
+                        Override display style for a commodity, e.g.
+                        '$1,000.00' or '1.000,00 EUR'. May be specified more
+                        than once.
+```
+
+(current-state@v1#current-state-004)
+
+Running `--help` on any individual subcommand (e.g. `python -m ledgerkit
+balance --help` or `python -m ledgerkit check --help`) prints this exact
+same top-level usage/help block, word for word — there is no
+subcommand-specific help page, because there is no subcommand-level parser
+to attach one to (reports-cli@v1#reports-cli-001,
+current-state@v1#current-state-005).
+
+## Global options
+
+These flags apply uniformly to every command — they are defined once on the
+single top-level parser, not scoped per-subcommand
+(reports-cli@v1#reports-cli-002):
+
+| Flag | Meaning |
+|---|---|
+| `--version` | Show the program's version number and exit |
+| `-v`, `--verbose` | Show more detailed output (for `stats`: also list commodity names) |
+| `-1` | Show a single tab-separated line of output (`stats` only) |
+| `-o`, `--output-file FILE` | Write output to `FILE` instead of stdout |
+| `-f`, `--file FILE` | Read data from `FILE`, or stdin if `-`. May be given more than once. |
+| `-s`, `--strict` | Enable strict mode: additionally check that accounts and commodities are declared |
+| `-I`, `--ignore-assertions` | Disable balance-assertion checking |
+| `-q`, `--query TERMS` | Filter using a query string (e.g. `'acct:food date:2024'`). Applies to `balance`, `register`, `accounts`, `stats`, and `print`. |
+| `-c`, `--commodity-style STYLE` | Override the display style for a commodity, e.g. `'$1,000.00'` or `'1.000,00 EUR'`. May be given more than once. |
+
+(reports-cli@v1#reports-cli-002)
+
+## Specifying the journal file
+
+For every command **except `check`**, the journal file is resolved with
+strict precedence: (1) one or more `-f`/`--file` flags; (2) a single
+positional `journal` argument, as a shorthand for `-f`; (3) the
+`$LEDGER_FILE` environment variable; (4) `~/.hledger.journal`, if it exists.
+Combining `-f` with a positional argument is a hard error (exit code 1,
+"cannot combine -f/--file flags with a positional journal argument"). If
+none of the four sources resolve to a file, the CLI exits 1 with "no journal
+file specified; use -f FILE or set $LEDGER_FILE"
+(reports-cli@v1#reports-cli-003).
+
+**`check` is the one exception to this rule.** For `check`, every positional
+argument is treated as the *name* of a check to run, never as a journal
+file — even though the same positional slot is a file-path shorthand for
+every other command. The journal must still be supplied to `check` via
+`-f`, `$LEDGER_FILE`, or the default `~/.hledger.journal` file
+(reports-cli@v1#reports-cli-003). Concretely, `ledgerkit check
+sample.journal` (with no `-f`) does **not** check `sample.journal` — it is
+read as an (unrecognised) check name, and because no `-f`/`$LEDGER_FILE`
+was given either, the command fails with "no journal file specified; use -f
+FILE or set $LEDGER_FILE" (current-state@v1#current-state-008). The correct
+form is `ledgerkit check -f sample.journal [check-name ...]`.
+
+## `balance`
+
+`balance` prints one line per (account, commodity) pair that has a nonzero
+net amount, with the formatted amount right-aligned first and the account
+name second — the account name is printed only on the last line for that
+account, after all of its commodity lines. A dashed separator line follows,
+sized to the width of the widest amount/total string, and then one line per
+nonzero commodity grand total, or a single bare `"0"` if every commodity
+nets to zero overall. Negative amounts are wrapped in ANSI red escape codes
+(reports-cli@v1#reports-cli-005).
+
+Ordinary zero-net (account, commodity) rows are omitted from the output —
+**except** a depth-0 `"..."` row (produced by a `depth:0` query), which is
+always printed unconditionally regardless of its own value. In an
+unfiltered, fully-balanced journal this collapsed row happens to net to
+zero, but the rule is not "shown because it's zero" — combined with an
+account-selecting `-q` filter, the same depth-0 `"..."` row can net to a
+nonzero amount (the filtered subset need not itself balance) and is still
+shown, under the same unconditional rule (reports-cli@v1#reports-cli-005).
+
+## `register`
+
+`register` prints a chronological list, one line per posting, in a
+fixed-width format: a 10-character date column, a 21-character description
+column, a 22-character (abbreviated) account column, a right-aligned
+12-character amount column, and a right-aligned 13-character running-balance
+column. The date and description columns are left blank on every row after
+the first posting of a given (date, description) pair, so only the first
+posting of each transaction shows its date and description
+(reports-cli@v1#reports-cli-007).
+
+Account names longer than 20 characters are abbreviated for this column by
+progressively shortening their leading (non-last) colon-separated
+components — first to 2 characters, then to 1, if still too wide — so
+`equity:opening-balances` renders as `eq:opening-balances`. A running
+balance of exactly zero is shown as a bare `"0"` with no commodity symbol
+(reports-cli@v1#reports-cli-007).
+
+The underlying running balance is a single cumulative sum of each posting's
+amount across every row, in output order, and is documented and tested as
+never being re-grouped or re-aggregated per account — even when a `depth:`
+query clips several postings' displayed account names down to the same
+string, each posting still contributes its own row and its own increment to
+the one running total (reports-cli@v1#reports-cli-006). This specific
+interaction between `depth:` clipping and the running-balance column has
+not been independently re-verified beyond the project's own documentation
+and test suite, and should be treated with that caveat.
+
+## `accounts`
+
+`accounts` prints the sorted, deduplicated list of account names, one per
+line, with no separator and no zero-total convention. This means a `-q`
+query that matches nothing produces genuinely empty output — unlike
+`balance`, which always prints a separator and a total line even when
+nothing matches (reports-cli@v1#reports-cli-008).
+
+## `print`
+
+`print` prints each matching transaction as a header line of the form
+`DATE flag DESCRIPTION` — where `flag` is `" * "` for a cleared transaction,
+`" ! "` for a pending one, and a single space otherwise — followed by one
+indented line per posting (four spaces of indent, the account name
+left-padded to 40 characters, then the formatted amount, or just the
+account name on its own if the posting is elided), then a blank line
+(reports-cli@v1#reports-cli-009).
+
+A `-q`/`--query` filter on `print` matches at the whole-transaction level:
+if *any* posting in a transaction matches, the *entire* transaction — every
+one of its postings, not only the matching one — is printed. `print` also
+deliberately ignores `depth:` entirely: it neither filters postings by
+depth nor clips account names to a depth limit, matching hledger's own
+`print` behaviour (reports-cli@v1#reports-cli-009).
+
+`print` does not include inline comments in its output. Neither a
+transaction-header-level comment nor a posting-level comment is ever
+printed by `print`, even though Ledgerkit's own journal serialiser
+(`transaction_to_text`/`journal_to_text`, used for round-tripping a
+`Transaction`/`Journal` back to journal-format text) does emit those same
+comments. This is a confirmed, reproducible fact about `print`'s current
+output — whether it reflects a deliberate scope decision for the `print`
+command specifically, or an unnoted gap relative to the serialiser's own
+round-trip guarantee, is not established by the available evidence and is
+not resolved here (reports-cli@v1#reports-cli-010).
+
+Separately, Ledgerkit's `journal_to_text()` serialiser is documented as
+round-tripping a transaction's date, flag, description, postings, amounts,
+and comments, and as explicitly not serialising directives (`account`,
+`commodity`, `payee`, `P`) — callers needing full round-trip fidelity for
+directives are expected to work from the raw source file instead
+(reports-cli@v1#reports-cli-014). This directive-exclusion detail is
+documented and tested at the serialiser level but has a narrower evidence
+base than the rest of this section, and should be read with that in mind.
+
+## `stats`
+
+`stats` reports deterministic journal statistics — transaction count, date
+range, transactions-per-day figures, payee count, account count and depth,
+commodity count and names, and price count. Runtime figures (elapsed time,
+transactions per second) are measured and formatted only by the CLI itself,
+not stored alongside the deterministic data (reports-cli@v1#reports-cli-011).
+
+By default, `stats` prints a multi-line labelled report. A sample run
+against a small journal produces output of this shape:
+
+```
+Main file           : /path/to/sample.journal
+Included files      : 0
+Txns span           : 2024-01-01 to 2024-01-20 (20 days)
+Last txn            : 2024-01-20 (987 days ago)
+Txns                : 5 (0.2 per day)
+Txns last 30 days   : 0 (0.0 per day)
+Txns last 7 days    : 0 (0.0 per day)
+Payees/descriptions : 5
+Accounts            : 6 (depth 3)
+Commodities         : 1
+Market prices       : 0
+Runtime stats       : 0.02 s elapsed, 211 txns/s
+```
+
+(current-state@v1#current-state-008)
+
+With `-1`, `stats` instead prints a single tab-separated line:
+`VERSION`, the source file path (or `"(none)"`), the elapsed-time string,
+and the transactions-per-second string. With `-v`/`--verbose`, the
+"Commodities" line additionally lists the commodity names in parentheses
+(reports-cli@v1#reports-cli-011).
+
+`stats` is the one report command where a `depth:N` query **excludes**
+accounts deeper than the limit from the account count and account-depth
+figures, rather than clipping and rolling them up the way `balance`,
+`register`, and `accounts` all do for the same `depth:` query. This is
+documented as a genuine, deliberate exception mirroring a corresponding
+behaviour in hledger itself, not an oversight specific to this command
+(reports-cli@v1#reports-cli-012).
+
+## `check`
+
+`check` is the only command with a distinct control-flow path: it runs
+before output is redirected to any `-o` file, and on success it prints
+**nothing at all** to stdout, exiting 0. This silent success is the single
+most important thing to know about `check`'s behaviour — there is no "all
+checks passed" message, no count of checks run, nothing written anywhere
+on a clean journal. On any check failure, `check` prints each failing
+check's message to stderr and exits 1
+(reports-cli@v1#reports-cli-015, current-state@v1#current-state-008).
+
+Positional arguments to `check` name the specific checks to run, in
+addition to the checks that always run by default (see below) — see
+"Specifying the journal file" above for why a bare positional given to
+`check` is never treated as a journal path.
+
+### The default/strict/named check structure
+
+Validation checks are organised into three fixed tiers:
+
+- **Basic** — `parseable`, `autobalanced`, `assertions` — run on *every*
+  CLI command by default, not just on `check`. This means any command
+  (`balance`, `stats`, `print`, etc.) will fail outright if the journal
+  has, for example, a failing balance assertion, unless `-I` is passed.
+- **Strict** — `accounts`, `commodities` — run in addition to the basic
+  tier only when `-s`/`--strict` is given, for *any* command.
+- **Other** — `payees`, `ordereddates`, `uniqueleafnames` — run only when
+  explicitly named as a positional argument to the `check` command.
+
+(checks@v1#checks-001)
+
+`-I`/`--ignore-assertions` suppresses only the `assertions` check from the
+basic tier; it is applied both to the default basic-check gate that runs
+before every command and to `check` itself when `check` is the command
+being run. `-s`/`--strict` additionally runs the strict-tier checks for
+every non-`check` command, and is forwarded into `check` as well
+(reports-cli@v1#reports-cli-015).
+
+### What each named check does
+
+- **`autobalanced`** treats a transaction as balanced if it has exactly one
+  posting with no explicit amount ("elided"), regardless of how many
+  commodities appear among its other postings. A transaction with two or
+  more elided postings fails unconditionally. A transaction with no elided
+  postings must have every commodity's postings net to exactly zero; any
+  commodity that doesn't produces its own separate error
+  (checks@v1#checks-002).
+- **`accounts`** (strict tier) scans transactions and postings in order and
+  stops at the very first posting whose account has not been declared via
+  an `account` directive, comparing names case-sensitively. If no accounts
+  have been declared at all, the very first posting's account triggers
+  this single error (checks@v1#checks-003).
+- **`commodities`** (strict tier) likewise stops at the first posting whose
+  commodity symbol has not been declared, skipping any posting with no
+  amount at all. A posting whose amount's commodity symbol is the empty
+  string (a bare, unit-less zero amount) is always exempt from this check,
+  even if the empty string itself has not been declared
+  (checks@v1#checks-004).
+- Failures from the **strict** tier (`accounts`, `commodities`) produce a
+  distinctive, multi-line error message — an `Error: file:line:` header, a
+  reconstructed view of the offending transaction and posting lines, a
+  caret (`^`) underline positioned under the offending account name or
+  amount, an explanation of why strict checking flagged it, and an example
+  `account`/`commodity` directive the user could add to fix it. Every other
+  check's error message, by contrast, is a single plain-text line
+  (checks@v1#checks-005).
+- **`assertions`** (basic tier) validates balance assertions written with
+  `=`, `==`, `=*`, and `==*` syntax — `=`/`==` check only the named account
+  itself, `=*`/`==*` additionally sum in every subaccount; `==`/`==*`
+  additionally require every other commodity present in that account (or
+  subtree) to be exactly zero. Postings are processed in `(date,
+  source-line)` order, not journal/parse order, while maintaining a running
+  per-account, per-commodity balance. An expected/actual mismatch produces
+  one error, and a sole-commodity violation (a nonzero "other" commodity
+  found where none was expected) produces its own, separate error
+  (checks@v1#checks-006).
+- **`payees`** (other tier) flags each distinct transaction description
+  that is not present among the journal's declared payees, reporting each
+  distinct offending description only once regardless of how many
+  transactions repeat it; if no payees have been declared, every
+  description is flagged. **`ordereddates`** (other tier) flags any
+  transaction whose date is earlier than a running "high-water mark" — the
+  most recent date that itself passed the check — which is *not*
+  necessarily the same as the date of the literal immediately preceding
+  transaction: once a transaction is flagged as out of order, the
+  high-water mark is left unchanged, so it continues to be the baseline
+  for the next comparison too. Transactions sharing the same date never
+  trigger this check. **`uniqueleafnames`** (other tier) flags every
+  colon-separated leaf name (the text after an account name's last `:`,
+  or the whole name if there is no `:`) that is shared by two or more
+  distinct full account names anywhere in the journal
+  (checks@v1#checks-007).
+
+### A caveat on combining `-s`/`-I` with explicit check names
+
+`run_checks` (the function backing both the always-on basic-check gate and
+the `check` command's own named-check pass) always runs the basic tier
+minus anything in its `skip` set, then — if strict mode is on — the strict
+tier, and finally any explicitly named checks not already covered by one
+of those tiers. The bookkeeping that decides whether an explicitly named
+check has "already" run is based on static tier membership, not on which
+checks actually executed. One documented, confirmed consequence: naming a
+basic-tier check explicitly while that same check is also being skipped
+(e.g. explicitly requesting `assertions` while also passing
+`-I`/`--ignore-assertions`) causes that check to run **zero** times rather
+than being deduplicated down to exactly once, because it is still counted
+as "already run" by tier membership even though the skip suppressed its
+actual execution. A related, separately confirmed asymmetry is that
+`-s`/`--strict`'s own checks are not filtered by `skip` at all, so a
+strict-tier check named in `skip` still runs whenever strict mode is on.
+Whether either of these two interactions is an intentional design choice
+or an unintended gap is not established by the available evidence and is
+left open here rather than guessed at (checks@v1#checks-008). This entire
+caveat rests on evidence graded only as partially supported, and should be
+treated as the least certain claim in this document.
+
+## Exit codes
+
+A successful `check` run, and a successful `accounts`/`stats` run, exit 0
+(reports-cli@v1#reports-cli-008, current-state@v1#current-state-008). A
+`check` failure, a failing basic check on any command (unless suppressed
+with `-I`), a file-resolution error (no journal found, or `-f` combined
+with a positional journal argument), and a `check` command whose bare
+positional was consumed as a check name instead of a file (see
+"Specifying the journal file" above) all exit 1
+(reports-cli@v1#reports-cli-003, reports-cli@v1#reports-cli-015,
+current-state@v1#current-state-008).
