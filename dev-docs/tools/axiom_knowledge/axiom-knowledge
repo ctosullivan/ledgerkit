@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Launcher for Axiom's axiom_knowledge CLI, pinned per PINNED-REVISION.md.
+#
+# This is Ledgerkit's own development tooling, entirely separate from
+# Ledgerkit's installed package and its runtime dependencies (pyproject.toml
+# is untouched by this). It is not added to [project.scripts].
+#
+# Resolves relative to this script's own location (not the caller's $PWD or
+# PATH), so it works from the repository root, a nested subdirectory, or a
+# repository path containing spaces -- as long as the invoker quotes the
+# resolved path, e.g.:
+#   "$(git rev-parse --show-toplevel)/dev-docs/tools/axiom_knowledge/axiom-knowledge" get <id>
+#
+# Bootstraps its own dedicated virtualenv (Python 3.13 + pinned PyYAML) on
+# first run, reproducibly and without assuming any pre-existing dependency.
+# The venv is gitignored and never committed.
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="$HERE/.venv"
+
+if [ ! -x "$VENV/bin/python3" ]; then
+  PYTHON_BIN="$(command -v python3.13 || command -v python3)"
+  if [ -z "$PYTHON_BIN" ]; then
+    echo "axiom-knowledge: no python3 interpreter found on PATH" >&2
+    exit 1
+  fi
+  "$PYTHON_BIN" -m venv "$VENV"
+  "$VENV/bin/pip" install --quiet "pyyaml>=6.0,<7.0"
+fi
+
+export PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}"
+exec "$VENV/bin/python3" -m axiom_knowledge "$@"

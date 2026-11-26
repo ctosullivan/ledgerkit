@@ -1,91 +1,88 @@
 # CONTEXT.md — Claude Session Working Memory
 
 ## Current Task
-Plan 29 (`dev-docs/planning/core-redefinition/29-codecompass-upgrade-
-and-clean-room-docs.md`) — the CodeCompass reconciliation + clean-room
-documentation reconstruction initiative — **is now complete through all
-six phases**, independently audited (Phase 6: `release-phase-auditor`,
-verdict `PASS WITH NON-BLOCKING OBSERVATIONS`), and closed out with a
-synthesis retro. No further implementation work remains on this
-initiative. Awaiting the user's own explicit confirmation to flip
-`ROADMAP.md`'s "Tooling & Process Initiatives" row to `[DONE]` — not
-inferred, per the standing rule.
+CodeCompass retirement + minimal Axiom adoption, per
+`ctosullivan/axiom-dev`'s handoff
+(`planning/phase-02-ledgerkit-codecompass-migration-handoff.md` in that
+repository, PR #8, commit `3adda2a`). Implemented as a Ledgerkit PR
+(branch `phase-2/codecompass-retirement-axiom-adoption`) in an isolated
+worktree — **not yet merged**, awaiting this repository's own owner's
+explicit review and approval.
 
 ## Where We Are
-Everything through Phase 6 is committed locally (commit history below).
-`git push` has been blocked all session on a local SSH-agent auth issue
-(`ssh-add -l` → "The agent has no identities") — flagged repeatedly,
-still unresolved; all work is safe locally regardless.
+PR opened against `ctosullivan/ledgerkit` `main`. Removed (tracked
+files): `.claude/agents/context-curator.md`, `validation/codecompass/`
+(whole directory), `dev-docs/clean-room/check_codecompass_pin.sh`,
+`dev-docs/clean-room/PINNED-REVISIONS.md`, the `## CodeCompass` section
+of `CLAUDE.md` (replaced with `## Axiom`), and the folder-structure
+diagram's CodeCompass-specific lines. **Not removed by this PR** (and
+cannot be, via any PR diff): `vendor.toml`, `context-graph.db`,
+`.claude/skills/codecompass/SKILL.md`, `.claude/commands/discovery.md`
+— all four were already git-untracked/gitignored local-only files, never
+part of Git history; removing them is a one-line local `rm` the
+repository owner can do directly, with no review needed and no effect
+on any fresh clone (which never had them either). Added: the
+`axiom-work` skill, the pinned `axiom_knowledge` library + launcher +
+dedicated venv at `dev-docs/tools/axiom_knowledge/`, `knowledge/README.md`,
+`knowledge/wiki/README.md`, one scope manifest for
+`LK-COMPAT-PARSER-TAG-COMMODITY-001`, and `.gitignore`/`CLAUDE.md`
+reconciliation. One new `knowledge/DECISIONS.md` entry records the
+retirement decision and what moved.
 
-Three non-blocking follow-ups are recorded in `ROADMAP.md`'s own new
-row for whoever picks them up next (not blockers, not this session's to
-act on further unless asked):
-1. CodeCompass's live checkout has drifted past this initiative's Phase
-   1 pin (`96a1e4d5...` → `dbcfe50a...`) — re-pin before any further
-   `codecompass`-dependent command is run under this initiative's name.
-   Confirmed harmless to everything already done (zero such commands
-   ran after Phase 1).
-2. Retry `git push` once the SSH issue is resolved.
-3. (Already done this response) the deferred learning-triage pass —
-   listed here only because the ROADMAP row's own text still names it;
-   no further action needed.
-
-Two new `ROADMAP.md` backlog rows now track what this initiative found
-but correctly didn't fix: a "Plan 29 bug-fix backlog" (6 real
-`ledgerkit/` production bugs + 1 code-cleanliness defect, all
-documented in `knowledge/EDGE_CASES.md` EC-018–EC-023) and
-"Compat-register corrections (Plan 29 follow-up)" (2 entries needing a
-targeted `compat-differential-tester` re-check) — both `[PLANNED]`,
-neither this session's to implement without separate direction.
+**Note on local `main`**: this branch is based on Ledgerkit's local
+`main`, which is 6 commits ahead of `origin/main` (unrelated, pre-existing
+Plan 29 "CodeCompass upgrade + clean-room documentation" work) — those
+commits are untouched by this migration and will show in the PR diff
+as a pre-existing condition, not something this PR introduces.
 
 ## Decisions In Flight
-None — this initiative is closed. The only open item is the user's own
-confirmation decision (whether/when to mark the ROADMAP row `[DONE]`),
-which is explicitly not something to infer or push on.
+- Historical CodeCompass planning/retro docs
+  (`dev-docs/planning/core-redefinition/04-,18-,22-,29-codecompass-*.md`,
+  `dev-docs/retros/CODECOMPASS-*`, `STAGE-C-PHASE-2*`,
+  `STAGE-C-PHASE-5A*`) are **retained in the active tree**, not removed
+  — the handoff's §A.3 treats their removal as recommended, not
+  mandatory, and leaves the choice to this repository's owner (§E item
+  3). Retaining them avoided a wider cascade of dangling-citation fixes
+  across several `.claude/agents/*.md` files for a removal that was
+  never part of the pre-authorised scope (§A.1/§B only).
+- `ROADMAP.md`'s "CodeCompass upgrade + clean-room documentation
+  reconstruction" row is **not** marked `[DONE]` — only its now-moot
+  CodeCompass-re-pin follow-up clause was removed. The `[DONE]`
+  confirmation itself is explicitly left to the owner (§E item 1).
+- The general-purpose clean-room methodology (`dev-docs/clean-room/`'s
+  scripts/templates not already removed above) is untouched — §E item
+  2 leaves its long-term disposition to the owner.
 
 ## Files Currently Relevant
-- `dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md` — the
-  independent Phase 6 audit, full evidence trail.
-- `dev-docs/retros/CODECOMPASS-UPGRADE-CLEANROOM-DOCS-CLOSEOUT.md` — the
-  initiative-wide synthesis retro.
-- `dev-docs/clean-room/compliance-log.md` — the complete, continuous
-  audit trail across all 6 phases; now closed out, not actively
-  appended to unless this initiative is somehow reopened.
-- `ROADMAP.md`'s new "Tooling & Process Initiatives" section — where any
-  future session should look first to see this initiative's status and
-  its 3 recorded follow-ups.
-- `knowledge/EDGE_CASES.md` (EC-018–EC-023, EC-006 corrected),
-  `knowledge/DECISIONS.md` (new 2026-11-14 addendum),
-  `knowledge/DOMAIN_RULES.md` (include-directive entry corrected) — all
-  now the durable record of this initiative's non-documentation
-  findings.
+- `knowledge/DECISIONS.md` — new 2026-11-26 entry, the authoritative
+  record of what moved and why.
+- `CLAUDE.md` — `## Axiom` section and folder-structure diagram, both
+  updated.
+- `dev-docs/tools/axiom_knowledge/` — the pinned library, launcher,
+  `PINNED-REVISION.md`, `NOTICE`/`LICENSE`.
+- `.claude/skills/axiom-work/SKILL.md` — the installed skill.
+- `knowledge/scope-manifests/LK-COMPAT-PARSER-TAG-COMMODITY-001.yaml`,
+  `knowledge/wiki/README.md`.
 
 ## Blockers / Open Questions
-**For the user, not blocking further work**: whether to confirm this
-initiative complete (flips the ROADMAP row to `[DONE]`), and separately,
-whether/when to fix `ssh-add` so `git push` can succeed.
+Three items explicitly left for the human owner (handoff §E), not
+resolved by this migration:
+1. Confirm (or not) the `ROADMAP.md` CodeCompass-upgrade row `[DONE]`.
+2. Decide whether to retain or archive the clean-room methodology
+   apparatus independent of this migration.
+3. Decide whether to remove the historical CodeCompass planning/retro
+   docs from the active tree (this PR retained them).
 
 ## What NOT To Revisit
-- Don't re-run any Phase 1-6 step of this initiative — all done, all
-  independently audited, all compliant.
-- Don't infer this initiative's `[DONE]` status from the audit passing
-  — that flip requires the user's own explicit statement, per the
-  standing rule this project has applied consistently throughout.
-- Don't attempt to fix any of the 8 findings now tracked in
-  `ROADMAP.md`'s 2 new backlog rows as part of continuing "this task" —
-  they're correctly scoped as separate future work, not loose ends of
-  Plan 29 itself.
-- Don't begin Stage D unprompted — it remains `[PLANNED]`, unaffected
-  by this initiative's closeout.
+- Do not re-litigate the architectural decision to retire CodeCompass —
+  made by the owner, not reopened by this migration.
+- Do not add `axiom-knowledge` to `pyproject.toml`'s `[project.scripts]`
+  — explicitly out of scope.
+- Do not modify `dev-docs/compat-register/` or edit any existing
+  `knowledge/*.md` entry — only additions are authorised.
 
-## Recent Git State (before this response's commit)
-63d310f feat(codecompass-upgrade-phase-5): legacy reconciliation, all 9 documents
-6de34a3 feat(codecompass-upgrade-phase-4): clean-room documentation drafting, all 6 docs + current-state artifact
-c2cb98f feat(codecompass-upgrade-phase-3): comparison mode + phase 3 closeout for all 10 topics
-f55294f feat(codecompass-upgrade-phase-3): model-blind implementation reconstruction for all 10 topics
-7224bb5 feat(codecompass-upgrade-phase-3): clean-room assertion research, review, and freeze for all 10 topics
-
-**This response commits Phase 6's closeout** — the final commit of
-Plan 29's six-phase initiative. Push will be attempted per the Commit &
-Push Cadence rule but is expected to fail on the same SSH issue noted
-above; this does not block the initiative's own completion status.
+## Recent Git State
+See `git log --oneline -10` on branch
+`phase-2/codecompass-retirement-axiom-adoption` for this migration's
+own commits, layered on local `main`'s existing 6-commit lead over
+`origin/main` (unrelated Plan 29 work, untouched here).

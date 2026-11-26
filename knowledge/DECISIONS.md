@@ -4,6 +4,83 @@ Non-obvious judgment calls made during development. Each entry explains what was
 
 ---
 
+## 2026-11-26 — CodeCompass retired entirely; replaced by a minimal Axiom knowledge adoption
+
+**Decision:** CodeCompass (the code-comprehension/context tool adopted
+Stage C Phase 5A, re-pinned Plan 29 Phase 1) is retired completely from
+Ledgerkit's active development environment, in one coherent migration
+with no parallel operation, no compatibility shim, and no permanent
+fallback. It is replaced by a minimal adoption of Axiom
+(`ctosullivan/axiom-dev`'s `axiom_knowledge` library), a small
+read-only knowledge-retrieval CLI that classifies existing
+`dev-docs/compat-register/` claims by evidence status without ever
+writing to the register itself.
+
+**Why:** CodeCompass had not demonstrated enough value in Ledgerkit to
+justify its ongoing maintenance (vendored dependency digests, a
+generated context graph, pin-tracking, a dedicated `context-curator`
+agent role and its own findings store) — an owner-level architectural
+call, not re-opened by this migration. The replacement is deliberately
+smaller in surface area: no generated state, no pin-enforcement
+script, no dedicated findings directory. It reads
+`dev-docs/compat-register/` — Ledgerkit's own pre-existing,
+authoritative compatibility evidence — directly, rather than
+maintaining a second, duplicate knowledge store.
+
+**What moved:**
+- Removed: `.claude/agents/context-curator.md`, `validation/codecompass/`
+  (whole directory), `dev-docs/clean-room/check_codecompass_pin.sh`,
+  `dev-docs/clean-room/PINNED-REVISIONS.md`, the `## CodeCompass`
+  section and its generated marker block in `CLAUDE.md`, and the
+  folder-structure diagram's CodeCompass-specific entries.
+  `vendor.toml`, `context-graph.db`, `.claude/skills/codecompass/`, and
+  `.claude/commands/discovery.md` were already git-untracked
+  (gitignored) local-only generated files, never part of Git history —
+  removing them is a local filesystem action with zero history impact,
+  not a change this PR's diff can show.
+- Preserved, unchanged: `dev-docs/compat-register/` (53 real entries),
+  this knowledge base, the clean-room methodology
+  (`dev-docs/clean-room/`'s general-purpose scripts/templates — not
+  CodeCompass-dependent), `compat-differential-tester`'s independent
+  differential-testing practice against the pinned real `hledger`
+  binary, and Ledgerkit's own 935-test `unittest` suite.
+- Added: `.claude/skills/axiom-work/SKILL.md` (adapted to invoke the
+  launcher via an explicit, quoted, repository-root-relative path — no
+  `PATH` export required), the pinned `axiom_knowledge` library and its
+  launcher at `dev-docs/tools/axiom_knowledge/` (with its own dedicated,
+  gitignored Python 3.13 + PyYAML virtualenv, bootstrapped on first
+  run — entirely separate from Ledgerkit's own zero-mandatory-dependency
+  runtime), `knowledge/README.md` (register discovery marker),
+  `knowledge/wiki/README.md` (four real claims explained, linking to
+  their register entries, not duplicating them), and one genuinely
+  independently reviewed scope manifest at
+  `knowledge/scope-manifests/LK-COMPAT-PARSER-TAG-COMMODITY-001.yaml`.
+
+**What was rejected:** keeping CodeCompass running alongside Axiom
+during a transition period (explicitly ruled out by the authorising
+decision — this must reduce operational complexity, not add a second
+tool); adding `axiom-knowledge` to `pyproject.toml`'s
+`[project.scripts]` (it is development tooling, not part of the
+installed `ledgerkit` package, and `pyproject.toml` is out of scope for
+this migration entirely); authoring a fifth scope manifest or a fifth
+wiki claim beyond the four/one already specified (would duplicate
+authoritative register content for no demonstrated need).
+
+**Left open, not decided here** (for Ledgerkit's own repository owner):
+whether to also remove the historical CodeCompass-adoption planning and
+retro records from the active tree (`dev-docs/planning/core-redefinition/
+04-,18-,22-,29-codecompass-*.md`, `dev-docs/retros/CODECOMPASS-*`,
+`STAGE-C-PHASE-2*`, `STAGE-C-PHASE-5A*`) — this migration retains them
+in place as permanent decision history, consistent with their own
+Git-recoverable "historical only" classification; and whether to
+confirm the `ROADMAP.md` "CodeCompass upgrade + clean-room documentation
+reconstruction" row `[DONE]` — this migration only removed that row's
+now-moot CodeCompass-re-pin follow-up clause, leaving the `[DONE]`
+confirmation itself for the owner's own explicit decision, per the
+standing "never infer completion" rule.
+
+---
+
 ## 2026-11-14 — Addendum: the 2026-05-03 "Balance assignments deferred" entry below misdescribes current behaviour; corrected here, not edited in place
 
 **Finding:** the 2026-05-03 entry ("Balance assignments deferred (not
