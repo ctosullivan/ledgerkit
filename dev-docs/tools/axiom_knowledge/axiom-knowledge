@@ -31,4 +31,12 @@ if [ ! -x "$VENV/bin/python3" ]; then
 fi
 
 export PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}"
-exec "$VENV/bin/python3" -m axiom_knowledge "$@"
+# -P ("safe path"): do not prepend the current working directory (or an
+# empty string) to sys.path. Without it, invoking from a directory that
+# happens to contain a same-named module as a stdlib module (e.g.
+# Ledgerkit's own ledgerkit/query/ast.py shadowing the stdlib `ast`
+# module when run from inside ledgerkit/query/) breaks the interpreter's
+# own startup imports -- a real failure found testing this launcher from
+# that exact nested subdirectory, not a hypothetical. Requires Python
+# 3.11+; this launcher targets 3.13 specifically (PINNED-REVISION.md).
+exec "$VENV/bin/python3" -P -m axiom_knowledge "$@"
