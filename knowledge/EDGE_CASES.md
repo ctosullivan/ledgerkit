@@ -415,3 +415,38 @@ transaction identity field, so the CLI cannot distinguish the boundary without a
 **Why it matters:** If the lot-annotation stripper were to run on the full posting line rather than only on the amount substring, it would incorrectly consume `(expenses:food)` as a lot label, leaving no account name.
 
 **Status:** Non-issue by construction ✓ — `_parse_posting` extracts the account and amount substrings independently before calling `_parse_amount`. Added here to document the invariant explicitly so future refactors do not accidentally feed the full posting line into the lot stripper.
+
+---
+
+## EC-024 — `transaction_to_text` silently drops `date2`, `cost_raw`, and `balance_assertion` on round-trip
+
+**Trigger:** Calling `transaction_to_text()` on a `Transaction` whose
+header carries a secondary date (`2024-01-01=2024-01-05 ...`) or whose
+postings carry a cost annotation (`@ 1.1 EUR`) or a balance assertion
+(`= $10`), then re-parsing the output.
+**Expected behaviour (what `docs/python-api.md` claimed before this
+finding):** the round-trip is "guaranteed... same date, flag,
+description, postings, amounts, and comments" with no further caveat.
+**Actual behaviour:** none of `Transaction.date2`, `Posting.cost_raw`,
+or `Posting.balance_assertion` are written by `transaction_to_text` at
+all — confirmed empirically: `assets:cash  10 USD @ 1.1 EUR = 10 USD`
+serialises to `assets:cash  10 USD` and re-parses with
+`cost_raw=None`, `balance_assertion=None`; a transaction with
+`date2` loses it entirely on reparse. Tags survive only because they
+live inside the preserved `inline_comment` text and are re-derived on
+reparse (confirmed separately) — not because the writer serialises
+them as a distinct field.
+**Found:** Independent Codex review of the Plan 29 clean-room
+documentation PR (`docs/python-api.md:537`), 2026-11-26 — a genuine
+defect in the clean-room draft's own accuracy, not caught by the
+Phase 3-6 pipeline itself.
+**Fix applied this response:** `docs/python-api.md` and
+`ledgerkit/writer.py::transaction_to_text`'s own docstring both now
+disclose the three excluded fields by name, rather than implying full
+fidelity. The underlying silent data loss in `transaction_to_text`
+itself is not fixed here (documentation-accuracy fix only) — tracked
+in `ROADMAP.md`'s "Plan 29 bug-fix backlog" row as a candidate for an
+explicit `ValueError`/warning or actual serialisation support, whichever
+the owner prefers.
+**Status:** Documented ✓ (docs corrected). Underlying writer limitation:
+not fixed, tracked.

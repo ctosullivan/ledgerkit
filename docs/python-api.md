@@ -532,9 +532,19 @@ text = journal_to_text(journal)        # every transaction, blank-line separated
 ```
 
 `transaction_to_text` is guaranteed to round-trip through `parse_string()`
-to an equivalent `Transaction` — same date, flag, description, postings,
+to an equivalent `Transaction` for date, flag, description, postings,
 amounts, and comments (`source_span`/`raw_text` are excluded from that
-guarantee). Amount columns are right-aligned to a shared column computed
+guarantee) — **but not** for `Transaction.date2` (secondary date),
+`Posting.cost_raw` (cost annotation), or `Posting.balance_assertion`:
+none of these three are serialised at all, so parsing the output back
+silently drops them (confirmed empirically — a posting written as
+`assets:cash  $10 = $10` loses its `= $10` assertion entirely on
+round-trip, not merely its formatting). Tags survive only because
+they live inside the preserved inline-comment text and are re-derived
+on reparse, not because they are serialised as a distinct field. A
+caller that needs secondary dates, costs, or balance assertions to
+survive an edit-and-rewrite cycle must not rely on this function for
+that purpose. Amount columns are right-aligned to a shared column computed
 from the widest account name among postings with an explicit amount, plus
 a minimum two-space gap; an elided posting is printed as a bare indented
 account name (reports-cli@v1#reports-cli-014).

@@ -9,6 +9,25 @@ See [dev-docs/versioning.md](dev-docs/versioning.md) for the versioning policy.
 
 ## [Unreleased]
 
+### [Plan 29 PR — fix overclaiming round-trip guarantee found by independent Codex review] — 2026-11-26
+
+**Human:** directed an independent orchestrator review of the clean-room
+documentation PR, including requesting independent Codex review.
+
+**Claude:** Codex flagged `docs/python-api.md:537`: the documented
+`transaction_to_text` round-trip guarantee was false for transactions
+with a secondary date, a cost annotation, or a balance assertion.
+Reproduced empirically: none of `Transaction.date2`,
+`Posting.cost_raw`, or `Posting.balance_assertion` are serialised at
+all, so they are silently absent after round-tripping (tags survive
+only because they live in the preserved inline-comment text, confirmed
+separately). Corrected both `docs/python-api.md` and
+`ledgerkit/writer.py::transaction_to_text`'s own docstring to name the
+three exclusions explicitly instead of implying full fidelity. Added
+`knowledge/EDGE_CASES.md` EC-024 and extended `ROADMAP.md`'s "Plan 29
+bug-fix backlog" row (now 8 items). Full suite re-run after the change:
+935 passed.
+
 ### [CodeCompass upgrade + clean-room docs — Phase 6, independent final validation + initiative closeout] — 2026-11-14
 
 Full detail: [dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md](dev-docs/retros/_audit-codecompass-upgrade-cleanroom-docs.md), [dev-docs/retros/CODECOMPASS-UPGRADE-CLEANROOM-DOCS-CLOSEOUT.md](dev-docs/retros/CODECOMPASS-UPGRADE-CLEANROOM-DOCS-CLOSEOUT.md)

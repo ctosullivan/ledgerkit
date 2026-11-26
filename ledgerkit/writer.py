@@ -31,8 +31,11 @@ def transaction_to_text(txn: Transaction) -> str:
 
     The returned string ends with a single newline. When parsed by
     parse_string(), the result round-trips to an equivalent Transaction
-    (same date, flag, description, postings, amounts, comments;
-    source_span and raw_text are not checked).
+    for date, flag, description, postings, amounts, and comments
+    (source_span and raw_text are not checked) -- but NOT for
+    Transaction.date2, Posting.cost_raw, or Posting.balance_assertion:
+    none of these three fields are written out, so they are silently
+    absent after a round-trip, not merely reformatted.
     """
     # --- Header line ---
     parts: list[str] = [str(txn.date)]
